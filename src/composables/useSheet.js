@@ -36,9 +36,11 @@ export function useSheet() {
   // per-house block (cols D..V)
   const rumah = computed(() =>
     rows.value.filter((r) => r[3]).map((r) => ({
-      no: r[3], nama: r[4], telp: r[5], luas: r[6], tipe: r[7],
+      // alamat = cluster + blok + '-' + rumah, e.g. N7-09
+      alamat: r[3], nama: r[4], telp: r[5], luas: r[6], tipe: r[7],
       tarif: r[8], tunggakan: r[9],
       status: r.slice(10, 22),   // 12 months of "Lunas|Sebagian|Pending|Belum|-"
+      cluster: r[22], blok: r[23], rumah: r[24],
     })));
 
   /** Local echo so the satpam sees the row immediately after submitting. */

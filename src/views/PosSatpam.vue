@@ -18,7 +18,8 @@ const toast = ref('');
 
 // arrears first — the whole point of the post screen is speed
 const daftar = computed(() => rumah.value
-  .filter((h) => !q.value || h.nama.toLowerCase().includes(q.value.toLowerCase()) || h.no.includes(q.value))
+  .filter((h) => !q.value || h.nama.toLowerCase().includes(q.value.toLowerCase())
+                 || h.alamat.toLowerCase().includes(q.value.toLowerCase()))
   .slice().sort((a, b) => b.tunggakan - a.tunggakan));
 
 const belum = (h) => h.status
@@ -42,7 +43,7 @@ async function catat() {
   if (!sel.value || !bulan.value.length) return;
   const per = Math.round(total.value / bulan.value.length / 1000) * 1000;
   for (const i of bulan.value) {
-    const rec = { noRumah: sel.value.no, bulan: i + 1, nominal: per,
+    const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
                   metode: 'tunai', petugas: PETUGAS };
     echo(rec);
     await submitPembayaran(rec);       // opaque; the echo is what the satpam sees
@@ -55,7 +56,7 @@ async function catat() {
 
 // fallback when the silent POST is unreliable: open the prefilled form
 const formUrl = computed(() => sel.value && bulan.value.length
-  ? urlPembayaran({ noRumah: sel.value.no, bulan: bulan.value[0] + 1,
+  ? urlPembayaran({ noRumah: sel.value.alamat, bulan: bulan.value[0] + 1,
                     nominal: Math.round(total.value / bulan.value.length),
                     metode: 'tunai', petugas: PETUGAS })
   : '#');
@@ -70,15 +71,16 @@ const formUrl = computed(() => sel.value && bulan.value.length
       </div>
     </div>
 
-    <input class="input" v-model="q" placeholder="Cari nomor rumah atau nama">
+    <input class="input" v-model="q" placeholder="Cari alamat (mis. N7-09) atau nama">
 
     <div class="col">
-      <Card v-for="h in daftar" :key="h.no" style="flex-direction:row;align-items:center;
+      <Card v-for="h in daftar" :key="h.alamat" style="flex-direction:row;align-items:center;
             gap:var(--space-3);cursor:pointer" @click="pilih(h)">
         <div class="num" style="width:46px;height:46px;flex:none;border-radius:50%;
              display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);
-             background:var(--color-neutral-200)">{{ h.no.replace('N-','') }}</div>
+             background:var(--color-neutral-200)">{{ h.rumah }}</div>
         <div class="grow">
+          <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
           <div class="text-muted" style="font-size:11.5px">
             {{ h.tunggakan ? 'Belum: ' + belum(h).map(i => BULAN[i].slice(0,3)).join(', ') : 'Lunas' }}
@@ -100,7 +102,7 @@ const formUrl = computed(() => sel.value && bulan.value.length
       <div class="dialog">
         <div class="spread">
           <div>
-            <div class="dialog-title">{{ sel.no }} · {{ sel.nama }}</div>
+            <div class="dialog-title">{{ sel.alamat }} · {{ sel.nama }}</div>
             <div class="text-muted" style="font-size:12px">
               {{ sel.luas }} m² · tarif {{ rupiah(sel.tarif) }}/bulan
             </div>

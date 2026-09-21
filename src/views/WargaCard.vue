@@ -1,7 +1,7 @@
 <script setup vapor>
 import { ref, computed } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, alamat, parseAlamat } from '../lib/tariff';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -11,35 +11,75 @@ const { rumah } = useSheet();
 
 // No login: blok is fixed, resident types the house number. Persisted so the card
 // opens straight away next time (and a per-house QR link can set it via ?rumah=).
-const saved = new URLSearchParams(location.search).get('rumah')
-           || localStorage.getItem('iuran.rumah') || '';
-const noRumah = ref(saved);
-const input = ref('');
+// Alamat has three parts: cluster code + block number + house number -> N7-09.
+// ?alamat=N7-09 lets each house have its own QR link; otherwise the resident types
+// blok + rumah once and it is remembered.
+const CLUSTER = 'N';
+const saved = new URLSearchParams(location.search).get('alamat')
+           || localStorage.getItem('iuran.alamat') || '';
+const key = ref(saved);
+const inBlok = ref('');
+const inRumah = ref('');
+const notFound = ref(false);
 
-const me = computed(() => rumah.value.find((h) => h.no === noRumah.value));
+const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
 function open() {
-  const n = input.value.replace(/\D/g, '');
-  if (!n) return;
-  const id = 'N-' + n.padStart(2, '0');
-  if (!rumah.value.some((h) => h.no === id)) { notFound.value = true; return; }
-  noRumah.value = id;
-  localStorage.setItem('iuran.rumah', id);
+  const parsed = parseAlamat(`${CLUSTER}${inBlok.value}-${inRumah.value}`);
+  if (!parsed) { notFound.value = true; return; }
+  const id = alamat(parsed);
+  if (!rumah.value.some((h) => h.alamat === id)) { notFound.value = true; return; }
+  notFound.value = false;
+  key.value = id;
+  localStorage.setItem('iuran.alamat', id);
 }
-const notFound = ref(false);
-function ganti() { noRumah.value = ''; localStorage.removeItem('iuran.rumah'); }
+function ganti() { key.value = ''; localStorage.removeItem('iuran.alamat'); }
 
 const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
 
-// first unpaid month -> prefilled transfer form
-const bayarUrl = computed(() => {
-  if (!me.value) return '#';
-  const i = me.value.status.findIndex((s) => s === 'Belum' || s === 'Sebagian');
-  return urlPembayaran({
-    noRumah: me.value.no, bulan: (i < 0 ? 0 : i) + 1,
-    nominal: me.value.tarif, metode: 'transfer', petugas: 'Warga',
-  });
-});
+// ── Konfirmasi transfer ───────────────────────────────────────────────────────
+// Bukti transfer is a file, and a Sheet cannot hold one. So the sheet below
+// collects months + a local preview, then hands off to the prefilled Google Form
+// whose LAST question is a file-upload (Drive) — that question requires a Google
+// sign-in, which is exactly the step that makes the proof auditable.
+const trOpen = ref(false);
+const trMonths = ref([]);
+const trFile = ref(null);
+
+const owed = computed(() => !me.value ? [] : me.value.status
+  .map((s, i) => ({ s, i }))
+  .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
+  .map((x) => x.i));
+
+function openTransfer() {
+  if (!owed.value.length) return;
+  trMonths.value = [owed.value[0]];
+  trFile.value = null;
+  trOpen.value = true;
+}
+function toggleTr(i) {
+  trMonths.value = trMonths.value.includes(i)
+    ? trMonths.value.filter((x) => x !== i)
+    : [...trMonths.value, i].sort((a, b) => a - b);
+}
+function pickFile(e) { trFile.value = e.target.files?.[0] || null; }
+
+const trTotal = computed(() => trMonths.value.length * (me.value?.tarif || 0));
+const trReady = computed(() => !!trFile.value && trMonths.value.length > 0);
+
+// one Form per month — separate rows keep partial history auditable
+const trUrls = computed(() => !me.value ? [] : trMonths.value.map((i) =>
+  urlPembayaran({
+    noRumah: me.value.alamat, bulan: i + 1, nominal: me.value.tarif,
+    metode: 'transfer', petugas: 'Warga',
+    catatan: trFile.value ? `bukti: ${trFile.value.name}` : '',
+  })));
+
+function kirimKonfirmasi() {
+  if (!trReady.value) return;
+  trUrls.value.forEach((u, k) => setTimeout(() => window.open(u, '_blank'), k * 250));
+  trOpen.value = false;
+}
 </script>
 
 <template>
@@ -51,20 +91,26 @@ const bayarUrl = computed(() => {
     <h3 style="margin:0">Buka kartu iuran</h3>
     <p class="text-muted" style="font-size:13px;margin:0">
       Tidak perlu akun — masukkan blok dan nomor rumah Anda.<br>
-      <span style="opacity:.75">No login — just block and house number.</span>
+      <span style="opacity:.75">No login — cluster code, block number, house number.</span>
     </p>
     <div class="row" style="align-items:flex-end">
-      <div class="field" style="width:96px">
+      <div class="field" style="width:64px">
+        <label>Cluster</label>
+        <input class="input" :value="CLUSTER" readonly style="text-align:center">
+      </div>
+      <div class="field" style="width:64px">
         <label>Blok</label>
-        <input class="input" value="N" readonly style="text-align:center">
+        <input class="input" v-model="inBlok" inputmode="numeric" placeholder="7"
+               style="text-align:center" @keyup.enter="open">
       </div>
       <div class="field grow">
-        <label>Nomor rumah</label>
-        <input class="input" v-model="input" inputmode="numeric" placeholder="mis. 03" @keyup.enter="open">
+        <label>Rumah</label>
+        <input class="input" v-model="inRumah" inputmode="numeric" placeholder="09" @keyup.enter="open">
       </div>
     </div>
     <Button block @click="open">Lihat kartu saya</Button>
-    <p v-if="notFound" class="text-muted" style="font-size:11.5px">Nomor rumah tidak ditemukan di Blok N.</p>
+    <p class="text-muted num" style="font-size:11px;margin:0">Contoh: N7-09 — Blok N7, No. 09.</p>
+    <p v-if="notFound" class="text-muted" style="font-size:11.5px">Alamat tidak ditemukan.</p>
   </section>
 
   <!-- kartu -->
@@ -84,8 +130,11 @@ const bayarUrl = computed(() => {
         </div>
         <div class="row" style="position:relative;gap:var(--space-6);margin-top:var(--space-2)">
           <div>
-            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Blok</div>
-            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">{{ me.no }} / RT 03</div>
+            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Alamat</div>
+            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">{{ me.alamat }}</div>
+            <div style="font-size:11px;color:var(--color-bg)">
+              Blok {{ me.cluster }}{{ me.blok }} - No. {{ me.rumah }}
+            </div>
           </div>
           <div>
             <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Luas / Tarif</div>
@@ -122,10 +171,85 @@ const bayarUrl = computed(() => {
       <p class="text-muted" style="font-size:11.5px;margin:0">
         Tarif {{ rupiah(me.tarif) }}/bulan (ISLK per luas tanah + Iuran RT Rp 50.000).
       </p>
-      <Button as="a" :href="bayarUrl" target="_blank" block>Bayar transfer</Button>
+      <Button block @click="openTransfer">Bayar transfer</Button>
       <div class="text-muted num" style="text-align:center;font-size:10.5px">
-        BCA 7290-xxx a.n. Kas RT 03/14 · jatuh tempo tgl 20
+        BCA 7290-1188-03 a.n. Kas RT 03/14 · jatuh tempo tgl 20
       </div>
     </Card>
+
+    <!-- side sheet: konfirmasi transfer + bukti -->
+    <div v-if="trOpen" class="dialog-backdrop" @click.self="trOpen = false">
+      <div class="dialog" style="align-self:flex-end;width:100%;max-width:480px;
+           border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+        <div class="spread">
+          <div>
+            <div class="dialog-title">Konfirmasi Transfer</div>
+            <div class="text-muted num" style="font-size:12px">{{ me.alamat }} · {{ me.nama }}</div>
+          </div>
+          <button class="btn btn-ghost" @click="trOpen = false">×</button>
+        </div>
+
+        <div class="col" style="background:var(--color-bg);border-radius:var(--radius-md);
+             padding:var(--space-3) var(--space-4);gap:6px">
+          <div class="spread" style="font-size:12.5px">
+            <span class="text-muted">Rekening tujuan</span>
+            <span class="num" style="font-weight:700">BCA 7290-1188-03</span>
+          </div>
+          <div class="spread" style="font-size:12.5px">
+            <span class="text-muted">Atas nama</span><span style="font-weight:600">Kas RT 03/14</span>
+          </div>
+        </div>
+
+        <div class="kick">Bulan yang dibayar</div>
+        <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+          <button v-for="i in owed" :key="i" class="btn"
+                  :class="trMonths.includes(i) ? 'btn-primary' : 'btn-secondary'"
+                  @click="toggleTr(i)">
+            {{ BULAN[i] }}
+          </button>
+        </div>
+
+        <div class="kick">Bukti transfer</div>
+        <label style="display:block;cursor:pointer;border-radius:var(--radius-lg);
+               padding:var(--space-4);text-align:center;border:1px dashed"
+               :style="{ borderColor: trFile ? 'var(--color-accent-2-500)' : 'var(--color-neutral-400)',
+                         background: trFile ? 'var(--color-accent-2-100)' : 'var(--color-bg)' }">
+          <input type="file" accept="image/*,application/pdf" @change="pickFile" style="display:none">
+          <template v-if="!trFile">
+            <div style="width:40px;height:40px;margin:0 auto var(--space-2);border-radius:50%;
+                        background:var(--color-neutral-200);color:var(--color-neutral-700);
+                        display:flex;align-items:center;justify-content:center;font-size:17px">↑</div>
+            <div style="font-size:12.5px;font-weight:600">Ketuk untuk unggah bukti</div>
+            <div class="text-muted" style="font-size:11px">Foto struk / screenshot m-banking · JPG, PNG, PDF</div>
+          </template>
+          <div v-else class="row" style="text-align:left">
+            <div style="width:40px;height:40px;flex:none;border-radius:50%;
+                        background:var(--color-accent-2-500);color:var(--color-bg);
+                        display:flex;align-items:center;justify-content:center;font-size:16px">✓</div>
+            <div class="grow">
+              <div class="truncate" style="font-size:12.5px;font-weight:700">{{ trFile.name }}</div>
+              <div class="text-muted" style="font-size:11px">Ketuk untuk mengganti</div>
+            </div>
+          </div>
+        </label>
+
+        <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
+             padding:var(--space-3) var(--space-4)">
+          <span style="font-size:13.5px;font-weight:700">Total dikonfirmasi</span>
+          <span class="num" style="font-family:var(--font-heading);font-size:21px;color:var(--color-accent-700)">
+            {{ rupiah(trTotal) }}
+          </span>
+        </div>
+
+        <Button block :variant="trReady ? 'primary' : 'secondary'" @click="kirimKonfirmasi">
+          Kirim konfirmasi
+        </Button>
+        <div class="text-muted" style="text-align:center;font-size:10.5px">
+          {{ trReady
+             ? 'Form terbuka untuk melampirkan bukti — status menjadi Pending verifikasi'
+             : 'Lampirkan bukti transfer untuk melanjutkan' }}
+        </div>
+      </div>
+    </div>
   </section>
 </template>

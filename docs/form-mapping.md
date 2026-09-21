@@ -6,13 +6,18 @@ Three forms, each wired to one tab of **Iuran_BlokN_2026**.
 
 | Question | Type | entry id (yours will differ) |
 | --- | --- | --- |
-| No. rumah | short text | `entry.1000001` |
+| Alamat (cluster+blok-rumah, mis. N7-09) | short text | `entry.1000001` |
 | Bulan | short text (1–12) | `entry.1000002` |
 | Tahun | short text | `entry.1000003` |
 | Nominal | short text | `entry.1000004` |
 | Metode | multiple choice: tunai / transfer | `entry.1000005` |
 | Petugas | short text | `entry.1000006` |
 | Catatan | short text | `entry.1000007` |
+| Bukti transfer | **file upload** | — (Drive; no entry id, cannot be prefilled) |
+
+The file-upload question makes the form require a Google sign-in and blocks the
+silent `/formResponse` route — so the **warga** flow always opens `viewform`
+(one tab per month), while the **satpam** cash flow keeps the silent submit.
 
 Get the real ids: open the form → ⋮ → **Get pre-filled link**, fill anything,
 copy the URL, read the `entry.NNN` keys.
@@ -21,7 +26,7 @@ copy the URL, read the `entry.NNN` keys.
 
 ```
 https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url
-  &entry.1000001=N-03
+  &entry.1000001=N7-03
   &entry.1000002=9
   &entry.1000003=2026
   &entry.1000004=360000

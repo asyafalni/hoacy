@@ -62,7 +62,7 @@ const setorUrl = computed(() =>
         <div :style="{ width: persen + '%', height: '100%', background: 'var(--color-accent-2-500)' }"></div>
       </div>
       <div class="spread" style="font-size:12.5px">
-        <span class="text-muted">Tunggakan seluruh blok</span>
+        <span class="text-muted">Tunggakan seluruh cluster</span>
         <span class="num" style="font-weight:700;color:var(--color-accent-700)">
           {{ rupiahPendek(meta.tunggakan_total || 0) }}
         </span>

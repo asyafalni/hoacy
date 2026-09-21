@@ -13,8 +13,8 @@ onMounted(load);
                   color:var(--color-bg);display:flex;align-items:center;justify-content:center;
                   font-family:var(--font-heading)">N</div>
       <div class="grow">
-        <div style="font-family:var(--font-heading);font-size:17px">Iuran Blok N</div>
-        <div class="text-muted" style="font-size:11.5px">Cluster Cypress · ISLK &amp; RT 03/14</div>
+        <div style="font-family:var(--font-heading);font-size:17px">Iuran Cluster N</div>
+        <div class="text-muted" style="font-size:11.5px">Cypress · Blok 7 &amp; 8 · ISLK &amp; RT 03/14</div>
       </div>
     </header>
 

@@ -1,6 +1,7 @@
-# Iuran Digital Blok N — handoff
+# Iuran Digital Cluster N — handoff
 
-Static site (Vue Vapor + shadcn-style primitives) for ISLK & Iuran RT 03/14 dues.
+Static site (Vue Vapor + shadcn-style primitives) for ISLK & Iuran RT 03/14 dues,
+Cluster N (Cypress), blok 7 & 8.
 No server: **Google Sheet is the database**, **Google Form is the write endpoint**.
 
 ## Contents
@@ -32,13 +33,20 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 4. Copy `.env.example` → `.env`, fill the sheet + form ids.
 5. `npm install && npm run dev`.
 
+## Address model
+
+An address is three parts — **cluster code + block number + house number** — joined as
+the key `N7-09` (cluster `N`, blok `7`, rumah `09`). The parts live in their own
+columns on the `Rumah` tab so you can group and sort by block; `alamat` is a formula
+and is what every other tab, the Form prefill, and the per-house QR link reference.
+
 ## Roles
 
 | Route | Who | Does |
 | --- | --- | --- |
-| `/` | Warga | enter blok + house no (no login), see the 12-month card, pay by transfer |
+| `/` | Warga | enter blok + house no (no login), see the 12-month card, confirm a transfer with proof |
 | `/pos` | Satpam | search house, pick months, full or partial, record cash |
 | `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers |
 
-Design reference: the `Iuran Warga - Blok N v2` design component in this project.
+Design reference: the `Iuran Warga - Cluster N v2` design component in this project.
 Visual language: the Organic design system (`src/assets/tokens.css` is its token sheet).
