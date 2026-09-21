@@ -1,0 +1,27 @@
+// Mirrors Rumah!F and Rumah!H. The Sheet is authoritative — this exists only so the
+// app can prefill a nominal before the next fetch lands.
+export const IURAN_RT = 50000;
+
+export function islk({ luas, tipe }) {
+  if (tipe === 'kavling') return 400 * luas;
+  if (luas < 120) return 225000;
+  if (luas < 150) return 250000;
+  if (luas < 260) return 310000;
+  if (luas < 400) return 375000;
+  return 400000;
+}
+
+export const tarifBulanan = (h) => islk(h) + IURAN_RT;
+
+export const rupiah = (n) =>
+  'Rp ' + Math.round(n || 0).toLocaleString('id-ID');
+
+export const rupiahPendek = (n) => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return 'Rp ' + (n / 1e6).toFixed(1).replace('.', ',') + ' jt';
+  if (a >= 1e3) return 'Rp ' + Math.round(n / 1e3) + ' rb';
+  return 'Rp ' + Math.round(n);
+};
+
+export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
+  'Agustus','September','Oktober','November','Desember'];
