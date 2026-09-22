@@ -32,10 +32,11 @@
   scrollbar-color: var(--color-neutral-400) transparent;
 }
 .sheet::-webkit-scrollbar { width: 8px; }
-/* Sheet's top corners are rounded (its own inline border-radius); the
-   scrollbar track otherwise runs flush to the very top and pokes past that
-   curve. Inset the track a bit so its top end lands past the rounded part. */
-.sheet::-webkit-scrollbar-track { background: transparent; margin-top: 14px; }
+/* Sheet's top corners are rounded (its own inline border-radius, --radius-lg
+   = 28px); the scrollbar track otherwise runs flush to the very top and
+   pokes past that curve. Match the margin to the actual radius, not half of
+   it, so the track's top end clears the curve at any point across its width. */
+.sheet::-webkit-scrollbar-track { background: transparent; margin-top: var(--radius-lg); }
 .sheet::-webkit-scrollbar-thumb {
   background: var(--color-neutral-400);
   border-radius: 999px;
