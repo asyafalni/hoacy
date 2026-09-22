@@ -25,17 +25,23 @@ watch(rumah, async (list) => {
 <template>
  <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
   <section class="scr col" style="gap:var(--space-3)">
-    <div class="no-print">
-      <a href="#/kas" class="btn btn-ghost" style="font-size:12px">← Kas</a>
-    </div>
-    <div class="spread no-print">
-      <div>
+    <div class="row no-print" style="align-items:flex-start;gap:var(--space-3)">
+      <a href="#/kas" class="btn btn-ghost" style="font-size:12px;flex:none;margin-top:2px">← Kas</a>
+      <div class="grow">
         <h4 style="margin:0">Cetak QR per rumah</h4>
         <div class="text-muted" style="font-size:11.5px">
           {{ rumah.length }} rumah · tempel di pintu/kotak surat masing-masing
         </div>
       </div>
-      <button class="btn btn-primary" @click="window.print()">Cetak</button>
+      <button class="btn btn-primary" @click="window.print()" title="Cetak"
+              style="flex:none;padding:10px;border-radius:999px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9V2h12v7"></path>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+      </button>
     </div>
 
     <div class="qr-grid">
