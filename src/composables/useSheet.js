@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue';
+import { BLOK_WARNA_DEFAULT } from '../lib/tariff.js';
 
 const SHEET = import.meta.env.VITE_SHEET_ID;
 const gviz = (tab) =>
@@ -54,8 +55,21 @@ export function useSheet() {
       pin: r[26] != null ? String(r[26]) : '',
     })));
 
+  // per-block color, admin-editable straight in the Sheet (API!AC:AD, no code
+  // deploy needed) — falls back to BLOK_WARNA_DEFAULT for any block not set yet.
+  const blokWarna = computed(() => ({
+    ...BLOK_WARNA_DEFAULT,
+    ...Object.fromEntries(rows.value.filter((r) => r[28]).map((r) => [String(r[28]), r[29]])),
+  }));
+
+  // roster of satpam names (API!AE), admin-editable — the shared Pos PIN gets
+  // everyone into the screen, but each payment records which one of these names
+  // actually took the cash (see petugasAktif in PosSatpam.vue).
+  const satpamList = computed(() =>
+    rows.value.filter((r) => r[30]).map((r) => String(r[30])));
+
   /** Local echo so the satpam sees the row immediately after submitting. */
   function echo(rec) { optimistic.value.push({ ...rec, at: Date.now() }); }
 
-  return { load, rows, loading, error, meta, rumah, optimistic, echo };
+  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, optimistic, echo };
 }

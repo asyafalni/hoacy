@@ -1,14 +1,14 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek, alamat, REKENING, IURAN_RT, BLOK_LIST } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, alamat, REKENING, IURAN_RT, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import RekeningCard from '../components/RekeningCard.vue';
 
-const { rumah, meta } = useSheet();
+const { rumah, meta, blokWarna } = useSheet();
 
 // No login, but blok+rumah alone is guessable by any resident — so opening a card
 // also needs that house's PIN (Rumah!L in the Sheet, defaults to the last 3 digits
@@ -38,6 +38,13 @@ const pinInput = ref('');
 const pinError = ref(false);
 
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
+
+// Each block gets its own color (admin-set in the Sheet, API!AC:AD — see
+// docs/sheets-schema.md §6), applied to the card header here and to the house
+// badge in PosSatpam.vue.
+const warnaKartu = computed(() =>
+  (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))
+  || '#c67139');
 
 function tryUnlock(id) {
   const found = rumah.value.find((h) => h.alamat === id);
@@ -224,22 +231,22 @@ function kirimKonfirmasi() {
 
     <div style="border-radius:calc(var(--radius-lg)*1.15);overflow:hidden;
                 background:var(--color-surface);box-shadow:var(--shadow-md)">
-      <div style="background:var(--color-accent);padding:var(--space-4);position:relative;overflow:hidden">
+      <div :style="{ background: warnaKartu }" style="padding:var(--space-4);position:relative;overflow:hidden">
         <div style="position:absolute;right:-36px;top:-46px;width:150px;height:150px;border-radius:50%;
-                    background:var(--color-accent-2-400);opacity:.55"></div>
-        <div style="position:relative;font-family:var(--font-heading);font-size:21px;color:var(--color-bg)">
+                    background:rgba(255,255,255,.18)"></div>
+        <div style="position:relative;font-family:var(--font-heading);font-size:21px;color:#fff">
           {{ me.nama }}
         </div>
         <div class="row" style="position:relative;gap:var(--space-6);margin-top:var(--space-2)">
           <div>
-            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Alamat</div>
-            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">
+            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.75)">Alamat</div>
+            <div class="num" style="font-size:13.5px;font-weight:700;color:#fff">
               Blok {{ me.cluster }}{{ me.blok }} · No. {{ me.rumah }}
             </div>
           </div>
           <div>
-            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Luas / Tarif</div>
-            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">
+            <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.75)">Luas / Tarif</div>
+            <div class="num" style="font-size:13.5px;font-weight:700;color:#fff">
               {{ me.luas }} m² · {{ rupiahPendek(me.tarif) }}/bln
             </div>
           </div>

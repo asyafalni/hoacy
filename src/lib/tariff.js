@@ -32,6 +32,16 @@ export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
 // Every block in Cluster N. Shared by the warga login picker and the Pos blok filter.
 export const BLOK_LIST = ['Blvd', '1', '2', '3', '5', '6', '7', '8', '9', '10'];
 
+// Fallback only — the real source is API!AC:AD (docs/sheets-schema.md §6), editable
+// by the admin straight in the Sheet, no deploy needed. This just covers local dev
+// (mockData.js) and any block the admin hasn't set yet. Order matches BLOK_LIST;
+// all 10 hues pass the dataviz-skill categorical checks (lightness/chroma/CVD/
+// normal-vision separation) against this app's cream surface (#f5ead8).
+export const BLOK_WARNA_DEFAULT = {
+  Blvd: '#2a78d6', 1: '#9C4A1A', 2: '#eb6834', 3: '#1baf7a', 5: '#eda100',
+  6: '#e87ba4', 7: '#008300', 8: '#4a3aa7', 9: '#e34948', 10: '#0F86A3',
+};
+
 /** Alamat = kode cluster + nomor blok + nomor rumah  →  "N7-09" */
 export const alamat = ({ cluster, blok, rumah }) =>
   `${cluster}${blok}-${String(rumah).padStart(2, '0')}`;

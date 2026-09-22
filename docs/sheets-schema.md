@@ -190,6 +190,47 @@ enough to avoid double-charging). There's no next-year Status grid — paying ah
 into next year only needs "which months are already spoken for," not a full second
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
+A third, unrelated little table rides in the same tab, starting at `AC1` — one row
+per **block**, not per house (10 rows, not ~200):
+
+```
+AC1: "blok"   AD1: "warna"
+AC2: "Blvd"   AD2: "#2a78d6"
+AC3: "1"      AD3: "#9C4A1A"
+AC4: "2"      AD4: "#eb6834"
+AC5: "3"      AD5: "#1baf7a"
+AC6: "5"      AD6: "#eda100"
+AC7: "6"      AD7: "#e87ba4"
+AC8: "7"      AD8: "#008300"
+AC9: "8"      AD9: "#4a3aa7"
+AC10: "9"     AD10: "#e34948"
+AC11: "10"    AD11: "#0F86A3"
+```
+
+Plain typed values, no formula — this is the block color-code feature: each block
+gets its own color (the Warga card header, the Pos house-number badge). `AD` is
+what the admin edits to recolor a block; no deploy needed. Leave a row blank and
+the app falls back to its built-in default for that block
+(`BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`) — the hex values above are exactly
+that default, seeded here so the Sheet and the app agree on day one. Satpam never
+touches this tab or any other — they only ever see the rendered app.
+
+A fourth table, `AE1: "satpam"` / `AE2:AE…`, is just a flat list of names — as many
+rows as there are satpam, no fixed count:
+
+```
+AE1: "satpam"
+AE2: "Ujang"
+AE3: "Dedi"
+AE4: "Rahmat"
+```
+
+The Pos PIN (`VITE_PIN_POS`) is still shared by every satpam — it only gates the
+*screen*. Once in, the app makes them pick their name from this list before they
+can record anything (remembered per device after that), so the `petugas` column on
+`Pembayaran` says who actually took the cash, not a hardcoded name. Admin adds or
+removes a name here; no deploy needed, same as the block colors above.
+
 Publish the spreadsheet to the web, then the app reads:
 
 ```

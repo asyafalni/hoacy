@@ -69,10 +69,24 @@ const houseRow = (h) => [
   ...h.status, h.cluster, h.blok, h.rumah, h.mukaTahunDepan, h.pin || h.telp.slice(-3),
 ];
 
+// AC:AD — per-block color, the third (unrelated) table riding in this tab. Blok 7
+// is overridden here on purpose, different from BLOK_WARNA_DEFAULT in tariff.js —
+// proves the "admin edits the Sheet, app picks it up" path actually works, same
+// as it would with a real published Sheet.
+const BLOK_WARNA_LIST = [
+  ['Blvd', '#2a78d6'], ['1', '#9C4A1A'], ['2', '#eb6834'], ['3', '#1baf7a'], ['5', '#eda100'],
+  ['6', '#e87ba4'], ['7', '#7C3AED'], ['8', '#4a3aa7'], ['9', '#e34948'], ['10', '#0F86A3'],
+];
+
+// AE — satpam roster, a flat name list (no fixed count, unlike the block table).
+const SATPAM_LIST = ['Ujang', 'Dedi', 'Rahmat'];
+
 // Rows past meta.length still need to exist for houses beyond row 7 — the key/value
 // block is short, but the per-house block below it runs the full length of `houses`.
-const rowCount = Math.max(meta.length, houses.length);
+const rowCount = Math.max(meta.length, houses.length, BLOK_WARNA_LIST.length, SATPAM_LIST.length);
 export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   const [k, v] = meta[i] || [null, null];
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null))];
+  const [blok, warna] = BLOK_WARNA_LIST[i] || [null, null];
+  const satpam = SATPAM_LIST[i] || null;
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null)), null, blok, warna, satpam];
 });

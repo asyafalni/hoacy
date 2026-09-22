@@ -1,17 +1,35 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek, BLOK_LIST } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlPembayaran, submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { rumah, echo, load } = useSheet();
+const { rumah, blokWarna, satpamList, echo, load } = useSheet();
+// light tint of the block's color behind the house number — dark text stays legible
+const badgeStyle = (h) => {
+  const hex = blokWarna.value[String(h.blok)] || BLOK_WARNA_DEFAULT[String(h.blok)] || '#c0b6a5';
+  return `background:color-mix(in srgb, ${hex} 22%, white)`;
+};
 const PIN = import.meta.env.VITE_PIN_POS || '';
-const PETUGAS = 'Pos Satpam - Ujang';
 const PER_PAGE = 10;
+
+// The Pos PIN is shared by every satpam — it only gates the screen. Each payment
+// still needs to say which one of them actually took the cash (docs/sheets-schema.md
+// §6, API!AE), so the app makes them pick their name once per device and remembers
+// it, instead of hardcoding a single name for everyone.
+const petugasAktif = ref(localStorage.getItem('iuran.petugas.pos') || '');
+function pilihPetugas(nama) {
+  petugasAktif.value = nama;
+  localStorage.setItem('iuran.petugas.pos', nama);
+}
+function gantiPetugas() {
+  petugasAktif.value = '';
+  localStorage.removeItem('iuran.petugas.pos');
+}
 const STATUS_LIST = [
   { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
   { value: 'lunas', label: 'Lunas', test: (h) => h.tunggakan <= 0 },
@@ -65,7 +83,7 @@ async function catat() {
   const per = Math.round(total.value / bulan.value.length / 1000) * 1000;
   for (const i of bulan.value) {
     const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
-                  metode: 'tunai', petugas: PETUGAS };
+                  metode: 'tunai', petugas: petugasAktif.value };
     echo(rec);
     await submitPembayaran(rec);       // opaque; the echo is what the satpam sees
   }
@@ -79,24 +97,47 @@ async function catat() {
 const formUrl = computed(() => sel.value && bulan.value.length
   ? urlPembayaran({ noRumah: sel.value.alamat, bulan: bulan.value[0] + 1,
                     nominal: Math.round(total.value / bulan.value.length),
-                    metode: 'tunai', petugas: PETUGAS })
+                    metode: 'tunai', petugas: petugasAktif.value })
   : '#');
 </script>
 
 <template>
  <PinGate :pin="PIN" storage-key="pos" title="Pos Satpam" env-var="VITE_PIN_POS">
-  <section class="scr col" style="gap:var(--space-3)">
+
+  <!-- PIN dipakai bersama semua satpam; nama dipilih sekali per device supaya
+       tiap pembayaran tercatat atas nama yang benar-benar menerima uangnya -->
+  <section v-if="!petugasAktif" class="scr col"
+           style="gap:var(--space-3);align-items:center;text-align:center;padding-top:var(--space-8)">
+    <h3 style="margin:0">Siapa Anda?</h3>
+    <p class="text-muted" style="font-size:13px;margin:0">
+      Pilih nama Anda — tercatat di setiap pembayaran yang Anda terima.
+    </p>
+    <div class="col" style="gap:var(--space-2);width:100%;max-width:280px">
+      <button v-for="nama in satpamList" :key="nama" type="button" class="btn btn-secondary"
+              style="width:100%;min-height:44px;background:var(--color-surface);box-shadow:var(--shadow-sm)"
+              @click="pilihPetugas(nama)">
+        {{ nama }}
+      </button>
+    </div>
+    <p v-if="!satpamList.length" class="text-muted" style="font-size:12px">
+      Daftar nama satpam belum diisi admin di Sheet (tab API, kolom AE).
+    </p>
+  </section>
+
+  <section v-else class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
         <h4 style="margin:0">Terima Iuran</h4>
-        <div class="text-muted" style="font-size:11.5px">Pos Cypress · {{ PETUGAS }}</div>
+        <div class="text-muted" style="font-size:11.5px">Pos Cypress</div>
       </div>
+      <button class="btn btn-ghost" style="font-size:12px" @click="gantiPetugas">
+        {{ petugasAktif }} · Ganti
+      </button>
     </div>
 
-    <input class="input" v-model="q" placeholder="Cari alamat (mis. N7-09) atau nama">
-
-    <div class="row" style="flex-wrap:wrap;gap:6px">
-      <button type="button" class="btn btn-secondary" style="min-height:34px;padding:6px 14px;
+    <div class="row" style="gap:var(--space-2)">
+      <input class="input grow" v-model="q" placeholder="Cari alamat (mis. N7-09) atau nama">
+      <button type="button" class="btn btn-secondary" style="flex:none;min-height:36px;padding:6px 14px;
               font-size:12.5px;background:var(--color-surface);box-shadow:var(--shadow-sm)"
               @click="showFilter = true">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -105,6 +146,9 @@ const formUrl = computed(() => sel.value && bulan.value.length
         </svg>
         Filter
       </button>
+    </div>
+
+    <div v-if="blokFilter || statusFilter" class="row" style="flex-wrap:wrap;gap:6px">
       <span v-if="blokFilter" class="tag tag-accent" style="cursor:pointer" @click="blokFilter = ''">
         Blok N{{ blokFilter }} ✕
       </span>
@@ -121,9 +165,10 @@ const formUrl = computed(() => sel.value && bulan.value.length
     <div class="col">
       <Card v-for="h in halaman" :key="h.alamat" style="flex-direction:row;align-items:center;
             gap:var(--space-3);cursor:pointer" @click="pilih(h)">
-        <div class="num" style="width:46px;height:46px;flex:none;border-radius:50%;
-             display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);
-             background:var(--color-neutral-200)">{{ h.rumah }}</div>
+        <div class="num" :style="badgeStyle(h)" style="width:46px;height:46px;flex:none;border-radius:50%;
+             display:flex;align-items:center;justify-content:center;font-family:var(--font-heading)">
+          {{ h.rumah }}
+        </div>
         <div class="grow">
           <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
