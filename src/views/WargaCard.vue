@@ -3,14 +3,15 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
-import { BULAN, rupiah, rupiahPendek, alamat, REKENING, IURAN_RT, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, alamat, REKENING, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
+import { tarifPada } from '../lib/tarifHistoris';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import RekeningCard from '../components/RekeningCard.vue';
 
-const { rumah, meta, blokWarna } = useSheet();
+const { rumah, meta, blokWarna, rumahRiwayatRows, tarifVersiRows, rateCardAktif } = useSheet();
 // Own house only, but gviz has no server-side row filter — this fetches the
 // whole ledger same as Bendahara.vue does, filtered down client-side below.
 // Fine here for the same reason it's fine there: this screen is PIN-gated
@@ -120,9 +121,9 @@ const tahunIni = computed(() => Number(meta.value.tahun_aktif) || new Date().get
 // `Status` (dan karenanya `me.status`/`me.tunggakan`) cuma tahun berjalan — grid-nya
 // reset tiap 1 Januari (sheets-schema.md §5). Buat tahun lalu, hitung ulang di sini
 // dari `Pembayaran` mentah (append-only, nggak pernah direset), rumus yang sama
-// persis dengan Status!P2/AC2 di Sheet, cuma tahunnya diparameterkan. `tarif`
-// dianggap sama seperti sekarang untuk tahun lalu juga — Sheet nggak menyimpan
-// snapshot tarif historis, sama seperti catatan di Riwayat (sheets-schema.md §11).
+// persis dengan Status!P2/AC2 di Sheet, cuma tahunnya diparameterkan. Tarif per
+// bulan diambil dari `RumahRiwayat`/`TarifVersi` (sheets-schema.md §12/§13) —
+// luas/tipe dan rate-card yang BERLAKU di bulan itu, bukan yang berlaku sekarang.
 const pembayaranMeSemua = computed(() => !me.value ? []
   : pembayaranRowsAll.value.filter((r) => r[1] === me.value.alamat));
 
@@ -138,11 +139,17 @@ const historyYears = computed(() => {
 });
 
 function hitungTahun(tahun) {
-  const tarif = Number(me.value?.tarif) || 0;
   const rowsTahun = pembayaranMeSemua.value.filter((r) => Number(r[3]) === tahun);
   let tunggakan = 0;
+  let dataLengkap = true;
   const status = Array.from({ length: 12 }, (_, i) => {
     const bulan = i + 1;
+    const tarif = tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, me.value.alamat, tahun, bulan);
+    // Belum ada baris RumahRiwayat/TarifVersi yang berlaku sejauh itu — jangan
+    // diam-diam anggap tarif 0 (nanti kelihatan "Lunas" padahal cuma nggak ada
+    // datanya). Tandai sebagai tidak diketahui, sama seperti "-" yang dipakai
+    // buat bulan yang belum jatuh tempo.
+    if (tarif == null) { dataLengkap = false; return '-'; }
     const sah = rowsTahun.filter((r) => Number(r[2]) === bulan && r[10] === 'sah')
       .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
     tunggakan += Math.max(0, tarif - sah);
@@ -152,13 +159,13 @@ function hitungTahun(tahun) {
       .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
     return pending > 0 ? 'Pending' : 'Belum';
   });
-  return { status, tunggakan };
+  return { status, tunggakan, dataLengkap };
 }
 
 const tahunDilihat = ref(0);   // 0 = tahun berjalan; diinisialisasi di watch(rumah) bawah
 watch(me, (h) => { if (h) tahunDilihat.value = tahunIni.value; });
 const tahunData = computed(() => (!me.value || tahunDilihat.value === tahunIni.value)
-  ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0 }
+  ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0, dataLengkap: true }
   : hitungTahun(tahunDilihat.value));
 
 // tunggakan tahun-tahun sebelumnya, dipakai buat bayar (bukan cuma dilihat) —
@@ -172,6 +179,11 @@ const owedPastYears = computed(() => {
   }
   return out.sort((a, b) => a.tahun - b.tahun || a.bulan - b.bulan);
 });
+// Jumlah persis (bukan "jumlah bulan × tarif sekarang") — tiap tahun bisa punya
+// tarif berbeda (RumahRiwayat/TarifVersi), dan "Sebagian" cuma nyisa selisihnya,
+// bukan tarif penuh.
+const owedPastYearsTotal = computed(() =>
+  historyYears.value.reduce((sum, tahun) => sum + hitungTahun(tahun).tunggakan, 0));
 
 // trMonths menyimpan { bulan (1-12), tahun } — bukan cuma index bulan — supaya bisa
 // mencampur bulan tahun berjalan dan bulan tahun depan dalam satu konfirmasi.
@@ -351,8 +363,9 @@ function kirimKonfirmasi() {
             <div class="num" style="font-size:10px;opacity:.8">{{ s === '-' ? '—' : s }}</div>
           </div>
         </div>
-        <p v-if="tahunDilihat !== tahunIni" class="text-muted" style="font-size:10px;margin:var(--space-2) 0 0">
-          Tarif dihitung pakai tarif sekarang — Sheet tidak menyimpan riwayat tarif per tahun.
+        <p v-if="tahunDilihat !== tahunIni && !tahunData.dataLengkap" class="text-muted"
+           style="font-size:10px;margin:var(--space-2) 0 0">
+          Sebagian bulan belum ada catatan riwayat luas/tarif sejauh itu di Sheet — ditampilkan "—".
         </p>
       </div>
     </div>
@@ -362,11 +375,11 @@ function kirimKonfirmasi() {
       <div class="col" style="gap:5px">
         <div class="spread" style="font-size:12.5px">
           <span class="text-muted">ISLK ({{ me.luas }} m²)</span>
-          <span class="num">{{ rupiah(me.tarif - IURAN_RT) }}</span>
+          <span class="num">{{ rupiah(me.tarif - (rateCardAktif?.iuranRt || 0)) }}</span>
         </div>
         <div class="spread" style="font-size:12.5px">
           <span class="text-muted">Iuran RT</span>
-          <span class="num">{{ rupiah(IURAN_RT) }}</span>
+          <span class="num">{{ rupiah(rateCardAktif?.iuranRt || 0) }}</span>
         </div>
         <div class="hr" style="margin:2px 0"></div>
         <div class="spread">
@@ -378,7 +391,7 @@ function kirimKonfirmasi() {
         <div v-if="owedPastYears.length" class="spread" style="font-size:12px">
           <span class="text-muted">+ tunggakan tahun sebelumnya ({{ owedPastYears.length }} bln)</span>
           <span class="num" style="font-weight:700;color:var(--color-accent-700)">
-            {{ rupiah(owedPastYears.length * me.tarif) }}
+            {{ rupiah(owedPastYearsTotal) }}
           </span>
         </div>
       </div>

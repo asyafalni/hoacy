@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { useChartTooltip } from '../composables/useChartTooltip';
 import { useScrollLock } from '../composables/useScrollLock';
+import { tarifPada } from '../lib/tarifHistoris';
 import { rupiah, rupiahPendek, BULAN } from '../lib/tariff';
 import Card from '../components/ui/Card.vue';
 
@@ -21,8 +22,10 @@ import Card from '../components/ui/Card.vue';
 // composable fetches the raw Pembayaran ledger (alamat, catatan, bukti_url —
 // a photo of someone's transfer proof), fine for the PIN-gated Kas screen but
 // not for a zero-barrier public page. See docs/sheets-schema.md §10/§11.
-const { meta, rumah, opexList, riwayat, load } = useSheet();
+const { meta, rumah, opexList, riwayat, rumahRiwayatRows, tarifVersiRows, load } = useSheet();
 onMounted(load);
+
+const tahunAktif = computed(() => Number(meta.value.tahun_aktif) || new Date().getFullYear());
 
 const kas = computed(() => Number(meta.value.kas_tunai || 0));
 const bank = computed(() => Number(meta.value.rekening || 0));
@@ -71,14 +74,20 @@ const bulanIni = new Date().getMonth() + 1;
 const dibayarDimukaDetail = computed(() => {
   let rumahCount = 0, bulanTahunIni = 0, nominalTahunIni = 0, bulanTahunDepan = 0, nominalTahunDepan = 0;
   for (const h of rumah.value) {
-    const tarif = Number(h.tarif) || 0;
-    const mukaIni = h.status.filter((s, i) => s === 'Lunas' && i + 1 > bulanIni).length;
-    const mukaDepan = (h.mukaTahunDepan || []).length;
-    if (mukaIni || mukaDepan) rumahCount += 1;
-    bulanTahunIni += mukaIni;
-    nominalTahunIni += mukaIni * tarif;
-    bulanTahunDepan += mukaDepan;
-    nominalTahunDepan += mukaDepan * tarif;
+    // Tarif per bulan yang sebenarnya berlaku bulan itu (RumahRiwayat/TarifVersi,
+    // sheets-schema.md §12/§13) — bukan tarif hari ini dipukul rata, karena bulan
+    // yang "dibayar di muka" ini masih dalam tahun berjalan atau tahun depan, dan
+    // rate-card bisa saja sudah dijadwalkan berubah di antaranya.
+    const mukaIniBulan = h.status
+      .map((s, i) => ({ s, bulan: i + 1 })).filter((x) => x.s === 'Lunas' && x.bulan > bulanIni);
+    const mukaDepanBulan = (h.mukaTahunDepan || []);
+    if (mukaIniBulan.length || mukaDepanBulan.length) rumahCount += 1;
+    bulanTahunIni += mukaIniBulan.length;
+    nominalTahunIni += mukaIniBulan.reduce((sum, x) =>
+      sum + (tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, h.alamat, tahunAktif.value, x.bulan) || 0), 0);
+    bulanTahunDepan += mukaDepanBulan.length;
+    nominalTahunDepan += mukaDepanBulan.reduce((sum, bulan) =>
+      sum + (tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, h.alamat, tahunAktif.value + 1, bulan) || 0), 0);
   }
   return { rumahCount, bulanTahunIni, nominalTahunIni, bulanTahunDepan, nominalTahunDepan,
            total: nominalTahunIni + nominalTahunDepan };

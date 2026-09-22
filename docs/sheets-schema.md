@@ -1,6 +1,6 @@
 # Google Sheet schema & formulas
 
-Spreadsheet name: **Iuran_ClusterN_2026**. Eleven tabs. Row 1 is always the header.
+Spreadsheet name: **Iuran_ClusterN_2026**. Thirteen tabs. Row 1 is always the header.
 Formulas are written for row 2 — fill down, or wrap in `ARRAYFORMULA` where noted.
 
 ---
@@ -19,33 +19,71 @@ separately so you can group, sort and filter by block; derive the key with a for
 | D | rumah | text | `09` — keep the leading zero (format the column as plain text) |
 | E | nama | text | kepala keluarga |
 | F | telp | text | 62xxx, for the WhatsApp reminder link |
-| G | luas_m2 | number | land area — drives the tariff |
-| H | tipe | text | `rumah` or `kavling` |
+| G | luas_m2 | **formula** | current land area — see below, not typed directly any more |
+| H | tipe | **formula** | current `rumah` or `kavling` — same story as `luas_m2` |
 | I | islk | **formula** | |
-| J | iuran_rt | number | 50000 |
-| K | tarif_bulanan | **formula** | |
-| L | pin | **formula**, editable | Warga card PIN — defaults to phone's last 3 digits; admin overwrites the cell to set a custom one |
+| J | tarif_bulanan | **formula** | |
+| K | pin | **formula**, editable | Warga card PIN — defaults to phone's last 3 digits; admin overwrites the cell to set a custom one |
+| L | aktif | boolean, manual | `TRUE` unless the house has been decommissioned — see §12 |
+
+`luas_m2`/`tipe` (G/H) and the RT-wide rate card that turns them into a rupiah amount
+(I/J) both change over time — an empty lot gets built on, an owner buys the lot next
+door and merges it into one bigger house, the RT eventually raises the flat fee. None
+of that is allowed to rewrite what a *past* month's tagihan was, so `G`/`H`/`I`/`J`
+are no longer typed values — they're formulas that ask "what's effective **right
+now**" against two append-only history tabs, `RumahRiwayat` (§12, luas/tipe per
+house) and `TarifVersi` (§13, the RT-wide rate card). Editing a house's physical
+spec or the RT's rates means **adding a row** to one of those tabs, never editing
+`Rumah!G/H` or a rate directly — see §12/§13 for the exact mechanics and why.
 
 ```
 A2: =IF($B2="","", $B2 & $C2 & "-" & TEXT($D2,"00"))
-I2: =IF($H2="kavling", 400*$G2,
-      IFS($G2<120,225000, $G2<150,250000, $G2<260,310000, $G2<400,375000, TRUE,400000))
-K2: =$I2+$J2
-L2: =RIGHT($F2,3)
+
+G2: =LET(target, YEAR(TODAY())*100+MONTH(TODAY()),
+      key, MAXIFS(RumahRiwayat!$F:$F, RumahRiwayat!$A:$A,$A2, RumahRiwayat!$F:$F,"<="&target),
+      IFERROR(INDEX(FILTER(RumahRiwayat!$D:$D, RumahRiwayat!$A:$A=$A2, RumahRiwayat!$F:$F=key),1), ""))
+
+H2: =LET(target, YEAR(TODAY())*100+MONTH(TODAY()),
+      key, MAXIFS(RumahRiwayat!$F:$F, RumahRiwayat!$A:$A,$A2, RumahRiwayat!$F:$F,"<="&target),
+      IFERROR(INDEX(FILTER(RumahRiwayat!$E:$E, RumahRiwayat!$A:$A=$A2, RumahRiwayat!$F:$F=key),1), ""))
+
+I2: =LET(target, YEAR(TODAY())*100+MONTH(TODAY()),
+      key, MAXIFS(TarifVersi!$N:$N, TarifVersi!$N:$N,"<="&target),
+      row, FILTER(TarifVersi!$A:$N, TarifVersi!$N:$N=key),
+      IF($H2="kavling", INDEX(row,1,12)*$G2,
+         IFS($G2<INDEX(row,1,3), INDEX(row,1,4),
+             $G2<INDEX(row,1,5), INDEX(row,1,6),
+             $G2<INDEX(row,1,7), INDEX(row,1,8),
+             $G2<INDEX(row,1,9), INDEX(row,1,10),
+             TRUE, INDEX(row,1,11))))
+
+J2: =LET(target, YEAR(TODAY())*100+MONTH(TODAY()),
+      key, MAXIFS(TarifVersi!$N:$N, TarifVersi!$N:$N,"<="&target),
+      row, FILTER(TarifVersi!$A:$N, TarifVersi!$N:$N=key),
+      $I2 + INDEX(row,1,13))
+
+K2: =RIGHT($F2,3)
+L2: TRUE   (typed, not a formula)
 ```
 
-`L` starts as a formula but is meant to be overwritten: typing a literal value into
-that cell (e.g. after a resident asks for a reset) replaces the formula for that row
-only, same as `disetor_batch`/`terverifikasi` on `Pembayaran`. It's a deterrent PIN,
-not real access control — see the comment above `pendingHouse` in `WargaCard.vue`.
+`K` (pin) starts as a formula but is meant to be overwritten: typing a literal value
+into that cell (e.g. after a resident asks for a reset) replaces the formula for that
+row only, same as `disetor_batch`/`terverifikasi` on `Pembayaran`. It's a deterrent
+PIN, not real access control — see the comment above `pendingHouse` in `WargaCard.vue`.
 
-Every `VLOOKUP(..., Rumah!$A:$K, n, FALSE)` below keys on `alamat`; the tariff column
-is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §9.)
+`L` (aktif) is how a decommissioned house (§12 — merged away, address gone) stops
+being findable/payable through the app, without deleting anything: `useSheet.js`'s
+`rumah` computed filters `aktif !== FALSE`, so once it's flipped, the address drops
+out of the Warga login, Pos, and Semua Kartu Rumah lookups, and out of `API!target_bulan_ini`/
+`jumlah_rumah` (§10) — but every `Pembayaran`/`RumahRiwayat` row for it stays exactly
+where it was, forever, for audit. Flip it only after the house's tunggakan is 0 — the
+Sheet can only warn about this (§12), not block the edit; the treasurer is who
+actually enforces it.
 
-Tariff table this encodes (ISLK, per month, by luas tanah):
+Tariff table `TarifVersi`'s day-one row encodes (ISLK, per month, by luas tanah):
 `<120 → 225.000` · `120–149 → 250.000` · `150–259 → 310.000` ·
 `260–399 → 375.000` · `400–499 → 400.000` · kavling kosong → `400 × m²`.
-Every house also pays Iuran RT 50.000.
+Every house also pays Iuran RT 50.000 — see §13 for how either number changes later.
 
 ---
 
@@ -131,7 +169,9 @@ instead — put the `tarif` formula in `J`, one column later than you'd guess fr
 just reading the form fields.
 
 ```
-J2: =IFERROR(VLOOKUP($B2, Rumah!$A:$K, 11, FALSE), "")   // B = alamat, e.g. N7-09
+J2: =IFERROR(VLOOKUP($B2, Rumah!$A:$L, 10, FALSE), "")   // B = alamat, e.g. N7-09 —
+    // today's tarif, just for a quick reference on the row; not what decides
+    // keabsahan/status for this specific month (Status!AE:AP, §5, is authoritative)
 K2: =IF($F2="transfer",
        IF(OR($M2=TRUE,
              COUNTIFS(Verifikasi!$B:$B,$B2, Verifikasi!$C:$C,$C2, Verifikasi!$D:$D,$D2)>0),
@@ -152,7 +192,8 @@ is authoritative over the other; whichever happens first wins.
 ## 5. `Status` — the digital card, one row per house
 
 A2:A15 `=Rumah!A2:A15` (the `alamat` keys, `N7-01` … `N8-07`). B1:M1 = 1..12 (month numbers).
-Two blocks side by side: **amount received** and **status text**.
+Three blocks side by side: **amount received**, **status text**, and (new) **tarif
+efektif per bulan**.
 
 `$A$1` holds the active year — put the formula `=YEAR(TODAY())` in it, **not** a typed
 number. That's what makes the whole card grid roll over to the new year automatically
@@ -165,9 +206,28 @@ Amount received (B2, fill right + down):
       Pembayaran!$D:$D=$A$1,             // $A$1 = YEAR(TODAY()), see above
       Pembayaran!$K:$K="sah"))), 0)
 
-Status text (P2, fill right + down — P1:AA1 also 1..12):
+Tarif efektif per bulan (AE2, fill right through AP2 + down — a house's luas/tipe
+and the RT-wide rate card can each change mid-year, so this can no longer be one
+VLOOKUP per house; it has to be looked up separately per month, against RumahRiwayat
+(§12) and TarifVersi (§13) as of THAT month, not "now"):
 =LET(
-  tarif,  VLOOKUP($A2, Rumah!$A:$K, 11, FALSE),
+  target,   $A$1*100 + (COLUMN()-COLUMN($AE2)+1),   // this column's month number
+  luasKey,  MAXIFS(RumahRiwayat!$F:$F, RumahRiwayat!$A:$A,$A2, RumahRiwayat!$F:$F,"<="&target),
+  luasRow,  FILTER(RumahRiwayat!$A:$E, RumahRiwayat!$A:$A=$A2, RumahRiwayat!$F:$F=luasKey),
+  luas,     INDEX(luasRow,1,4),
+  tipe,     INDEX(luasRow,1,5),
+  tarifKey, MAXIFS(TarifVersi!$N:$N, TarifVersi!$N:$N,"<="&target),
+  tRow,     FILTER(TarifVersi!$A:$N, TarifVersi!$N:$N=tarifKey),
+  IF(tipe="kavling", INDEX(tRow,1,12)*luas,
+     IFS(luas<INDEX(tRow,1,3), INDEX(tRow,1,4),
+         luas<INDEX(tRow,1,5), INDEX(tRow,1,6),
+         luas<INDEX(tRow,1,7), INDEX(tRow,1,8),
+         luas<INDEX(tRow,1,9), INDEX(tRow,1,10),
+         TRUE, INDEX(tRow,1,11))) + INDEX(tRow,1,13))
+
+Status text (P2, fill right + down — P1:AA1 also 1..12, one-to-one with AE1:AP1):
+=LET(
+  tarif,  INDEX($AE2:$AP2, 1, P$1),
   bayar,  INDEX($B2:$M2, 1, P$1),
   pend,   IFERROR(SUM(UNIQUE(FILTER(Pembayaran!$E:$E, Pembayaran!$B:$B=$A2,
                  Pembayaran!$C:$C=P$1, Pembayaran!$K:$K="pending"))), 0),
@@ -178,9 +238,16 @@ Status text (P2, fill right + down — P1:AA1 also 1..12):
        TRUE,         "Belum" ))
 
 Outstanding per house (AC2):
-=SUMPRODUCT( (COLUMN($B$1:$M$1)-1 <= MONTH(TODAY())) *
-             MAX(0, VLOOKUP($A2,Rumah!$A:$K,11,FALSE) - $B2:$M2) )
+=SUMPRODUCT( (COLUMN($B$1:$M$1)-1 <= MONTH(TODAY())) * MAX(0, $AE2:$AP2 - $B2:$M2) )
 ```
+
+Why the tarif lookup got pulled into its own `AE:AP` block instead of living inline
+in `P2`/`AC2` (which is what a straight port of the old single-VLOOKUP formula would
+look like): both `P2:AA2` (12 cells) and `AC2` need "this house's tarif in month N",
+and repeating that whole `MAXIFS`+`FILTER` chain 13 times per house instead of once
+would be a lot of duplicated formula to keep in sync by hand. Computing it once per
+month in `AE:AP` and having `P`/`AC` just read from it keeps the one genuinely
+complex piece of logic in one place.
 
 **Why `UNIQUE(FILTER(...))` instead of a plain `SUMIFS`:** a satpam who double-taps "Catat & Kirim" (bad signal at the pos, unsure if the first tap registered) produces two `Pembayaran` rows with the *same* alamat, month, year, status and nominal — a true accidental duplicate. `SUMIFS` would sum both and overstate what was received; collapsing to the set of *distinct* nominal values first makes the duplicate count once. The client also guards against the double-tap itself (`PosSatpam.vue` disables the button while a submission is in flight) — this formula is the second line of defense for whatever gets through anyway (a genuine retry after a real failure, two taps a few seconds apart, etc).
 
@@ -270,8 +337,8 @@ glance whether the minimum-cost baseline is stale.
 
 ---
 
-## 10. `API` — per-house data + global numbers (one of four tabs the app reads,
-      alongside `Blok`, `Petugas` and `Opex`)
+## 10. `API` — per-house data + global numbers (one of seven tabs the app reads,
+      alongside `Blok`, `Petugas`, `Opex`, `Riwayat`, `RumahRiwayat` and `TarifVersi`)
 
 One flat table the front end parses; keep column order stable.
 
@@ -287,7 +354,7 @@ B3: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$N:$N,"bank", Pembayaran!$K:$K,"sah")
 
 A4: "tunggakan_total"   B4: =SUM(Status!$AC:$AC)
 A5: "lunas_bulan_ini"   B5: =COUNTIF(INDEX(Status!$P:$AA,0,MONTH(TODAY())), "Lunas")
-A6: "jumlah_rumah"      B6: =COUNTA(Rumah!$A2:$A)
+A6: "jumlah_rumah"      B6: =COUNTIFS(Rumah!$A$2:$A$1000,"<>", Rumah!$L$2:$L$1000,TRUE)
 A7: "updated"           B7: =TEXT(NOW(), "yyyy-mm-dd hh:mm")
 A8: "tahun_aktif"       B8: =YEAR(TODAY())
 
@@ -295,7 +362,7 @@ A9: "terkumpul_bulan_ini"
 B9: =SUM(INDEX(Status!$B$2:$M$1000, 0, MONTH(TODAY())))
 
 A10: "target_bulan_ini"
-B10: =SUM(Rumah!$K$2:$K$1000)
+B10: =SUMIFS(Rumah!$J$2:$J$1000, Rumah!$L$2:$L$1000, TRUE)
 
 A11: "opex_bulanan"
 B11: =SUM(Opex!$C$2:$C$1000)
@@ -322,14 +389,15 @@ Then, starting at D1, a per-house block the app renders directly:
 ```
 D1: "alamat" E1:"nama" F1:"telp" G1:"luas" H1:"tarif" I1:"tunggakan"
 J1..U1: 1..12 status text   V1:"cluster" W1:"blok" X1:"rumah"
-Y1: "muka_tahun_depan"   Z1:"pin"
+Y1: "muka_tahun_depan"   Z1:"pin"   AA1:"aktif"
 D2: =Rumah!A2   E2: =Rumah!E2  F2: =Rumah!F2  G2: =Rumah!G2
-H2: =Rumah!K2   I2: =Status!AC2
+H2: =Rumah!J2   I2: =Status!AC2
 V2: =Rumah!B2   W2: =Rumah!C2   X2: =Rumah!D2
 J2: =Status!P2  … U2: =Status!AA2
 Y2: =TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$C:$C,
       Pembayaran!$B:$B=D2, Pembayaran!$D:$D=$B$8+1))))
-Z2: =Rumah!L2
+Z2: =Rumah!K2
+AA2: =Rumah!L2
 ```
 
 No `tipe` (Rumah!H) here on purpose — it only feeds Rumah's own tariff formula
@@ -349,7 +417,7 @@ into next year only needs "which months are already spoken for," not a full seco
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
 Publish the spreadsheet to the web, then the public-facing composable (`useSheet.js`,
-used by `/`, `/pos`, `/kas`, `/ringkasan`) reads all five:
+used by `/`, `/pos`, `/kas`, `/ringkasan`) reads all seven:
 
 ```
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=API
@@ -357,17 +425,31 @@ https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Blo
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Petugas
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Opex
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Riwayat
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=RumahRiwayat
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=TarifVersi
 ```
 
-`Pembayaran` itself is a sixth published tab (gviz doesn't support per-tab access
+`RumahRiwayat`/`TarifVersi` are safe on the public page for the same reason the rest
+of this list is: neither carries anything more sensitive than what `API`'s own
+per-house block already exposes there (§10 above) — `RumahRiwayat` is just
+`alamat, luas, tipe` over time (no name, no phone, no payment amount), and
+`TarifVersi` has no per-house data at all, just the RT-wide rate card. `RingkasanPublik.vue`
+uses them (via `tarifPada()`, `src/lib/tarifHistoris.js`) to get period-correct
+tarif for its aging/dibayar-di-muka math instead of assuming today's rate applied
+to every month — the one thing that actually stays off that page is `Pembayaran`,
+per the note below.
+
+`Pembayaran` itself is an eighth published tab (gviz doesn't support per-tab access
 control — see `docs/deploy.md`), but the app only ever fetches it from
 `usePembayaranLedger.js`, used by two PIN-gated screens that legitimately need
 row-level detail: `Bendahara.vue` (Kas) shows pending transfers with `bukti_url`,
 and `WargaCard.vue` uses it to recompute a resident's own card for **years before
 `tahun_aktif`** — `Status` only ever holds the current year (§5), so a past year's
 12-month grid is reconstructed client-side from the raw ledger, filtered to that
-one house's `alamat`, the same `bayar >= tarif` logic as `Status!P2` just
-parameterized by year instead of reading `$A$1`. **`/ringkasan` (no PIN, open to
+one house's `alamat`, the same `bayar >= tarif` logic as `Status!P2` (tarif itself
+also period-correct now, via `tarifPada()` against `RumahRiwayat`/`TarifVersi` — see
+§12/§13 — not a flat "today's rate" assumption), just parameterized by year instead
+of reading `$A$1`. **`/ringkasan` (no PIN, open to
 anyone) must never call `usePembayaranLedger` or fetch `Pembayaran` directly** —
 that tab carries `alamat` and a Drive link to each resident's transfer-proof
 photo, exactly the kind of per-house, per-payment data the PDP note at the top of
@@ -414,3 +496,115 @@ see the caveat text already on that bottom sheet.
 This is the only reason `Riwayat` exists: a plain `SUMIFS` per month, published
 alongside `API`/`Blok`/`Petugas`/`Opex`, so the public page's fetch list never has to
 include the raw `Pembayaran` ledger to show a trend line.
+
+---
+
+## 12. `RumahRiwayat` — per-house luas/tipe history (manual, append-only)
+
+| Col | Header | Type | Notes |
+| --- | --- | --- | --- |
+| A | alamat | text | matches `Rumah!A` |
+| B | tahun_berlaku | number | year this luas/tipe took effect |
+| C | bulan_berlaku | number | 1–12, month it took effect |
+| D | luas | number | m² effective from that (tahun,bulan) onward |
+| E | tipe | text | `rumah` or `kavling`, same |
+| F | periode | **formula** | `=B2*100+C2` — a sortable key, `202603` for March 2026 |
+
+```
+F2: =B2*100+C2
+```
+
+Append-only, never edited: a house's physical spec changing (an empty `kavling`
+gets built on, an owner buys the lot next door and it becomes one bigger house)
+means **adding a row**, not touching an old one. `Rumah!G/H` (§1) always resolve
+to whichever row has the largest `periode <= today` for that `alamat`; `Status!AE:AP`
+(§5) does the same lookup per month when building a house's 12-month card, so a
+past month's tagihan keeps using whatever was true *then*, permanently, even after
+a later row is added.
+
+**Give every house a baseline row** (its `luas`/`tipe` as of whenever it started
+being tracked — realistically, whenever this feature goes live and history is
+backfilled) — without one, `tarifPada()` (`src/lib/tarifHistoris.js`) and the
+`Status!AE:AP` lookup have nothing to resolve for that house and return blank/null,
+which the app treats as "no data" (a `-` on the card), not a `0`, specifically so
+it's never silently mistaken for "fully paid."
+
+**Two different real-world changes, two different mechanics:**
+
+- **Upgrade in place** (same address, e.g. a kavling gets built on, or the owner
+  absorbs the empty lot next door and it's still lived in at the same address):
+  just add a row here for that `alamat`. Nothing else changes.
+- **Merger where an address itself disappears** (two houses become one and only
+  one address survives): the address that's going away gets marked `aktif = FALSE`
+  on `Rumah!L` (§1) — **only after its `tunggakan` is 0**. The surviving/new house
+  is a plain new row in `Rumah`, exactly like any new resident joining the
+  cluster — it does not inherit the retired address's `RumahRiwayat`/`Pembayaran`
+  history, and doesn't need to; that history stays exactly where it is, findable
+  by its own (now inactive) `alamat` forever, just not reachable through the app's
+  normal house lookup any more.
+
+There's no way for the Sheet to *block* setting `aktif = FALSE` while `tunggakan >
+0` — no Apps Script in this project, so the closest available guard is a plain
+warning formula next to it:
+
+```
+M2 (put anywhere convenient, e.g. Rumah!M — a scratch/warning column):
+=IF(AND($L2=FALSE, Status!AC2>0), "⚠️ tunggakan belum lunas", "")
+```
+
+That's a nudge, not enforcement — same trust level as the Pos/Kas PIN elsewhere in
+this app (a deterrent, not a lock). The treasurer is who actually holds the line.
+
+---
+
+## 13. `TarifVersi` — RT-wide rate card history (manual, append-only)
+
+| Col | Header | Type | Notes |
+| --- | --- | --- | --- |
+| A | tahun_berlaku | number | year this rate card took effect |
+| B | bulan_berlaku | number | 1–12 |
+| C | tier1_maks | number | `120` — ISLK tier 1 upper bound (m²) |
+| D | tier1_tarif | number | `225000` |
+| E | tier2_maks | number | `150` |
+| F | tier2_tarif | number | `250000` |
+| G | tier3_maks | number | `260` |
+| H | tier3_tarif | number | `310000` |
+| I | tier4_maks | number | `400` |
+| J | tier4_tarif | number | `375000` |
+| K | tier5_tarif | number | `400000` — no upper bound (luas ≥ `tier4_maks`) |
+| L | kavling_per_m2 | number | `400` |
+| M | iuran_rt | number | `50000` — the flat RT fee component |
+| N | periode | **formula** | `=A2*100+B2`, same sortable key as `RumahRiwayat!F` |
+
+```
+N2: =A2*100+B2
+```
+
+One row = one complete rate card, all thresholds and amounts bundled together so a
+lookup for "what were the rates as of month X" is always exactly one row, never a
+join across several. Append-only, same discipline as `RumahRiwayat`: a price change
+(ISLK tiers, the flat `iuran_rt`, or both) is a **new row**, never an edit to an
+existing one — `Rumah!I/J` (§1) and `Status!AE:AP` (§5) both resolve "the rate card
+effective right now / effective that month" the same way `RumahRiwayat` resolves
+luas/tipe (largest `periode <= target`).
+
+Seed the first row with day-one rates (matching `TARIF_DEFAULT` in
+`src/lib/tariff.js`, so the app's local-dev fallback and the real Sheet agree before
+any change is ever made):
+
+```
+A2:2023  B2:1  C2:120  D2:225000  E2:150  F2:250000  G2:260  H2:310000
+I2:400  J2:375000  K2:400000  L2:400  M2:50000
+```
+
+A rate hike later is a second row with the new numbers and whatever `(tahun,bulan)`
+it starts from — everything before that month keeps computing off the old row,
+forever.
+
+`src/lib/tarifHistoris.js` is where the client mirrors this: `rateCardPada()` picks
+the right row (given raw `TarifVersi` rows + a target year/month), `tarifPada()`
+combines it with `luasTipePada()` (against `RumahRiwayat`) and reuses
+`islk()`/`tarifBulanan()` from `src/lib/tariff.js` — same tier logic the Sheet
+formulas encode, just parameterized instead of hardcoded, so there's exactly one
+place (per side, Sheet and client) that knows how ISLK tiers turn into a rupiah
+amount.

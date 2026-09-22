@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { BLOK_WARNA_DEFAULT } from '../lib/tariff.js';
+import { rateCardPada } from '../lib/tarifHistoris.js';
 
 const SHEET = import.meta.env.VITE_SHEET_ID;
 /** Exported so other tabs (e.g. usePembayaranLedger's raw Pembayaran fetch) can
@@ -18,6 +19,8 @@ const blokRows = ref([]);    // Blok tab — one row per block
 const petugasRows = ref([]); // Petugas tab — one row per satpam/bendahara
 const opexRows = ref([]);    // Opex tab — one row per cost category
 const riwayatRows = ref([]); // Riwayat tab — one row per month, newest first
+const rumahRiwayatRows = ref([]); // RumahRiwayat tab — one row per house per luas/tipe change
+const tarifVersiRows = ref([]);   // TarifVersi tab — one row per rate-card change
 const loading = ref(true);
 const error = ref(null);
 const optimistic = ref([]);   // rows submitted this session, not yet in the sheet
@@ -27,13 +30,16 @@ export function useSheet() {
     loading.value = true;
     try {
       if (SHEET) {
-        const [api, blok, petugas, opex, riwayat] = await Promise.all(
-          ['API', 'Blok', 'Petugas', 'Opex', 'Riwayat'].map((tab) => fetch(gviz(tab)).then((r) => r.text())));
+        const [api, blok, petugas, opex, riwayat, rumahRiwayat, tarifVersi] = await Promise.all(
+          ['API', 'Blok', 'Petugas', 'Opex', 'Riwayat', 'RumahRiwayat', 'TarifVersi']
+            .map((tab) => fetch(gviz(tab)).then((r) => r.text())));
         rows.value = parse(api);
         blokRows.value = parse(blok);
         petugasRows.value = parse(petugas);
         opexRows.value = parse(opex);
         riwayatRows.value = parse(riwayat);
+        rumahRiwayatRows.value = parse(rumahRiwayat);
+        tarifVersiRows.value = parse(tarifVersi);
       } else {
         // Local dev only — no real Sheet configured, use the fixtures instead
         // of hitting gviz with an undefined id. See src/composables/mockData.js.
@@ -43,6 +49,8 @@ export function useSheet() {
         petugasRows.value = mock.MOCK_PETUGAS_ROWS;
         opexRows.value = mock.MOCK_OPEX_ROWS;
         riwayatRows.value = mock.MOCK_RIWAYAT_ROWS;
+        rumahRiwayatRows.value = mock.MOCK_RUMAHRIWAYAT_ROWS;
+        tarifVersiRows.value = mock.MOCK_TARIFVERSI_ROWS;
         console.warn('[useSheet] VITE_SHEET_ID kosong — memakai data mockup lokal.');
       }
       error.value = null;
@@ -57,11 +65,15 @@ export function useSheet() {
   const meta = computed(() =>
     Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
 
-  // per-house block (cols D..Z) — no `tipe` here: it only feeds the tariff
+  // per-house block (cols D..AA) — no `tipe` here: it only feeds the tariff
   // formula server-side (Rumah!I), nothing in the app reads it, see
-  // docs/sheets-schema.md §10.
+  // docs/sheets-schema.md §10. `aktif` (AA) filters out decommissioned houses
+  // (docs/sheets-schema.md §1/§12) — once merged away or torn down, an
+  // address stops being findable/payable through the app entirely; its
+  // history stays in Pembayaran/RumahRiwayat forever for audit, just not
+  // reachable through the normal house lookup any more.
   const rumah = computed(() =>
-    rows.value.filter((r) => r[3]).map((r) => ({
+    rows.value.filter((r) => r[3] && r[26] !== false && String(r[26]).toUpperCase() !== 'FALSE').map((r) => ({
       // alamat = cluster + blok + '-' + rumah, e.g. N7-09
       alamat: r[3], nama: r[4], telp: r[5], luas: r[6],
       tarif: r[7], tunggakan: r[8],
@@ -99,6 +111,16 @@ export function useSheet() {
       kategori: r[0], ikon: r[1] || '📋', nominal: Number(r[2]) || 0,
     })));
 
+  // Rate card effective right now — used where the app needs to split a
+  // total tarif back into its ISLK/Iuran RT parts (WargaCard's "Tagihan
+  // berjalan" breakdown). Historical (past-month) lookups go through
+  // tarifPada()/rateCardPada() in src/lib/tarifHistoris.js directly against
+  // rumahRiwayatRows/tarifVersiRows instead — this computed is only "today".
+  const rateCardAktif = computed(() => {
+    const now = new Date();
+    return rateCardPada(tarifVersiRows.value, now.getFullYear(), now.getMonth() + 1);
+  });
+
   // Riwayat tab (docs/sheets-schema.md §11): pre-aggregated per month, newest
   // row first (mirrors the Sheet's own fill-down order). Reversed to
   // chronological order here, and any leading (oldest) all-zero months are
@@ -117,5 +139,8 @@ export function useSheet() {
   /** Local echo so the satpam sees the row immediately after submitting. */
   function echo(rec) { optimistic.value.push({ ...rec, at: Date.now() }); }
 
-  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, bendaharaList, opexList, riwayat, optimistic, echo };
+  return {
+    load, rows, loading, error, meta, rumah, blokWarna, satpamList, bendaharaList, opexList, riwayat,
+    rumahRiwayatRows, tarifVersiRows, rateCardAktif, optimistic, echo,
+  };
 }

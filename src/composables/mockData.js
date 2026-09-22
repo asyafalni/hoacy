@@ -98,9 +98,13 @@ const meta = [
 // API tab's per-house block never carries it through — nothing in the app reads
 // it, see useSheet.js's `rumah` computed. Kept on the fixture objects above only
 // because tarifBulanan()/islk() need it as an input.
+// `aktif` (docs/sheets-schema.md §1/§12): none of these fixtures are
+// decommissioned, so it's always TRUE here — the column exists so useSheet.js's
+// filter has something real to read.
 const houseRow = (h) => [
   h.alamat, h.nama, h.telp, h.luas, h.tarif, h.tunggakan,
   ...h.status, h.cluster, h.blok, h.rumah, h.mukaTahunDepan, h.pin || h.telp.slice(-3),
+  h.aktif !== false,
 ];
 
 // Rows past meta.length still need to exist for houses beyond row 7 — the key/value
@@ -108,7 +112,7 @@ const houseRow = (h) => [
 const rowCount = Math.max(meta.length, houses.length);
 export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   const [k, v] = meta[i] || [null, null];
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(23).fill(null))];
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null))];
 });
 
 // `Blok` tab (docs/sheets-schema.md §2) — one row per block. Blok 7 is overridden
@@ -175,4 +179,29 @@ export const MOCK_RIWAYAT_ROWS = [
   [2026, 8, 10600000], [2026, 7, 9800000], [2026, 6, 12100000], [2026, 5, 9950000],
   [2026, 4, 11200000], [2026, 3, 10450000], [2026, 2, 8800000], [2026, 1, 9100000],
   [2025, 12, 9600000], [2025, 11, 8200000],
+];
+
+// `RumahRiwayat` tab (docs/sheets-schema.md §12) — append-only, one row per
+// luas/tipe change. Every house gets a 2023-01 baseline row matching its
+// CURRENT luas/tipe (so tarifPada() can resolve any month this app can
+// currently show, not just the ones after this feature shipped) — real data
+// entry only needs to add a row when something actually changes, same as here:
+// N7-01 (Budi Santoso) is the one house that demonstrates an actual upgrade —
+// 90m² since 2023, absorbed the strip next door and grew to its current 130m²
+// starting March 2025 (after which its 2025 Pembayaran rows above already
+// assume the bigger tarif).
+export const MOCK_RUMAHRIWAYAT_ROWS = [
+  ...houses.map((h) => [h.alamat, 2023, 1, h.alamat === 'N7-01' ? 90 : h.luas, h.tipe]),
+  ['N7-01', 2025, 3, 130, 'rumah'],
+];
+
+// `TarifVersi` tab (docs/sheets-schema.md §13) — append-only rate cards, one
+// row per RT-wide price change. `iuran_rt` was 40.000 before 2024, raised to
+// today's 50.000 starting Jan 2024 — everything from 2024 onward (including
+// "today") matches TARIF_DEFAULT in tariff.js exactly, so the hand-written
+// fixtures above (which hardcode each house's CURRENT tarif) stay correct;
+// only months in 2023 compute a lower tarif via tarifPada().
+export const MOCK_TARIFVERSI_ROWS = [
+  [2023, 1, 120, 225000, 150, 250000, 260, 310000, 400, 375000, 400000, 400, 40000],
+  [2024, 1, 120, 225000, 150, 250000, 260, 310000, 400, 375000, 400000, 400, 50000],
 ];
