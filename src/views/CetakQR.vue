@@ -25,6 +25,9 @@ watch(rumah, async (list) => {
 <template>
  <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
   <section class="scr col" style="gap:var(--space-3)">
+    <div class="no-print">
+      <a href="#/kas" class="btn btn-ghost" style="font-size:12px">← Kas</a>
+    </div>
     <div class="spread no-print">
       <div>
         <h4 style="margin:0">Cetak QR per rumah</h4>
