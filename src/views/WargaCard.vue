@@ -138,13 +138,24 @@ const historyYears = computed(() => {
   return years;
 });
 
+// Tarif per bulan buat tahun manapun (termasuk tahun berjalan) — dipakai buat
+// nampilin angkanya langsung di grid, bukan cuma di kartu "Tagihan berjalan"
+// yang SELALU tahun berjalan sendiri (itu yang bikin bingung: ganti tab tahun
+// nggak mengubah kartu itu sama sekali, jadi kelihatannya "nggak ada beda"
+// padahal bedanya ada di grid, cuma nggak pernah ditulis angkanya).
+function hitungTarifBulan(tahun) {
+  return Array.from({ length: 12 }, (_, i) =>
+    tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, me.value.alamat, tahun, i + 1));
+}
+
 function hitungTahun(tahun) {
   const rowsTahun = pembayaranMeSemua.value.filter((r) => Number(r[3]) === tahun);
+  const tarifBulan = hitungTarifBulan(tahun);
   let tunggakan = 0;
   let dataLengkap = true;
   const status = Array.from({ length: 12 }, (_, i) => {
     const bulan = i + 1;
-    const tarif = tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, me.value.alamat, tahun, bulan);
+    const tarif = tarifBulan[i];
     // Belum ada baris RumahRiwayat/TarifVersi yang berlaku sejauh itu — jangan
     // diam-diam anggap tarif 0 (nanti kelihatan "Lunas" padahal cuma nggak ada
     // datanya). Tandai sebagai tidak diketahui, sama seperti "-" yang dipakai
@@ -159,13 +170,14 @@ function hitungTahun(tahun) {
       .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
     return pending > 0 ? 'Pending' : 'Belum';
   });
-  return { status, tunggakan, dataLengkap };
+  return { status, tunggakan, dataLengkap, tarifBulan };
 }
 
 const tahunDilihat = ref(0);   // 0 = tahun berjalan; diinisialisasi di watch(rumah) bawah
 watch(me, (h) => { if (h) tahunDilihat.value = tahunIni.value; });
 const tahunData = computed(() => (!me.value || tahunDilihat.value === tahunIni.value)
-  ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0, dataLengkap: true }
+  ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0, dataLengkap: true,
+      tarifBulan: me.value ? hitungTarifBulan(tahunIni.value) : [] }
   : hitungTahun(tahunDilihat.value));
 
 // tunggakan tahun-tahun sebelumnya, dipakai buat bayar (bukan cuma dilihat) —
@@ -361,6 +373,8 @@ function kirimKonfirmasi() {
           <div v-for="(s, i) in tahunData.status" :key="i" class="month" :class="cls(s)">
             <div style="font-size:12.5px;font-weight:700">{{ BULAN[i] }}</div>
             <div class="num" style="font-size:10px;opacity:.8">{{ s === '-' ? '—' : s }}</div>
+            <div v-if="tahunData.tarifBulan[i] != null" class="num"
+                 style="font-size:9px;opacity:.65">{{ rupiahPendek(tahunData.tarifBulan[i]) }}</div>
           </div>
         </div>
         <p v-if="tahunDilihat !== tahunIni && !tahunData.dataLengkap" class="text-muted"
