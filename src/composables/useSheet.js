@@ -40,7 +40,7 @@ export function useSheet() {
   const meta = computed(() =>
     Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
 
-  // per-house block (cols D..Z)
+  // per-house block (cols D..AA)
   const rumah = computed(() =>
     rows.value.filter((r) => r[3]).map((r) => ({
       // alamat = cluster + blok + '-' + rumah, e.g. N7-09
@@ -50,6 +50,8 @@ export function useSheet() {
       cluster: r[22], blok: r[23], rumah: r[24],
       // months (1-12) of next year already submitted — see docs/sheets-schema.md §6
       mukaTahunDepan: r[25] ? String(r[25]).split(',').map(Number).filter(Boolean) : [],
+      // per-house PIN — deterrent gate on the Warga card, see WargaCard.vue
+      pin: r[26] != null ? String(r[26]) : '',
     })));
 
   /** Local echo so the satpam sees the row immediately after submitting. */

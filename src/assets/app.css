@@ -16,3 +16,9 @@
 .month.pending  { background: var(--color-neutral-200);  border-color: var(--color-neutral-400); border-style: dashed; color: var(--color-neutral-900); }
 .month.belum    { background: var(--color-bg);           border-color: var(--color-accent);       color: var(--color-accent-700); }
 .month.kosong   { background: var(--color-bg);           border-color: var(--color-neutral-300);  color: var(--color-neutral-700); }
+
+/* — bottom sheet: dialog pinned to the viewport bottom, slides up on open — */
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-backdrop { align-items: flex-end; padding: 0; animation: backdrop-in .18s ease-out; }
+.sheet { animation: sheet-up .32s cubic-bezier(.32,.72,0,1); }

@@ -29,12 +29,9 @@ export const rupiahPendek = (n) => {
 export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
   'Agustus','September','Oktober','November','Desember'];
 
+// Every block in Cluster N. Shared by the warga login picker and the Pos blok filter.
+export const BLOK_LIST = ['Blvd', '1', '2', '3', '5', '6', '7', '8', '9', '10'];
+
 /** Alamat = kode cluster + nomor blok + nomor rumah  →  "N7-09" */
 export const alamat = ({ cluster, blok, rumah }) =>
   `${cluster}${blok}-${String(rumah).padStart(2, '0')}`;
-
-/** "N7-09" | "n7-9" -> { cluster:'N', blok:7, rumah:'09' } | null */
-export function parseAlamat(str) {
-  const m = String(str).trim().toUpperCase().match(/^([A-Z]+)\s*(\d+)\s*[-\/ ]\s*(\d+)$/);
-  return m ? { cluster: m[1], blok: Number(m[2]), rumah: m[3].padStart(2, '0') } : null;
-}

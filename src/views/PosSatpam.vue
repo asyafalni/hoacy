@@ -1,7 +1,7 @@
 <script setup vapor>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, BLOK_LIST } from '../lib/tariff';
 import { urlPembayaran, submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -11,8 +11,19 @@ import PinGate from '../components/PinGate.vue';
 const { rumah, echo, load } = useSheet();
 const PIN = import.meta.env.VITE_PIN_POS || '';
 const PETUGAS = 'Pos Satpam - Ujang';
+const PER_PAGE = 10;
+const STATUS_LIST = [
+  { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
+  { value: 'lunas', label: 'Lunas', test: (h) => h.tunggakan <= 0 },
+];
 
 const q = ref('');
+const blokFilter = ref('');    // '' = semua blok
+const statusFilter = ref(''); // '' = semua status
+const showFilter = ref(false);
+const chipStyle = (active) => active ? 'min-height:40px'
+  : 'min-height:40px;background:var(--color-surface);box-shadow:var(--shadow-sm)';
+const page = ref(1);
 const sel = ref(null);        // selected house
 const bulan = ref([]);        // month indices being paid
 const separuh = ref(false);   // partial: 50%
@@ -20,9 +31,17 @@ const toast = ref('');
 
 // arrears first — the whole point of the post screen is speed
 const daftar = computed(() => rumah.value
+  .filter((h) => !blokFilter.value || String(h.blok) === blokFilter.value)
+  .filter((h) => !statusFilter.value
+                 || STATUS_LIST.find((s) => s.value === statusFilter.value).test(h))
   .filter((h) => !q.value || h.nama.toLowerCase().includes(q.value.toLowerCase())
                  || h.alamat.toLowerCase().includes(q.value.toLowerCase()))
   .slice().sort((a, b) => b.tunggakan - a.tunggakan));
+
+watch([q, blokFilter, statusFilter], () => { page.value = 1; });
+
+const totalPages = computed(() => Math.max(1, Math.ceil(daftar.value.length / PER_PAGE)));
+const halaman = computed(() => daftar.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 
 const belum = (h) => h.status
   .map((s, i) => ({ s, i }))
@@ -76,8 +95,31 @@ const formUrl = computed(() => sel.value && bulan.value.length
 
     <input class="input" v-model="q" placeholder="Cari alamat (mis. N7-09) atau nama">
 
+    <div class="row" style="flex-wrap:wrap;gap:6px">
+      <button type="button" class="btn btn-secondary" style="min-height:34px;padding:6px 14px;
+              font-size:12.5px;background:var(--color-surface);box-shadow:var(--shadow-sm)"
+              @click="showFilter = true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5h16M7 12h10M10 19h4"></path>
+        </svg>
+        Filter
+      </button>
+      <span v-if="blokFilter" class="tag tag-accent" style="cursor:pointer" @click="blokFilter = ''">
+        Blok N{{ blokFilter }} ✕
+      </span>
+      <span v-if="statusFilter" class="tag tag-accent" style="cursor:pointer" @click="statusFilter = ''">
+        {{ STATUS_LIST.find(s => s.value === statusFilter).label }} ✕
+      </span>
+    </div>
+
+    <div class="spread text-muted" style="font-size:11.5px">
+      <span>{{ daftar.length }} rumah</span>
+      <span v-if="totalPages > 1">Hal. {{ page }}/{{ totalPages }}</span>
+    </div>
+
     <div class="col">
-      <Card v-for="h in daftar" :key="h.alamat" style="flex-direction:row;align-items:center;
+      <Card v-for="h in halaman" :key="h.alamat" style="flex-direction:row;align-items:center;
             gap:var(--space-3);cursor:pointer" @click="pilih(h)">
         <div class="num" style="width:46px;height:46px;flex:none;border-radius:50%;
              display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);
@@ -98,6 +140,53 @@ const formUrl = computed(() => sel.value && bulan.value.length
           </span>
         </div>
       </Card>
+      <p v-if="!daftar.length" class="text-muted" style="text-align:center;font-size:12.5px">
+        Tidak ada rumah yang cocok.
+      </p>
+    </div>
+
+    <div v-if="totalPages > 1" class="row" style="justify-content:center;gap:var(--space-2)">
+      <button class="btn btn-secondary" :disabled="page === 1" @click="page--">‹ Sebelumnya</button>
+      <button class="btn btn-secondary" :disabled="page === totalPages" @click="page++">Berikutnya ›</button>
+    </div>
+
+    <!-- sheet: panel filter blok + status -->
+    <div v-if="showFilter" class="dialog-backdrop sheet-backdrop" @click.self="showFilter = false">
+      <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh;overflow-y:auto">
+        <div class="spread">
+          <div class="dialog-title">Filter</div>
+          <button class="btn btn-ghost" @click="showFilter = false">×</button>
+        </div>
+
+        <div class="kick">Blok</div>
+        <button type="button" class="btn" :class="!blokFilter ? 'btn-primary' : 'btn-secondary'"
+                :style="chipStyle(!blokFilter) + ';width:100%'" @click="blokFilter = ''">
+          Semua blok
+        </button>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2)">
+          <button v-for="b in BLOK_LIST" :key="b" type="button" class="btn"
+                  :class="blokFilter === b ? 'btn-primary' : 'btn-secondary'"
+                  :style="chipStyle(blokFilter === b)" @click="blokFilter = b">
+            N{{ b }}
+          </button>
+        </div>
+
+        <div class="kick">Status</div>
+        <div class="row" style="gap:var(--space-2)">
+          <button type="button" class="btn grow" :class="!statusFilter ? 'btn-primary' : 'btn-secondary'"
+                  :style="chipStyle(!statusFilter)" @click="statusFilter = ''">
+            Semua
+          </button>
+          <button v-for="s in STATUS_LIST" :key="s.value" type="button" class="btn grow"
+                  :class="statusFilter === s.value ? 'btn-primary' : 'btn-secondary'"
+                  :style="chipStyle(statusFilter === s.value)" @click="statusFilter = s.value">
+            {{ s.label }}
+          </button>
+        </div>
+
+        <Button block @click="showFilter = false">Terapkan</Button>
+      </div>
     </div>
 
     <!-- sheet: pilih bulan, penuh / sebagian, catat -->

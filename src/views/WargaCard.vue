@@ -1,39 +1,85 @@
 <script setup vapor>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek, alamat, parseAlamat, REKENING } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, alamat, REKENING, IURAN_RT, BLOK_LIST } from '../lib/tariff';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
+import RekeningCard from '../components/RekeningCard.vue';
 
 const { rumah, meta } = useSheet();
 
-// No login: blok is fixed, resident types the house number. Persisted so the card
-// opens straight away next time (and a per-house QR link can set it via ?rumah=).
+// No login, but blok+rumah alone is guessable by any resident — so opening a card
+// also needs that house's PIN (Rumah!L in the Sheet, defaults to the last 3 digits
+// of the phone number, admin can overwrite it per row). This is a deterrent, same
+// as the Pos/Kas PinGate: the Sheet is public-by-design (docs/deploy.md), so the PIN
+// itself travels in the same gviz response the app already reads — it stops a
+// neighbour from browsing someone else's dues in the app UI, not a determined actor
+// reading the raw feed directly.
 // Alamat has three parts: cluster code + block number + house number -> N7-09.
-// ?alamat=N7-09 lets each house have its own QR link; otherwise the resident types
-// blok + rumah once and it is remembered.
+// ?alamat=N7-09 lets each house have its own QR link (still gated by PIN); otherwise
+// the resident picks blok + types rumah. Cluster is always "N" here, so it's baked
+// into BLOK_LIST's labels instead of asking for it as a separate field.
 const CLUSTER = 'N';
-const saved = new URLSearchParams(location.search).get('alamat')
-           || localStorage.getItem('iuran.alamat') || '';
-const key = ref(saved);
+const chipStyle = (active) => active ? 'min-height:42px'
+  : 'min-height:42px;background:var(--color-surface);box-shadow:var(--shadow-sm)';
+
+const pinOkKey = (id) => `iuran.pinok.${id}`;
+const qsAlamat = new URLSearchParams(location.search).get('alamat') || '';
+const initialAlamat = qsAlamat || localStorage.getItem('iuran.alamat') || '';
+
+const key = ref('');
 const inBlok = ref('');
 const inRumah = ref('');
 const notFound = ref(false);
+const pendingHouse = ref(null);
+const pinInput = ref('');
+const pinError = ref(false);
 
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
-function open() {
-  const parsed = parseAlamat(`${CLUSTER}${inBlok.value}-${inRumah.value}`);
-  if (!parsed) { notFound.value = true; return; }
-  const id = alamat(parsed);
-  if (!rumah.value.some((h) => h.alamat === id)) { notFound.value = true; return; }
+function tryUnlock(id) {
+  const found = rumah.value.find((h) => h.alamat === id);
+  if (!found) { notFound.value = true; return; }
   notFound.value = false;
-  key.value = id;
-  localStorage.setItem('iuran.alamat', id);
+  if (localStorage.getItem(pinOkKey(id)) === '1') {
+    key.value = id;
+    localStorage.setItem('iuran.alamat', id);
+  } else {
+    pendingHouse.value = found;
+    pinInput.value = '';
+    pinError.value = false;
+  }
 }
+
+function open() {
+  const rumahNum = inRumah.value.trim();
+  if (!inBlok.value || !rumahNum) { notFound.value = true; return; }
+  tryUnlock(alamat({ cluster: CLUSTER, blok: inBlok.value, rumah: rumahNum }));
+}
+
+function submitPin() {
+  if (!pendingHouse.value) return;
+  const entered = pinInput.value.trim();
+  if (entered && entered === String(pendingHouse.value.pin ?? '')) {
+    localStorage.setItem(pinOkKey(pendingHouse.value.alamat), '1');
+    key.value = pendingHouse.value.alamat;
+    localStorage.setItem('iuran.alamat', pendingHouse.value.alamat);
+    pendingHouse.value = null;
+  } else {
+    pinError.value = true;
+  }
+  pinInput.value = '';
+}
+function batalPin() { pendingHouse.value = null; pinInput.value = ''; pinError.value = false; }
 function ganti() { key.value = ''; localStorage.removeItem('iuran.alamat'); }
+
+// ?alamat= / remembered address: try it once the Sheet has loaded — still goes
+// through tryUnlock, so a QR-code link alone can't skip the PIN on a new device.
+watch(rumah, (list) => {
+  if (list.length && initialAlamat && !key.value && !pendingHouse.value) tryUnlock(initialAlamat);
+}, { immediate: true });
 
 const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
 
@@ -118,33 +164,55 @@ function kirimKonfirmasi() {
 
 <template>
   <!-- masuk: blok + nomor rumah, tanpa akun -->
-  <section v-if="!me" class="scr col" style="gap:var(--space-3)">
-    <div style="width:74px;height:74px;border-radius:50%;background:var(--color-accent-2-200);
-                color:var(--color-accent-2-800);display:flex;align-items:center;
-                justify-content:center;font-family:var(--font-heading);font-size:28px">N</div>
+  <section v-if="!me && !pendingHouse" class="scr col" style="gap:var(--space-3)">
     <h3 style="margin:0">Buka kartu iuran</h3>
     <p class="text-muted" style="font-size:13px;margin:0">
-      Tidak perlu akun — masukkan blok dan nomor rumah Anda.<br>
-      <span style="opacity:.75">No login — cluster code, block number, house number.</span>
+      Tidak perlu akun — masukkan blok dan nomor rumah Anda.
     </p>
-    <div class="row" style="align-items:flex-end">
-      <div class="field" style="width:64px">
-        <label>Cluster</label>
-        <input class="input" :value="CLUSTER" readonly style="text-align:center">
-      </div>
-      <div class="field" style="width:64px">
-        <label>Blok</label>
-        <input class="input" v-model="inBlok" inputmode="numeric" placeholder="7"
-               style="text-align:center" @keyup.enter="open">
-      </div>
-      <div class="field grow">
-        <label>Rumah</label>
-        <input class="input" v-model="inRumah" inputmode="numeric" placeholder="09" @keyup.enter="open">
+
+    <div class="field">
+      <label>Blok</label>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2)">
+        <button v-for="b in BLOK_LIST" :key="b" type="button" class="btn"
+                :class="inBlok === b ? 'btn-primary' : 'btn-secondary'"
+                :style="chipStyle(inBlok === b)" @click="inBlok = b">
+          N{{ b }}
+        </button>
       </div>
     </div>
+    <div class="field" style="max-width:160px">
+      <label>No. Rumah</label>
+      <input class="input" v-model="inRumah" inputmode="numeric" maxlength="2"
+             placeholder="09" @keyup.enter="open">
+    </div>
+    <p class="text-muted num" style="font-size:11px;margin:0">
+      Nomor rumah 2 digit — No. 1 ditulis <b>01</b>.
+    </p>
     <Button block @click="open">Lihat kartu saya</Button>
-    <p class="text-muted num" style="font-size:11px;margin:0">Contoh: N7-09 — Blok N7, No. 09.</p>
+    <p class="text-muted num" style="font-size:11px;margin:0">Contoh: Blok N7, No. 09.</p>
     <p v-if="notFound" class="text-muted" style="font-size:11.5px">Alamat tidak ditemukan.</p>
+  </section>
+
+  <!-- verifikasi PIN rumah -->
+  <section v-else-if="pendingHouse" class="scr col"
+           style="gap:var(--space-3);align-items:center;text-align:center;padding-top:var(--space-8)">
+    <div style="width:56px;height:56px;border-radius:50%;background:var(--color-accent-2-200);
+                color:var(--color-accent-2-800);display:flex;align-items:center;
+                justify-content:center;font-size:22px">🔒</div>
+    <h3 style="margin:0">Verifikasi PIN</h3>
+    <p class="text-muted" style="font-size:13px;margin:0">
+      <b>{{ pendingHouse.alamat }}</b><br>
+      Masukkan 3 digit PIN rumah Anda untuk membuka kartu.
+    </p>
+    <input class="input num" v-model="pinInput" type="password" inputmode="numeric" maxlength="3"
+           placeholder="•••" style="max-width:120px;text-align:center;font-size:20px;letter-spacing:.3em"
+           autofocus @keyup.enter="submitPin">
+    <Button style="max-width:220px" @click="submitPin">Buka kartu</Button>
+    <p v-if="pinError" style="font-size:11.5px;color:var(--color-accent-700);margin:0">PIN salah, coba lagi.</p>
+    <p class="text-muted" style="font-size:11px;margin:var(--space-2) 0 0;max-width:280px">
+      Lupa PIN? Default-nya 3 digit terakhir no. HP yang terdaftar — kalau sudah diganti, hubungi bendahara.
+    </p>
+    <button class="btn btn-ghost" style="font-size:12px" @click="batalPin">← Ganti alamat</button>
   </section>
 
   <!-- kartu -->
@@ -165,9 +233,8 @@ function kirimKonfirmasi() {
         <div class="row" style="position:relative;gap:var(--space-6);margin-top:var(--space-2)">
           <div>
             <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-200)">Alamat</div>
-            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">{{ me.alamat }}</div>
-            <div style="font-size:11px;color:var(--color-bg)">
-              Blok {{ me.cluster }}{{ me.blok }} - No. {{ me.rumah }}
+            <div class="num" style="font-size:13.5px;font-weight:700;color:var(--color-bg)">
+              Blok {{ me.cluster }}{{ me.blok }} · No. {{ me.rumah }}
             </div>
           </div>
           <div>
@@ -196,15 +263,24 @@ function kirimKonfirmasi() {
     </div>
 
     <Card>
-      <div class="spread">
-        <span style="font-size:13.5px;font-weight:700">Tagihan berjalan</span>
-        <span class="num" style="font-family:var(--font-heading);font-size:22px;color:var(--color-accent-700)">
-          {{ rupiah(me.tunggakan) }}
-        </span>
+      <span style="font-size:13.5px;font-weight:700">Tagihan berjalan</span>
+      <div class="col" style="gap:5px">
+        <div class="spread" style="font-size:12.5px">
+          <span class="text-muted">ISLK ({{ me.luas }} m²)</span>
+          <span class="num">{{ rupiah(me.tarif - IURAN_RT) }}</span>
+        </div>
+        <div class="spread" style="font-size:12.5px">
+          <span class="text-muted">Iuran RT</span>
+          <span class="num">{{ rupiah(IURAN_RT) }}</span>
+        </div>
+        <div class="hr" style="margin:2px 0"></div>
+        <div class="spread">
+          <span style="font-size:13px;font-weight:700">Total tagihan</span>
+          <span class="num" style="font-family:var(--font-heading);font-size:24px;color:var(--color-accent-700)">
+            {{ rupiah(me.tunggakan) }}
+          </span>
+        </div>
       </div>
-      <p class="text-muted" style="font-size:11.5px;margin:0">
-        Tarif {{ rupiah(me.tarif) }}/bulan (ISLK per luas tanah + Iuran RT Rp 50.000).
-      </p>
       <Button block :disabled="!owed.length && !muka.length && !mukaDepan.length" @click="openTransfer">
         {{ owed.length ? 'Bayar transfer' : 'Bayar di muka' }}
       </Button>
@@ -214,9 +290,10 @@ function kirimKonfirmasi() {
     </Card>
 
     <!-- side sheet: konfirmasi transfer + bukti -->
-    <div v-if="trOpen" class="dialog-backdrop" @click.self="trOpen = false">
-      <div class="dialog" style="align-self:flex-end;width:100%;max-width:480px;
-           border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+    <div v-if="trOpen" class="dialog-backdrop sheet-backdrop" @click.self="trOpen = false">
+      <div class="dialog sheet" style="width:100%;max-width:480px;
+           border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:92dvh;overflow-y:auto">
         <div class="spread">
           <div>
             <div class="dialog-title">Konfirmasi Transfer</div>
@@ -225,16 +302,7 @@ function kirimKonfirmasi() {
           <button class="btn btn-ghost" @click="trOpen = false">×</button>
         </div>
 
-        <div class="col" style="background:var(--color-bg);border-radius:var(--radius-md);
-             padding:var(--space-3) var(--space-4);gap:6px">
-          <div class="spread" style="font-size:12.5px">
-            <span class="text-muted">Rekening tujuan</span>
-            <span class="num" style="font-weight:700">{{ REKENING.bank }} {{ REKENING.nomor }}</span>
-          </div>
-          <div class="spread" style="font-size:12.5px">
-            <span class="text-muted">Atas nama</span><span style="font-weight:600">{{ REKENING.nama }}</span>
-          </div>
-        </div>
+        <RekeningCard />
 
         <template v-if="owed.length">
           <div class="kick">Bulan yang dibayar</div>

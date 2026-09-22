@@ -15,7 +15,7 @@ separately so you can group, sort and filter by block; derive the key with a for
 | --- | --- | --- | --- |
 | A | alamat | **formula** | `N7-09` — primary key, referenced by every other tab |
 | B | cluster | text | `N` (Cypress) |
-| C | blok | number | `7` |
+| C | blok | text | `7` or `Blvd` — not every block is numeric, so keep it text |
 | D | rumah | text | `09` — keep the leading zero (format the column as plain text) |
 | E | nama | text | kepala keluarga |
 | F | telp | text | 62xxx, for the WhatsApp reminder link |
@@ -24,16 +24,23 @@ separately so you can group, sort and filter by block; derive the key with a for
 | I | islk | **formula** | |
 | J | iuran_rt | number | 50000 |
 | K | tarif_bulanan | **formula** | |
+| L | pin | **formula**, editable | Warga card PIN — defaults to phone's last 3 digits; admin overwrites the cell to set a custom one |
 
 ```
 A2: =IF($B2="","", $B2 & $C2 & "-" & TEXT($D2,"00"))
 I2: =IF($H2="kavling", 400*$G2,
       IFS($G2<120,225000, $G2<150,250000, $G2<260,310000, $G2<400,375000, TRUE,400000))
 K2: =$I2+$J2
+L2: =RIGHT($F2,3)
 ```
 
+`L` starts as a formula but is meant to be overwritten: typing a literal value into
+that cell (e.g. after a resident asks for a reset) replaces the formula for that row
+only, same as `disetor_batch`/`terverifikasi` on `Pembayaran`. It's a deterrent PIN,
+not real access control — see the comment above `pendingHouse` in `WargaCard.vue`.
+
 Every `VLOOKUP(..., Rumah!$A:$K, n, FALSE)` below keys on `alamat`; the tariff column
-is now **11**, not 8.
+is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §6.)
 
 Tariff table this encodes (ISLK, per month, by luas tanah):
 `<120 → 225.000` · `120–149 → 250.000` · `150–259 → 310.000` ·
@@ -162,14 +169,20 @@ Then, starting at D1, a per-house block the app renders directly:
 ```
 D1: "alamat" E1:"nama" F1:"telp" G1:"luas" H1:"tipe" I1:"tarif" J1:"tunggakan"
 K1..V1: 1..12 status text   W1:"cluster" X1:"blok" Y1:"rumah"
-Z1: "muka_tahun_depan"
+Z1: "muka_tahun_depan"   AA1: "pin"
 D2: =Rumah!A2   E2: =Rumah!E2  F2: =Rumah!F2  G2: =Rumah!G2
 H2: =Rumah!H2   I2: =Rumah!K2  J2: =Status!AC2
 W2: =Rumah!B2   X2: =Rumah!C2  Y2: =Rumah!D2
 K2: =Status!P2  … V2: =Status!AA2
 Z2: =TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$C:$C,
       Pembayaran!$B:$B=D2, Pembayaran!$D:$D=$B$8+1))))
+AA2: =Rumah!L2
 ```
+
+`AA`/pin rides along in the same public, published-to-web feed as everything else
+here (see `docs/deploy.md`) — the Warga card checks it client-side, so treat it the
+same as the Pos/Kas PIN: a deterrent against a neighbour browsing the app UI, not a
+secret that survives someone reading the raw gviz JSON directly.
 
 `Z` is a comma-joined list of month numbers (1–12) that already have a `Pembayaran`
 row for **next year** (`$B$8+1` — sah or pending, doesn't matter, a row existing is

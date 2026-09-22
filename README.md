@@ -1,7 +1,7 @@
 # Iuran Digital Cluster N — handoff
 
 Static site (Vue Vapor + shadcn-style primitives) for ISLK & Iuran RT 03/14 dues,
-Cluster N (Cypress), blok 7 & 8.
+Cluster N (Cypress).
 No server: **Google Sheet is the database**, **Google Form is the write endpoint**.
 
 ## Contents
