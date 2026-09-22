@@ -1,6 +1,6 @@
 # Google Sheet schema & formulas
 
-Spreadsheet name: **Iuran_ClusterN_2026**. Nine tabs. Row 1 is always the header.
+Spreadsheet name: **Iuran_ClusterN_2026**. Ten tabs. Row 1 is always the header.
 Formulas are written for row 2 — fill down, or wrap in `ARRAYFORMULA` where noted.
 
 ---
@@ -234,8 +234,36 @@ by hand instead if they're already in the sheet — both paths lead to "sah".
 
 ---
 
-## 9. `API` — per-house data + global numbers (the third tab the app reads,
-     alongside `Blok` and `Petugas`)
+## 9. `Opex` — the cluster's fixed minimum monthly cost, itemized (manual)
+
+| Col | Header | Notes |
+| --- | --- | --- |
+| A | kategori | text, e.g. `Gaji Satpam` |
+| B | ikon | one emoji, e.g. `🛡️` |
+| C | nominal | number |
+
+```
+A2: Gaji Satpam        B2: 🛡️   C2: 2400000
+A3: Kebersihan         B3: 🧹   C3: 300000
+A4: Listrik & Air Pos  B4: 💡   C4: 150000
+A5: Lain-lain          B5: 📋   C5: 100000
+```
+
+Plain typed rows, no formula, same "admin opens the Sheet and edits it directly"
+pattern as `Blok`/`Petugas` — add, remove or retotal a line and `API!opex_bulanan`
+(§10) picks it up on the next fetch, no deploy, no Form. `Gaji Satpam` is
+deliberately the *total* payroll for every satpam combined, not one row per
+person — this tab feeds the "Rincian OPEX" bottom sheet on the public `/ringkasan`
+page (§10, `RingkasanPublik.vue` — a sheet on the same page, not a separate
+route), and a named amount per individual satpam would be exactly the kind of
+identifiable personal data that page is built to avoid. `ikon` is a single emoji
+bendahara picks from their own keyboard — no icon-name mapping to maintain in
+code, it just renders as typed.
+
+---
+
+## 10. `API` — per-house data + global numbers (one of four tabs the app reads,
+      alongside `Blok`, `Petugas` and `Opex`)
 
 One flat table the front end parses; keep column order stable.
 
@@ -261,22 +289,22 @@ B9: =SUM(INDEX(Status!$B$2:$M$1000, 0, MONTH(TODAY())))
 A10: "target_bulan_ini"
 B10: =SUM(Rumah!$K$2:$K$1000)
 
-A11: "opex_bulanan"     B11: 0
+A11: "opex_bulanan"
+B11: =SUM(Opex!$C$2:$C$1000)
 ```
 
 `tahun_aktif` is what the app shows as the card's year and uses as the base for
 "bayar di muka" — read it instead of assuming any particular year.
 
-`B11`/`opex_bulanan` is the **only** manually-typed cell in this whole block — every
-other key here is a formula. Bendahara edits it directly (same "admin opens the
-Sheet and types a number" pattern as `Blok!warna`, no Form, no deploy) to record the
-cluster's actual minimum fixed monthly cost — security wages, cleaning, etc. It
-exists purely so the public dashboard (`RingkasanPublik.vue`) can show a real
-surplus/deficit signal (`terkumpul_bulan_ini - opex_bulanan`), not just "did everyone
-pay their tariff" — tariff income covering the *tariff target* doesn't tell anyone
-whether the tariff itself is still enough to cover what actually gets spent. Leave it
-`0` until bendahara fills it in; the dashboard just won't show a meaningful surplus/
-deficit line until then.
+`opex_bulanan` sums `Opex` (§9) rather than being typed here directly — bendahara
+edits line items over there (add a category, fix a number) and this total, and
+everything downstream of it, updates on the next fetch automatically. It exists
+purely so the public dashboard (`RingkasanPublik.vue`) can show a real
+surplus/deficit signal (`terkumpul_bulan_ini - opex_bulanan`), not just "did
+everyone pay their tariff" — tariff income covering the *tariff target* doesn't
+tell anyone whether the tariff itself is still enough to cover what actually gets
+spent. It reads `0` (and the dashboard shows no surplus/deficit line) until
+`Opex` has at least one row.
 
 Then, starting at D1, a per-house block the app renders directly:
 
@@ -304,12 +332,13 @@ enough to avoid double-charging). There's no next-year Status grid — paying ah
 into next year only needs "which months are already spoken for," not a full second
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
-Publish the spreadsheet to the web, then the app reads all three:
+Publish the spreadsheet to the web, then the app reads all four:
 
 ```
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=API
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Blok
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Petugas
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Opex
 ```
 
 Sheet-side caching is ~1–5 minutes. After a write the app optimistically shows the

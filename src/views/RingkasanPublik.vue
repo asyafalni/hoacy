@@ -1,5 +1,5 @@
 <script setup vapor>
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { rupiah, rupiahPendek } from '../lib/tariff';
 import Card from '../components/ui/Card.vue';
@@ -14,7 +14,7 @@ import Card from '../components/ui/Card.vue';
 // pure aggregate figures that can't be traced to an individual sit outside the
 // law's definition of "data pribadi" — that's the line every number on this page
 // is checked against. See the Q&A in project history for the full reasoning.
-const { meta, rumah, load } = useSheet();
+const { meta, rumah, opexList, load } = useSheet();
 onMounted(load);
 
 const kas = computed(() => Number(meta.value.kas_tunai || 0));
@@ -29,6 +29,8 @@ const persenTarget = computed(() => (target.value ? Math.min(100, Math.round((te
 const opex = computed(() => Number(meta.value.opex_bulanan || 0));
 const proyeksi = computed(() => terkumpul.value - opex.value);
 const opexBelumDiisi = computed(() => !opex.value);
+
+const showOpex = ref(false);
 </script>
 
 <template>
@@ -66,6 +68,11 @@ const opexBelumDiisi = computed(() => !opex.value);
         Terkumpul {{ rupiahPendek(terkumpul) }} − OPEX minimum {{ rupiahPendek(opex) }}/bulan.
         Ini sinyal buat diskusi apakah tarif perlu disesuaikan — bukan keputusan otomatis.
       </p>
+      <button type="button" class="btn btn-secondary" style="width:100%;justify-content:center;
+              font-size:12px;background:var(--color-surface);box-shadow:var(--shadow-sm)"
+              @click="showOpex = true">
+        Lihat rincian OPEX →
+      </button>
     </Card>
     <Card v-else>
       <span class="kick">Proyeksi vs OPEX minimum</span>
@@ -94,5 +101,44 @@ const opexBelumDiisi = computed(() => !opex.value);
       Halaman ini cuma nampilin angka gabungan seluruh cluster — tidak ada nama,
       alamat, atau status bayar rumah tertentu.
     </p>
+
+    <!-- rincian OPEX — bottom sheet, bukan halaman terpisah -->
+    <div v-if="showOpex" class="dialog-backdrop sheet-backdrop" @click.self="showOpex = false">
+      <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh;overflow-y:auto">
+        <div class="spread">
+          <div>
+            <div class="dialog-title">Rincian OPEX Bulanan</div>
+            <div class="text-muted" style="font-size:12px">Per kategori, bukan per orang</div>
+          </div>
+          <button class="btn btn-ghost" @click="showOpex = false">×</button>
+        </div>
+
+        <div v-for="o in opexList" :key="o.kategori" class="row" style="gap:var(--space-3)">
+          <div style="width:40px;height:40px;flex:none;border-radius:50%;background:var(--color-accent-2-100);
+                      display:flex;align-items:center;justify-content:center;font-size:18px">
+            {{ o.ikon }}
+          </div>
+          <span class="grow" style="font-size:13.5px;font-weight:600">{{ o.kategori }}</span>
+          <span class="num" style="font-weight:700">{{ rupiah(o.nominal) }}</span>
+        </div>
+
+        <p v-if="!opexList.length" class="text-muted" style="text-align:center;font-size:12.5px">
+          Bendahara belum mengisi rincian OPEX di Sheet (tab Opex).
+        </p>
+
+        <div v-else class="spread" style="background:var(--color-neutral-900);color:var(--color-neutral-100);
+             border-radius:var(--radius-md);padding:var(--space-3) var(--space-4)">
+          <span style="font-size:13.5px;font-weight:700">Total OPEX / bulan</span>
+          <span class="num" style="font-family:var(--font-heading);font-size:21px;color:var(--color-accent-300)">
+            {{ rupiah(opex) }}
+          </span>
+        </div>
+
+        <p class="text-muted" style="font-size:10.5px;text-align:center">
+          Diedit bendahara langsung di Google Sheet — begitu diubah, angka ini otomatis ikut.
+        </p>
+      </div>
+    </div>
   </section>
 </template>

@@ -1,7 +1,7 @@
 // Local-dev fixture only. useSheet.js falls back to this when VITE_SHEET_ID is
 // unset, so the app is clickable without a real Google Sheet. Shape matches
 // exactly what parse() would produce from the API tab's gviz response — see
-// docs/sheets-schema.md §9 for the real column layout (A/B key-value interleaved
+// docs/sheets-schema.md §10 for the real column layout (A/B key-value interleaved
 // with D..Z per-house columns on the same sheet rows).
 import { islk, IURAN_RT, BLOK_LIST } from '../lib/tariff.js';
 
@@ -54,7 +54,7 @@ for (let i = 0; i < 34; i++) {
   });
 }
 
-// Mirrors the real B9/B10 formulas (docs/sheets-schema.md §9): sum of whatever
+// Mirrors the real B9/B10 formulas (docs/sheets-schema.md §10): sum of whatever
 // landed for the current month (index 8 = September, matching the status
 // patterns generated above) across every house, vs. sum of everyone's tarif.
 const terkumpulBulanIni = houses.reduce((sum, h) => {
@@ -63,6 +63,18 @@ const terkumpulBulanIni = houses.reduce((sum, h) => {
   return sum;
 }, 0);
 const targetBulanIni = houses.reduce((sum, h) => sum + h.tarif, 0);
+
+// `Opex` tab (docs/sheets-schema.md §9) — category totals only, e.g. "Gaji Satpam"
+// is every satpam's wage combined, never itemized per person.
+export const MOCK_OPEX_ROWS = [
+  ['Gaji Satpam', '🛡️', 2400000],
+  ['Kebersihan', '🧹', 300000],
+  ['Listrik & Air Pos', '💡', 150000],
+  ['Lain-lain', '📋', 100000],
+];
+// opex_bulanan mirrors =SUM(Opex!$C:$C) — computed from the rows above, same as
+// the real sheet, instead of a second hand-typed number that could drift from them.
+const opexBulanan = MOCK_OPEX_ROWS.reduce((sum, [, , nominal]) => sum + nominal, 0);
 
 const meta = [
   ['kas_tunai', 1750000],
@@ -74,9 +86,7 @@ const meta = [
   ['tahun_aktif', 2026],
   ['terkumpul_bulan_ini', terkumpulBulanIni],
   ['target_bulan_ini', targetBulanIni],
-  // deliberately below terkumpulBulanIni so the public dashboard's deficit/
-  // surplus signal has something real to show in local dev
-  ['opex_bulanan', Math.round(terkumpulBulanIni * 0.85 / 1000) * 1000],
+  ['opex_bulanan', opexBulanan],
 ];
 
 const houseRow = (h) => [

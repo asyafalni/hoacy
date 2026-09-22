@@ -124,7 +124,7 @@ const muka = computed(() => !me.value ? [] : me.value.status
   .filter((x) => x.s === '-')
   .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
 
-// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §9)
+// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §10)
 const mukaDepan = computed(() => {
   if (!me.value) return [];
   const sudah = new Set(me.value.mukaTahunDepan || []);
