@@ -23,6 +23,23 @@
 .sheet-backdrop { align-items: flex-end; padding: 0; animation: backdrop-in .18s ease-out; }
 .sheet { animation: sheet-up .32s cubic-bezier(.32,.72,0,1); }
 
+/* Default browser scrollbar (white track, gray thumb) reads as a UI glitch
+   against the cream sheet — tint it with the app's own tokens instead of
+   leaving the OS default. Firefox via scrollbar-color, everything
+   Chromium/WebKit-based via the pseudo-elements. */
+.sheet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-400) transparent;
+}
+.sheet::-webkit-scrollbar { width: 8px; }
+.sheet::-webkit-scrollbar-track { background: transparent; }
+.sheet::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-400);
+  border-radius: 999px;
+  border: 2px solid var(--color-surface);
+}
+.sheet::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-500); }
+
 /* — printable per-house QR sheet (CetakQR.vue) — */
 .qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .qr-card {
