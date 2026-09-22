@@ -26,7 +26,6 @@ watch(rumah, async (list) => {
  <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
   <section class="scr col" style="gap:var(--space-3)">
     <div class="row no-print" style="align-items:flex-start;gap:var(--space-3)">
-      <a href="#/kas" class="btn btn-ghost" style="font-size:12px;flex:none;margin-top:2px">← Kas</a>
       <div class="grow">
         <h4 style="margin:0">Cetak QR per rumah</h4>
         <div class="text-muted" style="font-size:11.5px">
@@ -42,6 +41,7 @@ watch(rumah, async (list) => {
           <rect x="6" y="14" width="12" height="8"></rect>
         </svg>
       </button>
+      <a href="#/kas" class="btn btn-ghost" style="font-size:12px;flex:none;margin-top:2px">← Kas</a>
     </div>
 
     <div class="qr-grid">
