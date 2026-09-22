@@ -239,7 +239,8 @@ async function retryPending(p) {
     <!-- sheet: panel filter blok + status -->
     <div v-if="showFilter" class="dialog-backdrop sheet-backdrop" @click.self="showFilter = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div class="dialog-title">Filter</div>
           <button class="btn btn-ghost" @click="showFilter = false">×</button>
@@ -272,6 +273,7 @@ async function retryPending(p) {
         </div>
 
         <Button block @click="showFilter = false">Terapkan</Button>
+       </div>
       </div>
     </div>
 

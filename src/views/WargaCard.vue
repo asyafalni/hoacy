@@ -422,7 +422,8 @@ function kirimKonfirmasi() {
     <div v-if="trOpen" class="dialog-backdrop sheet-backdrop" @click.self="trOpen = false">
       <div class="dialog sheet" style="width:100%;max-width:480px;
            border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:92dvh;overflow-y:auto">
+           max-height:92dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Konfirmasi Transfer</div>
@@ -535,6 +536,7 @@ function kirimKonfirmasi() {
              ? 'Form terbuka untuk melampirkan bukti — status menjadi Pending verifikasi'
              : 'Lampirkan bukti transfer untuk melanjutkan' }}
         </div>
+       </div>
       </div>
     </div>
   </section>

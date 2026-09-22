@@ -224,8 +224,9 @@ async function verifikasi(p) {
          langkah lewat IntersectionObserver di sentinel, bukan nge-dump semua
          audit trail sekaligus ke layar -->
     <div v-if="showRiwayatKas" class="dialog-backdrop sheet-backdrop" @click.self="showRiwayatKas = false">
-      <div ref="riwayatScrollEl" class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+      <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh">
+       <div ref="riwayatScrollEl" class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Riwayat Kas Masuk</div>
@@ -256,6 +257,7 @@ async function verifikasi(p) {
             — {{ tunai.length }} dari {{ tunai.length }} —
           </p>
         </div>
+       </div>
       </div>
     </div>
 
@@ -263,7 +265,8 @@ async function verifikasi(p) {
          gambarnya langsung ditampilkan di sini -->
     <div v-if="buktiTampil" class="dialog-backdrop sheet-backdrop" @click.self="buktiTampil = null">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Bukti Transfer</div>
@@ -282,6 +285,7 @@ async function verifikasi(p) {
           dengan link".
           <a :href="buktiTampil.buktiUrl" target="_blank">Buka langsung di Drive →</a>
         </p>
+       </div>
       </div>
     </div>
   </section>

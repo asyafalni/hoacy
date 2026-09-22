@@ -23,26 +23,40 @@
 .sheet-backdrop { align-items: flex-end; padding: 0; animation: backdrop-in .18s ease-out; }
 .sheet { animation: sheet-up .32s cubic-bezier(.32,.72,0,1); }
 
-/* Default browser scrollbar (white track, gray thumb) reads as a UI glitch
-   against the cream sheet — tint it with the app's own tokens instead of
-   leaving the OS default. Firefox via scrollbar-color, everything
-   Chromium/WebKit-based via the pseudo-elements. */
-.sheet {
+/* A scrollbar rendered by the *same* element as its own rounded corners isn't
+   reliably clipped to that curve across browsers — some Linux builds in
+   particular render the scrollbar as a compositor overlay that ignores the
+   scrolling element's own border-radius/overflow entirely, no matter what
+   scrollbar-specific CSS says (a scrollbar-track margin doesn't help there).
+   The only fix that holds everywhere: `.sheet` itself stops scrolling and
+   becomes a plain clipping frame (overflow: hidden, no padding — an ancestor's
+   overflow:hidden *does* clip a descendant's scrollbar, overlay or not), and
+   an inner `.sheet-scroll` wrapper (added once inside every `.dialog.sheet` in
+   the templates) does the actual scrolling + padding, with square corners of
+   its own so there's no curve for its scrollbar to run into in the first place. */
+.sheet { overflow: hidden; padding: 0; }
+.sheet-scroll {
+  overflow-y: auto;
+  max-height: inherit;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* Default browser scrollbar (white track, gray thumb) reads as a UI glitch
+     against the cream sheet — tint it with the app's own tokens instead of
+     leaving the OS default. Firefox via scrollbar-color, everything
+     Chromium/WebKit-based via the pseudo-elements. */
   scrollbar-width: thin;
   scrollbar-color: var(--color-neutral-400) transparent;
 }
-.sheet::-webkit-scrollbar { width: 8px; }
-/* Sheet's top corners are rounded (its own inline border-radius, --radius-lg
-   = 28px); the scrollbar track otherwise runs flush to the very top and
-   pokes past that curve. Match the margin to the actual radius, not half of
-   it, so the track's top end clears the curve at any point across its width. */
-.sheet::-webkit-scrollbar-track { background: transparent; margin-top: var(--radius-lg); }
-.sheet::-webkit-scrollbar-thumb {
+.sheet-scroll::-webkit-scrollbar { width: 8px; }
+.sheet-scroll::-webkit-scrollbar-track { background: transparent; }
+.sheet-scroll::-webkit-scrollbar-thumb {
   background: var(--color-neutral-400);
   border-radius: 999px;
   border: 2px solid var(--color-surface);
 }
-.sheet::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-500); }
+.sheet-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-500); }
 
 /* — printable per-house QR sheet (CetakQR.vue) — */
 .qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }

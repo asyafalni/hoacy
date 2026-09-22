@@ -409,7 +409,8 @@ useScrollLock(showDibayarDimuka);
     <!-- rincian OPEX — bottom sheet, bukan halaman terpisah -->
     <div v-if="showOpex" class="dialog-backdrop sheet-backdrop" @click.self="showOpex = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Rincian OPEX Bulanan</div>
@@ -444,6 +445,7 @@ useScrollLock(showDibayarDimuka);
         <p class="text-muted" style="font-size:10.5px;text-align:center">
           Diedit bendahara langsung di Google Sheet — begitu diubah, angka ini otomatis ikut.
         </p>
+       </div>
       </div>
     </div>
 
@@ -452,7 +454,8 @@ useScrollLock(showDibayarDimuka);
          konstan ke belakang juga (lihat catatan di script, riwayatBulanan). -->
     <div v-if="showRiwayat" class="dialog-backdrop sheet-backdrop" @click.self="showRiwayat = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Riwayat Terkumpul vs Target</div>
@@ -507,6 +510,7 @@ useScrollLock(showDibayarDimuka);
           Garis putus-putus = target bulanan saat ini, dipakai sebagai acuan ke bulan-bulan
           sebelumnya juga (Sheet ini tidak menyimpan riwayat tarif per bulan).
         </p>
+       </div>
       </div>
     </div>
 
@@ -514,7 +518,8 @@ useScrollLock(showDibayarDimuka);
          muka" pada breakdown kartu Runway di atas. -->
     <div v-if="showDibayarDimuka" class="dialog-backdrop sheet-backdrop" @click.self="showDibayarDimuka = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">Dibayar di Muka</div>
@@ -552,6 +557,7 @@ useScrollLock(showDibayarDimuka);
           jasa buat bulan-bulan itu, jadi ini bukan surplus — beda dari tunggakan (piutang), ini
           justru kebalikannya.
         </p>
+       </div>
       </div>
     </div>
   </section>

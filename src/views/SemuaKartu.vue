@@ -132,7 +132,8 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
     <!-- sheet: panel filter blok + status (sama seperti Pos) -->
     <div v-if="showFilter" class="dialog-backdrop sheet-backdrop" @click.self="showFilter = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div class="dialog-title">Filter</div>
           <button class="btn btn-ghost" @click="showFilter = false">×</button>
@@ -165,13 +166,15 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
         </div>
 
         <button class="btn btn-primary" style="width:100%" @click="showFilter = false">Terapkan</button>
+       </div>
       </div>
     </div>
 
     <!-- sheet: kartu 12 bulan rumah terpilih — lihat saja, tidak ada aksi bayar -->
     <div v-if="sel" class="dialog-backdrop sheet-backdrop" @click.self="sel = null">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-           max-height:85dvh;overflow-y:auto">
+           max-height:85dvh">
+       <div class="sheet-scroll">
         <div class="spread">
           <div>
             <div class="dialog-title">{{ sel.alamat }} · {{ sel.nama }}</div>
@@ -204,6 +207,7 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
             <div class="num" style="font-size:10px;opacity:.8">{{ s === '-' ? '—' : s }}</div>
           </div>
         </div>
+       </div>
       </div>
     </div>
   </section>
