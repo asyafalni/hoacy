@@ -1,6 +1,7 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { usePendingSync } from '../composables/usePendingSync';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlPembayaran, submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
@@ -9,6 +10,8 @@ import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
 const { rumah, blokWarna, satpamList, echo, load } = useSheet();
+const { pending, add: addPending, reconcile } = usePendingSync();
+watch(rumah, (list) => { if (list.length) reconcile(list); });
 // light tint of the block's color behind the house number — dark text stays legible
 const badgeStyle = (h) => {
   const hex = blokWarna.value[String(h.blok)] || BLOK_WARNA_DEFAULT[String(h.blok)] || '#c0b6a5';
@@ -78,19 +81,32 @@ const total = computed(() => {
   return Math.round(raw / 1000) * 1000;
 });
 
+const submitting = ref(false);   // disables the button — stops a double-tap from firing two rows
+
 async function catat() {
-  if (!sel.value || !bulan.value.length) return;
-  const per = Math.round(total.value / bulan.value.length / 1000) * 1000;
-  for (const i of bulan.value) {
-    const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
-                  metode: 'tunai', petugas: petugasAktif.value };
-    echo(rec);
-    await submitPembayaran(rec);       // opaque; the echo is what the satpam sees
+  if (!sel.value || !bulan.value.length || submitting.value) return;
+  submitting.value = true;
+  try {
+    const per = Math.round(total.value / bulan.value.length / 1000) * 1000;
+    for (const i of bulan.value) {
+      const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
+                    metode: 'tunai', petugas: petugasAktif.value };
+      echo(rec);
+      addPending(rec);                 // survives a reload/crash — see usePendingSync
+      await submitPembayaran(rec);     // opaque; the echo + pending entry are what the satpam sees
+    }
+    toast.value = `${sel.value.nama} · ${bulan.value.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
+    sel.value = null; bulan.value = [];
+    setTimeout(async () => { await load(); }, 4000);   // sheet cache settles, then reconcile (see watch(rumah))
+    setTimeout(() => (toast.value = ''), 4000);
+  } finally {
+    submitting.value = false;
   }
-  toast.value = `${sel.value.nama} · ${bulan.value.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
-  sel.value = null; bulan.value = [];
-  setTimeout(load, 4000);              // sheet cache settles, then reconcile
-  setTimeout(() => (toast.value = ''), 4000);
+}
+
+async function retryPending(p) {
+  await submitPembayaran(p);
+  await load();
 }
 
 // fallback when the silent POST is unreliable: open the prefilled form
@@ -156,6 +172,27 @@ const formUrl = computed(() => sel.value && bulan.value.length
         {{ STATUS_LIST.find(s => s.value === statusFilter).label }} ✕
       </span>
     </div>
+
+    <!-- submissions the sheet hasn't confirmed yet — no-cors POST means we never
+         actually know if these landed, so keep them visible until reconcile() (in
+         useSheet's watch above) sees the house/month move off "Belum" -->
+    <Card v-if="pending.length" style="background:var(--color-accent-100);gap:6px">
+      <div class="spread">
+        <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
+          ⚠ {{ pending.length }} pembayaran belum tersinkron
+        </span>
+      </div>
+      <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
+        <span>{{ p.noRumah }} · {{ BULAN[p.bulan - 1] }} · {{ rupiahPendek(p.nominal) }}</span>
+        <span class="row" style="gap:6px">
+          <button class="btn btn-ghost" style="font-size:11px;padding-inline:6px" @click="retryPending(p)">
+            Coba lagi
+          </button>
+          <a class="btn btn-ghost" style="font-size:11px;padding-inline:6px"
+             :href="urlPembayaran(p)" target="_blank">Buka Form</a>
+        </span>
+      </div>
+    </Card>
 
     <div class="spread text-muted" style="font-size:11.5px">
       <span>{{ daftar.length }} rumah</span>
@@ -267,7 +304,9 @@ const formUrl = computed(() => sel.value && bulan.value.length
           </span>
         </div>
 
-        <Button block @click="catat">Catat &amp; Kirim ke Sheet</Button>
+        <Button block :disabled="submitting" @click="catat">
+          {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
+        </Button>
         <a class="btn btn-ghost" :href="formUrl" target="_blank"
            style="justify-content:center;font-size:11.5px">buka Google Form (jika jaringan buruk)</a>
       </div>

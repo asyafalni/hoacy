@@ -22,3 +22,19 @@
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .sheet-backdrop { align-items: flex-end; padding: 0; animation: backdrop-in .18s ease-out; }
 .sheet { animation: sheet-up .32s cubic-bezier(.32,.72,0,1); }
+
+/* — printable per-house QR sheet (CetakQR.vue) — */
+.qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.qr-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  text-align: center; break-inside: avoid;
+}
+.qr-card svg { width: 100%; height: auto; max-width: 132px; }
+@media print {
+  .no-print, .app > header { display: none !important; }
+  .app { max-width: none; }
+  .scr { padding: 0; }
+  .qr-grid { grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .qr-card { border-color: #000; break-inside: avoid; page-break-inside: avoid; }
+}

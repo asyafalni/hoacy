@@ -2,11 +2,13 @@ import { ref, computed } from 'vue';
 import { BLOK_WARNA_DEFAULT } from '../lib/tariff.js';
 
 const SHEET = import.meta.env.VITE_SHEET_ID;
-const gviz = (tab) =>
+/** Exported so other tabs (e.g. usePembayaranLedger's raw Pembayaran fetch) can
+ *  reuse the same gviz URL + response parsing instead of duplicating it. */
+export const gviz = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?tqx=out:json&sheet=${tab}`;
 
 /** gviz wraps its JSON in a JS callback — strip it. */
-function parse(text) {
+export function parse(text) {
   const json = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
   return json.table.rows.map((r) => (r.c || []).map((c) => (c ? c.v : null)));
 }
@@ -49,7 +51,7 @@ export function useSheet() {
       tarif: r[8], tunggakan: r[9],
       status: r.slice(10, 22),   // 12 months of "Lunas|Sebagian|Pending|Belum|-"
       cluster: r[22], blok: r[23], rumah: r[24],
-      // months (1-12) of next year already submitted — see docs/sheets-schema.md §6
+      // months (1-12) of next year already submitted — see docs/sheets-schema.md §7
       mukaTahunDepan: r[25] ? String(r[25]).split(',').map(Number).filter(Boolean) : [],
       // per-house PIN — deterrent gate on the Warga card, see WargaCard.vue
       pin: r[26] != null ? String(r[26]) : '',
@@ -68,8 +70,14 @@ export function useSheet() {
   const satpamList = computed(() =>
     rows.value.filter((r) => r[30]).map((r) => String(r[30])));
 
+  // same idea for Kas (API!AF) — bendahara/admin/komite roster, so a verification
+  // is signed by a name from this list, not free text (see bendaharaAktif in
+  // Bendahara.vue).
+  const bendaharaList = computed(() =>
+    rows.value.filter((r) => r[31]).map((r) => String(r[31])));
+
   /** Local echo so the satpam sees the row immediately after submitting. */
   function echo(rec) { optimistic.value.push({ ...rec, at: Date.now() }); }
 
-  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, optimistic, echo };
+  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, bendaharaList, optimistic, echo };
 }

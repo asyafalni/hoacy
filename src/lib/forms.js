@@ -36,3 +36,18 @@ export const batchId = () => {
   const d = new Date(), z = (n) => String(n).padStart(2, '0');
   return `SET-${String(d.getFullYear()).slice(2)}${z(d.getMonth() + 1)}${z(d.getDate())}-1`;
 };
+
+/** "Verifikasi Transfer" — flips Pembayaran!J pending -> sah for one house/month
+ *  via Verifikasi (append-only), never by editing the original row directly. */
+export function urlVerifikasi({ alamat, bulan, tahun = new Date().getFullYear(), oleh }) {
+  const p = params({
+    'entry.3000001': alamat, 'entry.3000002': bulan, 'entry.3000003': tahun, 'entry.3000004': oleh,
+  });
+  return `https://docs.google.com/forms/d/e/${E.VITE_FORM_VERIFIKASI}/viewform?${p}`;
+}
+
+/** Fire-and-forget, same opaque/optimistic pattern as submitPembayaran. */
+export function submitVerifikasi(rec) {
+  const url = urlVerifikasi(rec).replace('/viewform?', '/formResponse?');
+  return fetch(url, { method: 'POST', mode: 'no-cors' });
+}

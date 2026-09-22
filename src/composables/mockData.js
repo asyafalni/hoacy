@@ -1,7 +1,7 @@
 // Local-dev fixture only. useSheet.js falls back to this when VITE_SHEET_ID is
 // unset, so the app is clickable without a real Google Sheet. Shape matches
 // exactly what parse() would produce from the API tab's gviz response — see
-// docs/sheets-schema.md §6 for the real column layout (A/B key-value interleaved
+// docs/sheets-schema.md §7 for the real column layout (A/B key-value interleaved
 // with D..Z per-house columns on the same sheet rows).
 import { islk, IURAN_RT, BLOK_LIST } from '../lib/tariff.js';
 
@@ -81,12 +81,49 @@ const BLOK_WARNA_LIST = [
 // AE — satpam roster, a flat name list (no fixed count, unlike the block table).
 const SATPAM_LIST = ['Ujang', 'Dedi', 'Rahmat'];
 
+// AF — bendahara/admin/komite roster, same idea, for the Kas screen.
+const BENDAHARA_LIST = ['Ibu Siti', 'Pak Joko'];
+
 // Rows past meta.length still need to exist for houses beyond row 7 — the key/value
 // block is short, but the per-house block below it runs the full length of `houses`.
-const rowCount = Math.max(meta.length, houses.length, BLOK_WARNA_LIST.length, SATPAM_LIST.length);
+const rowCount = Math.max(meta.length, houses.length, BLOK_WARNA_LIST.length,
+  SATPAM_LIST.length, BENDAHARA_LIST.length);
 export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   const [k, v] = meta[i] || [null, null];
   const [blok, warna] = BLOK_WARNA_LIST[i] || [null, null];
   const satpam = SATPAM_LIST[i] || null;
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null)), null, blok, warna, satpam];
+  const bendahara = BENDAHARA_LIST[i] || null;
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null)),
+          null, blok, warna, satpam, bendahara];
 });
+
+// Raw `Pembayaran` ledger — usePembayaranLedger.js falls back to this the same way
+// useSheet.js falls back to MOCK_ROWS. Columns: Timestamp, alamat, bulan, tahun,
+// nominal, metode, petugas, catatan, bukti_url, then J..N (tarif/keabsahan/
+// disetor_batch/terverifikasi/lokasi_uang) are formula/treasurer columns the app
+// never reads except keabsahan (index 10), set directly here since there's no
+// live formula engine in mock mode.
+const pembayaranRow = ({ alamat, bulan, tahun = 2026, nominal, metode, petugas, catatan = '',
+                          buktiUrl = '', keabsahan = 'sah' }, ts) => [
+  ts, alamat, bulan, tahun, nominal, metode, petugas, catatan, buktiUrl,
+  null, keabsahan, null, null, null,
+];
+
+export const MOCK_PEMBAYARAN_ROWS = [
+  pembayaranRow({ alamat: 'N7-01', bulan: 8, nominal: 300000, metode: 'tunai', petugas: 'Ujang' }, '2026-08-03 08:12:00'),
+  pembayaranRow({ alamat: 'N8-02', bulan: 7, nominal: 450000, metode: 'tunai', petugas: 'Ujang' }, '2026-08-03 08:20:00'),
+  pembayaranRow({ alamat: 'N7-03', bulan: 7, nominal: 180000, metode: 'transfer', petugas: 'Warga',
+    catatan: 'bukti: transfer-juli.jpg', buktiUrl: 'https://picsum.photos/seed/N7-03-jul/500/700', keabsahan: 'pending' },
+    '2026-08-05 19:41:00'),
+  pembayaranRow({ alamat: 'N1-13', bulan: 8, nominal: 385000, metode: 'tunai', petugas: 'Dedi' }, '2026-08-10 09:03:00'),
+  pembayaranRow({ alamat: 'N3-15', bulan: 8, nominal: 385000, metode: 'tunai', petugas: 'Dedi' }, '2026-08-10 09:11:00'),
+  pembayaranRow({ alamat: 'N8-05', bulan: 9, nominal: 35000, metode: 'transfer', petugas: 'Warga',
+    catatan: 'bukti: bukti_sept.png', buktiUrl: 'https://picsum.photos/seed/N8-05-sep/500/700', keabsahan: 'pending' },
+    '2026-09-14 21:02:00'),
+  pembayaranRow({ alamat: 'N6-13', bulan: 9, nominal: 295000, metode: 'tunai', petugas: 'Rahmat' }, '2026-09-15 10:22:00'),
+  pembayaranRow({ alamat: 'N2-11', bulan: 9, nominal: 310000, metode: 'tunai', petugas: 'Rahmat' }, '2026-09-15 10:30:00'),
+  pembayaranRow({ alamat: 'N7-09', bulan: 9, nominal: 425000, metode: 'transfer', petugas: 'Warga',
+    catatan: 'bukti: sept_hendra.jpg', buktiUrl: 'https://picsum.photos/seed/N7-09-sep/500/700', keabsahan: 'pending' },
+    '2026-09-16 07:55:00'),
+  pembayaranRow({ alamat: 'N5-11', bulan: 9, nominal: 320000, metode: 'tunai', petugas: 'Ujang' }, '2026-09-18 16:40:00'),
+];

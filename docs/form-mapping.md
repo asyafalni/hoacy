@@ -1,6 +1,6 @@
 # Google Forms as the write endpoint
 
-Three forms, each wired to one tab of **Iuran_BlokN_2026**.
+Four forms, each wired to one tab of **Iuran_BlokN_2026**.
 
 ## A. Form "Catat Pembayaran" → `Pembayaran`
 
@@ -62,13 +62,35 @@ network is bad; the satpam then has a visible receipt screen.
 
 `batch_id` prefilled as `SET-260921-1`, `nominal` prefilled with the current
 Kas Tunai balance, `oleh` prefilled with the treasurer's name.
-After submitting, paste the batch id into `Pembayaran!K` for the banked rows.
+After submitting, paste the batch id into `Pembayaran!L` for the banked rows.
 
 ## C. Form "Pengeluaran" → `Pengeluaran`
 
 `keterangan`, `nominal`, `sumber` (kas | bank). No prefill needed.
 
+## D. Form "Verifikasi Transfer" → `Verifikasi`
+
+| Question | Type | entry id (yours will differ) |
+| --- | --- | --- |
+| Alamat | short text | `entry.3000001` |
+| Bulan | short text (1–12) | `entry.3000002` |
+| Tahun | short text | `entry.3000003` |
+| Oleh | short text | `entry.3000004` |
+
+The Kas screen's "Perlu diverifikasi" list comes from a direct read of the
+`Pembayaran` tab (not the `API` tab — `usePembayaranLedger.js`), filtered to
+`metode="transfer"` and `keabsahan="pending"`. Reading `Pembayaran` directly
+(rather than adding yet more columns to `API`) is also how bendahara gets to see
+`I` (bukti_url) per pending row — a "Lihat bukti" link opens the Drive photo
+before they decide to verify. Tapping **Verifikasi** fires this form silently
+(same `/formResponse` no-cors pattern as Form A), prefilled with that house/month
+and `oleh` = whichever name the bendahara typed in at setup (see `Bendahara.vue`).
+`Pembayaran!K` picks the new row up via `COUNTIFS(Verifikasi!...)` — §2/§5 of
+`docs/sheets-schema.md`.
+
 ## Verifying a transfer
 
-No form — the treasurer ticks `Pembayaran!L` (terverifikasi) in the sheet, or you
-add a fourth form keyed by row id. The `Pending → Lunas` transition is pure formula.
+Two equivalent paths, either one flips `Pembayaran!K` from `pending` to `sah`:
+the treasurer ticks `Pembayaran!M` directly in the sheet, or taps **Verifikasi**
+in the Kas app screen (Form D above). Both are just inputs to the same formula —
+neither is more "official" than the other.

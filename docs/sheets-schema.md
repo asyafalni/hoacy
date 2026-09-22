@@ -1,6 +1,6 @@
 # Google Sheet schema & formulas
 
-Spreadsheet name: **Iuran_ClusterN_2026**. Six tabs. Row 1 is always the header.
+Spreadsheet name: **Iuran_ClusterN_2026**. Seven tabs. Row 1 is always the header.
 Formulas are written for row 2 — fill down, or wrap in `ARRAYFORMULA` where noted.
 
 ---
@@ -40,7 +40,7 @@ only, same as `disetor_batch`/`terverifikasi` on `Pembayaran`. It's a deterrent 
 not real access control — see the comment above `pendingHouse` in `WargaCard.vue`.
 
 Every `VLOOKUP(..., Rumah!$A:$K, n, FALSE)` below keys on `alamat`; the tariff column
-is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §6.)
+is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §7.)
 
 Tariff table this encodes (ISLK, per month, by luas tanah):
 `<120 → 225.000` · `120–149 → 250.000` · `150–259 → 310.000` ·
@@ -51,7 +51,7 @@ Every house also pays Iuran RT 50.000.
 
 ## 2. `Pembayaran` — Form responses (append-only ledger)
 
-A–H come from the Form. I onward are formulas or treasurer input.
+A–I come from the Form. J onward are formulas or treasurer input.
 
 | Col | Header | Source |
 | --- | --- | --- |
@@ -63,19 +63,36 @@ A–H come from the Form. I onward are formulas or treasurer input.
 | F | metode | Form: `tunai` / `transfer` |
 | G | petugas | Form: `Pos Satpam – Ujang` / `Warga` |
 | H | catatan | Form, optional |
-| I | tarif | formula |
-| J | keabsahan | formula — `sah` / `pending` |
-| K | disetor_batch | **treasurer**, blank = still Kas Tunai |
-| L | terverifikasi | **treasurer** checkbox (transfers only) |
-| M | lokasi_uang | formula — `kas` / `bank` |
+| I | bukti_url | Form — the file-upload question's Drive link, blank for `tunai` rows |
+| J | tarif | formula |
+| K | keabsahan | formula — `sah` / `pending` |
+| L | disetor_batch | **treasurer**, blank = still Kas Tunai |
+| M | terverifikasi | **treasurer** checkbox (transfers only) — manual fallback, see below |
+| N | lokasi_uang | formula — `kas` / `bank` |
+
+`I` isn't a formula you add — it's simply where the Form's file-upload question
+lands once the Form is linked to this sheet (Google appends a column per
+question, in question order, right after `H`). Miss this and whoever wires up
+the Form later finds the bukti link colliding with whatever you put in `I`
+instead — put the `tarif` formula in `J`, one column later than you'd guess from
+just reading the form fields.
 
 ```
-I2: =IFERROR(VLOOKUP($B2, Rumah!$A:$K, 11, FALSE), "")   // B = alamat, e.g. N7-09
-J2: =IF($F2="transfer", IF($L2=TRUE,"sah","pending"), "sah")
-M2: =IF($F2="transfer","bank", IF($K2="","kas","bank"))
+J2: =IFERROR(VLOOKUP($B2, Rumah!$A:$K, 11, FALSE), "")   // B = alamat, e.g. N7-09
+K2: =IF($F2="transfer",
+       IF(OR($M2=TRUE,
+             COUNTIFS(Verifikasi!$B:$B,$B2, Verifikasi!$C:$C,$C2, Verifikasi!$D:$D,$D2)>0),
+          "sah", "pending"),
+       "sah")
+N2: =IF($F2="transfer","bank", IF($L2="","kas","bank"))
 ```
 
-Protect A:H (form range) and leave K:L editable by the treasurer only.
+Protect A:I (form range) and leave L:M editable by the treasurer only.
+
+`K2` accepts **either** path to "sah": the treasurer ticking `M` directly in the sheet
+(always available, zero setup), or a matching row in the new `Verifikasi` tab below
+(what the Kas app screen actually does when bendahara taps "Verifikasi" — see §5).
+Neither is authoritative over the other; whichever happens first wins.
 
 ---
 
@@ -90,18 +107,17 @@ every 1 January with zero manual sheet edits; every formula below just reads `$A
 
 ```
 Amount received (B2, fill right + down):
-=SUMIFS(Pembayaran!$E:$E,
-        Pembayaran!$B:$B, $A2,
-        Pembayaran!$C:$C, B$1,
-        Pembayaran!$D:$D, $A$1,           // $A$1 = YEAR(TODAY()), see above
-        Pembayaran!$J:$J, "sah")
+=IFERROR(SUM(UNIQUE(FILTER(Pembayaran!$E:$E,
+      Pembayaran!$B:$B=$A2, Pembayaran!$C:$C=B$1,
+      Pembayaran!$D:$D=$A$1,             // $A$1 = YEAR(TODAY()), see above
+      Pembayaran!$K:$K="sah"))), 0)
 
 Status text (P2, fill right + down — P1:AA1 also 1..12):
 =LET(
   tarif,  VLOOKUP($A2, Rumah!$A:$K, 11, FALSE),
   bayar,  INDEX($B2:$M2, 1, P$1),
-  pend,   SUMIFS(Pembayaran!$E:$E, Pembayaran!$B:$B,$A2,
-                 Pembayaran!$C:$C,P$1, Pembayaran!$J:$J,"pending"),
+  pend,   IFERROR(SUM(UNIQUE(FILTER(Pembayaran!$E:$E, Pembayaran!$B:$B=$A2,
+                 Pembayaran!$C:$C=P$1, Pembayaran!$K:$K="pending"))), 0),
   IFS( bayar>=tarif, "Lunas",
        bayar>0,      "Sebagian",
        pend>0,       "Pending",
@@ -112,6 +128,10 @@ Outstanding per house (AC2):
 =SUMPRODUCT( (COLUMN($B$1:$M$1)-1 <= MONTH(TODAY())) *
              MAX(0, VLOOKUP($A2,Rumah!$A:$K,11,FALSE) - $B2:$M2) )
 ```
+
+**Why `UNIQUE(FILTER(...))` instead of a plain `SUMIFS`:** a satpam who double-taps "Catat & Kirim" (bad signal at the pos, unsure if the first tap registered) produces two `Pembayaran` rows with the *same* alamat, month, year, status and nominal — a true accidental duplicate. `SUMIFS` would sum both and overstate what was received; collapsing to the set of *distinct* nominal values first makes the duplicate count once. The client also guards against the double-tap itself (`PosSatpam.vue` disables the button while a submission is in flight) — this formula is the second line of defense for whatever gets through anyway (a genuine retry after a real failure, two taps a few seconds apart, etc).
+
+**Accepted tradeoff:** this can't distinguish "the same row twice" from "two genuinely different payments that happen to be for the same exact amount in the same month" — those collapse to one too. That's rare enough (and the wrong-direction way, undercounting rather than a resident being shorted) to accept rather than build real row-level dedup (e.g., a submission nonce column) for.
 
 ---
 
@@ -125,33 +145,54 @@ Outstanding per house (AC2):
 | D | oleh |
 
 Depositing = writing the `batch_id` into the `disetor_batch` column of the rows
-being banked. Do it with one `Pembayaran!K` fill, or with the helper formula:
+being banked. Do it with one `Pembayaran!L` fill, or with the helper formula:
 
 ```
 Suggested rows to bank (paste in Setoran!F2):
-=TEXTJOIN(", ", TRUE, FILTER(Pembayaran!$B:$B, Pembayaran!$M:$M="kas"))
+=TEXTJOIN(", ", TRUE, FILTER(Pembayaran!$B:$B, Pembayaran!$N:$N="kas"))
 ```
 
 ---
 
-## 5. `Pengeluaran` — spending (Form responses)
+## 5. `Verifikasi` — transfer sign-off (Form responses, append-only)
+
+| Col | Header | Source |
+| --- | --- | --- |
+| A | Timestamp | Form |
+| B | alamat | Form (prefilled from the Kas app's pending-transfer list) |
+| C | bulan | Form, 1–12 |
+| D | tahun | Form |
+| E | oleh | Form, free text (who verified it) |
+
+One row per transfer bendahara has checked against the uploaded bukti (`Pembayaran!I`,
+the file-upload question's Drive link — the Kas app screen surfaces it as a "Lihat
+bukti" link right next to the Verifikasi button, no need to go digging in Drive) and
+confirmed. No update to any existing row — this tab exists *because* Forms can only
+append, never edit a cell, so "mark this transfer verified" has to be its own ledger
+entry rather than flipping `Pembayaran!M`, matching how every other write in this
+project works. `Pembayaran!K` reads it (§2). Bendahara can still tick `Pembayaran!M`
+by hand instead if they're already in the sheet — both paths lead to "sah".
+
+---
+
+## 6. `Pengeluaran` — spending (Form responses)
 
 `A Timestamp · B keterangan · C nominal · D sumber (kas|bank)`
 
 ---
 
-## 6. `API` — the only tab the website reads
+## 7. `API` — the only tab the website reads
 
 One flat table the front end parses; keep column order stable.
 
 ```
 A1: "key"      B1: "value"
 A2: "kas_tunai"
-B2: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$M:$M,"kas", Pembayaran!$J:$J,"sah")
+B2: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$N:$N,"kas", Pembayaran!$K:$K,"sah")
     -SUMIFS(Pengeluaran!$C:$C, Pengeluaran!$D:$D,"kas")
 
 A3: "rekening"
-B3: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$M:$M,"bank", Pembayaran!$J:$J,"sah")
+B3: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$N:$N,"bank", Pembayaran!$K:$K,"sah")
     -SUMIFS(Pengeluaran!$C:$C, Pengeluaran!$D:$D,"bank")
 
 A4: "tunggakan_total"   B4: =SUM(Status!$AC:$AC)
@@ -230,6 +271,19 @@ The Pos PIN (`VITE_PIN_POS`) is still shared by every satpam — it only gates t
 can record anything (remembered per device after that), so the `petugas` column on
 `Pembayaran` says who actually took the cash, not a hardcoded name. Admin adds or
 removes a name here; no deploy needed, same as the block colors above.
+
+A fifth table, `AF1: "bendahara"` / `AF2:AF…`, is the same idea for the Kas screen —
+bendahara/admin/komite, whoever is allowed to verify a transfer:
+
+```
+AF1: "bendahara"
+AF2: "Ibu Siti"
+AF3: "Pak Joko"
+```
+
+Same pattern as `satpam`: the Kas PIN (`VITE_PIN_KAS`) gates the screen for everyone
+on this list, then the app asks which one of them it's talking to (remembered per
+device) so `Verifikasi!E` (`oleh`, §5) says who actually signed off, not free text.
 
 Publish the spreadsheet to the web, then the app reads:
 
