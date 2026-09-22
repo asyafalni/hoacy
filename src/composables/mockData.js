@@ -54,6 +54,16 @@ for (let i = 0; i < 34; i++) {
   });
 }
 
+// Mirrors the real B9/B10 formulas (docs/sheets-schema.md §9): sum of whatever
+// landed for the current month (index 8 = September, matching the status
+// patterns generated above) across every house, vs. sum of everyone's tarif.
+const terkumpulBulanIni = houses.reduce((sum, h) => {
+  if (h.status[8] === S.L) return sum + h.tarif;
+  if (h.status[8] === S.S) return sum + Math.round(h.tarif * 0.5);
+  return sum;
+}, 0);
+const targetBulanIni = houses.reduce((sum, h) => sum + h.tarif, 0);
+
 const meta = [
   ['kas_tunai', 1750000],
   ['rekening', 6250000],
@@ -62,6 +72,11 @@ const meta = [
   ['jumlah_rumah', houses.length],
   ['updated', '2026-09-22 09:00'],
   ['tahun_aktif', 2026],
+  ['terkumpul_bulan_ini', terkumpulBulanIni],
+  ['target_bulan_ini', targetBulanIni],
+  // deliberately below terkumpulBulanIni so the public dashboard's deficit/
+  // surplus signal has something real to show in local dev
+  ['opex_bulanan', Math.round(terkumpulBulanIni * 0.85 / 1000) * 1000],
 ];
 
 const houseRow = (h) => [

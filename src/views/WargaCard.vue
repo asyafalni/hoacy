@@ -198,6 +198,9 @@ function kirimKonfirmasi() {
     <Button block @click="open">Lihat kartu saya</Button>
     <p class="text-muted num" style="font-size:11px;margin:0">Contoh: Blok N7, No. 09.</p>
     <p v-if="notFound" class="text-muted" style="font-size:11.5px">Alamat tidak ditemukan.</p>
+    <a href="#/ringkasan" class="text-muted" style="font-size:11.5px;text-align:center">
+      Lihat ringkasan kas cluster →
+    </a>
   </section>
 
   <!-- verifikasi PIN rumah -->

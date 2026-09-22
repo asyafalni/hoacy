@@ -5,10 +5,11 @@ import './assets/app.css';
 import App from './App.vue';
 
 const routes = [
-  { path: '/',       name: 'warga',     component: () => import('./views/WargaCard.vue') },
-  { path: '/pos',    name: 'pos',       component: () => import('./views/PosSatpam.vue') },
-  { path: '/kas',    name: 'bendahara', component: () => import('./views/Bendahara.vue') },
-  { path: '/kas/qr', name: 'cetak-qr',  component: () => import('./views/CetakQR.vue') },
+  { path: '/',          name: 'warga',      component: () => import('./views/WargaCard.vue') },
+  { path: '/pos',       name: 'pos',        component: () => import('./views/PosSatpam.vue') },
+  { path: '/kas',       name: 'bendahara',  component: () => import('./views/Bendahara.vue') },
+  { path: '/kas/qr',    name: 'cetak-qr',   component: () => import('./views/CetakQR.vue') },
+  { path: '/ringkasan', name: 'ringkasan',  component: () => import('./views/RingkasanPublik.vue') },
 ];
 
 // Every SFC here is <script setup vapor>, but <router-view> resolves its match

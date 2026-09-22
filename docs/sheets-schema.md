@@ -254,10 +254,29 @@ A5: "lunas_bulan_ini"   B5: =COUNTIF(INDEX(Status!$P:$AA,0,MONTH(TODAY())), "Lun
 A6: "jumlah_rumah"      B6: =COUNTA(Rumah!$A2:$A)
 A7: "updated"           B7: =TEXT(NOW(), "yyyy-mm-dd hh:mm")
 A8: "tahun_aktif"       B8: =YEAR(TODAY())
+
+A9: "terkumpul_bulan_ini"
+B9: =SUM(INDEX(Status!$B$2:$M$1000, 0, MONTH(TODAY())))
+
+A10: "target_bulan_ini"
+B10: =SUM(Rumah!$K$2:$K$1000)
+
+A11: "opex_bulanan"     B11: 0
 ```
 
 `tahun_aktif` is what the app shows as the card's year and uses as the base for
 "bayar di muka" — read it instead of assuming any particular year.
+
+`B11`/`opex_bulanan` is the **only** manually-typed cell in this whole block — every
+other key here is a formula. Bendahara edits it directly (same "admin opens the
+Sheet and types a number" pattern as `Blok!warna`, no Form, no deploy) to record the
+cluster's actual minimum fixed monthly cost — security wages, cleaning, etc. It
+exists purely so the public dashboard (`RingkasanPublik.vue`) can show a real
+surplus/deficit signal (`terkumpul_bulan_ini - opex_bulanan`), not just "did everyone
+pay their tariff" — tariff income covering the *tariff target* doesn't tell anyone
+whether the tariff itself is still enough to cover what actually gets spent. Leave it
+`0` until bendahara fills it in; the dashboard just won't show a meaningful surplus/
+deficit line until then.
 
 Then, starting at D1, a per-house block the app renders directly:
 

@@ -28,7 +28,7 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 ## Setup order
 
 1. Create the spreadsheet exactly as in `docs/sheets-schema.md`.
-2. Create the three Forms in `docs/form-mapping.md`, point each to the right tab.
+2. Create the four Forms in `docs/form-mapping.md`, point each to the right tab.
 3. Publish the sheet (File → Share → Publish to web) so gviz is readable.
 4. Copy `.env.example` → `.env`, fill the sheet + form ids.
 5. `npm install && npm run dev`.
@@ -46,7 +46,8 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 | --- | --- | --- |
 | `/` | Warga | enter blok + house no (no login), see the 12-month card, confirm a transfer with proof |
 | `/pos` | Satpam | search house, pick months, full or partial, record cash |
-| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers |
+| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers, print QR (`/kas/qr`) |
+| `/ringkasan` | Public — anyone | cluster-wide aggregates only: collected vs target this month, surplus/deficit vs OPEX. No PIN, no per-house or per-block numbers — see the PDP note in `RingkasanPublik.vue` |
 
 `/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public
 nav — only `/` is. Petugas (satpam, bendahara, admin, the relevant komite) open
