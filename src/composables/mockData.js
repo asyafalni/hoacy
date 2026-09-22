@@ -1,7 +1,7 @@
 // Local-dev fixture only. useSheet.js falls back to this when VITE_SHEET_ID is
 // unset, so the app is clickable without a real Google Sheet. Shape matches
 // exactly what parse() would produce from the API tab's gviz response — see
-// docs/sheets-schema.md §7 for the real column layout (A/B key-value interleaved
+// docs/sheets-schema.md §9 for the real column layout (A/B key-value interleaved
 // with D..Z per-house columns on the same sheet rows).
 import { islk, IURAN_RT, BLOK_LIST } from '../lib/tariff.js';
 
@@ -69,33 +69,27 @@ const houseRow = (h) => [
   ...h.status, h.cluster, h.blok, h.rumah, h.mukaTahunDepan, h.pin || h.telp.slice(-3),
 ];
 
-// AC:AD — per-block color, the third (unrelated) table riding in this tab. Blok 7
-// is overridden here on purpose, different from BLOK_WARNA_DEFAULT in tariff.js —
-// proves the "admin edits the Sheet, app picks it up" path actually works, same
-// as it would with a real published Sheet.
-const BLOK_WARNA_LIST = [
+// Rows past meta.length still need to exist for houses beyond row 7 — the key/value
+// block is short, but the per-house block below it runs the full length of `houses`.
+const rowCount = Math.max(meta.length, houses.length);
+export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
+  const [k, v] = meta[i] || [null, null];
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null))];
+});
+
+// `Blok` tab (docs/sheets-schema.md §2) — one row per block. Blok 7 is overridden
+// here on purpose, different from BLOK_WARNA_DEFAULT in tariff.js — proves the
+// "admin edits the Sheet, app picks it up" path actually works.
+export const MOCK_BLOK_ROWS = [
   ['Blvd', '#2a78d6'], ['1', '#9C4A1A'], ['2', '#eb6834'], ['3', '#1baf7a'], ['5', '#eda100'],
   ['6', '#e87ba4'], ['7', '#7C3AED'], ['8', '#4a3aa7'], ['9', '#e34948'], ['10', '#0F86A3'],
 ];
 
-// AE — satpam roster, a flat name list (no fixed count, unlike the block table).
-const SATPAM_LIST = ['Ujang', 'Dedi', 'Rahmat'];
-
-// AF — bendahara/admin/komite roster, same idea, for the Kas screen.
-const BENDAHARA_LIST = ['Ibu Siti', 'Pak Joko'];
-
-// Rows past meta.length still need to exist for houses beyond row 7 — the key/value
-// block is short, but the per-house block below it runs the full length of `houses`.
-const rowCount = Math.max(meta.length, houses.length, BLOK_WARNA_LIST.length,
-  SATPAM_LIST.length, BENDAHARA_LIST.length);
-export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
-  const [k, v] = meta[i] || [null, null];
-  const [blok, warna] = BLOK_WARNA_LIST[i] || [null, null];
-  const satpam = SATPAM_LIST[i] || null;
-  const bendahara = BENDAHARA_LIST[i] || null;
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null)),
-          null, blok, warna, satpam, bendahara];
-});
+// `Petugas` tab (docs/sheets-schema.md §3) — one row per person, peran satpam|bendahara.
+export const MOCK_PETUGAS_ROWS = [
+  ['Ujang', 'satpam'], ['Dedi', 'satpam'], ['Rahmat', 'satpam'],
+  ['Ibu Siti', 'bendahara'], ['Pak Joko', 'bendahara'],
+];
 
 // Raw `Pembayaran` ledger — usePembayaranLedger.js falls back to this the same way
 // useSheet.js falls back to MOCK_ROWS. Columns: Timestamp, alamat, bulan, tahun,

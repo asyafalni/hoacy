@@ -1,6 +1,6 @@
 # Google Sheet schema & formulas
 
-Spreadsheet name: **Iuran_ClusterN_2026**. Seven tabs. Row 1 is always the header.
+Spreadsheet name: **Iuran_ClusterN_2026**. Nine tabs. Row 1 is always the header.
 Formulas are written for row 2 — fill down, or wrap in `ARRAYFORMULA` where noted.
 
 ---
@@ -40,7 +40,7 @@ only, same as `disetor_batch`/`terverifikasi` on `Pembayaran`. It's a deterrent 
 not real access control — see the comment above `pendingHouse` in `WargaCard.vue`.
 
 Every `VLOOKUP(..., Rumah!$A:$K, n, FALSE)` below keys on `alamat`; the tariff column
-is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §7.)
+is now **11**, not 8. (`L`/pin is looked up separately, by the `API` tab — see §9.)
 
 Tariff table this encodes (ISLK, per month, by luas tanah):
 `<120 → 225.000` · `120–149 → 250.000` · `150–259 → 310.000` ·
@@ -49,7 +49,60 @@ Every house also pays Iuran RT 50.000.
 
 ---
 
-## 2. `Pembayaran` — Form responses (append-only ledger)
+## 2. `Blok` — one row per block, not per house (manual, 10 rows)
+
+| Col | Header | Notes |
+| --- | --- | --- |
+| A | blok | `Blvd`, `1`, `2`, `3`, `5`, `6`, `7`, `8`, `9`, `10` |
+| B | warna | hex, e.g. `#2a78d6` |
+
+```
+A2: Blvd   B2: #2a78d6
+A3: 1      B3: #9C4A1A
+A4: 2      B4: #eb6834
+A5: 3      B5: #1baf7a
+A6: 5      B6: #eda100
+A7: 6      B7: #e87ba4
+A8: 7      B8: #008300
+A9: 8      B9: #4a3aa7
+A10: 9     B10: #e34948
+A11: 10    B11: #0F86A3
+```
+
+Plain typed values, no formula — each block gets its own color (the Warga card
+header, the Pos house-number badge). Admin edits `B` to recolor a block; no deploy
+needed. Leave a row blank and the app falls back to its built-in default for that
+block (`BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`) — the hex values above are
+exactly that default, seeded here so the Sheet and the app agree on day one.
+
+---
+
+## 3. `Petugas` — everyone who's allowed into Pos or Kas (manual, a handful of rows)
+
+| Col | Header | Notes |
+| --- | --- | --- |
+| A | nama | e.g. `Ujang` |
+| B | peran | `satpam` or `bendahara` |
+
+```
+A2: Ujang       B2: satpam
+A3: Dedi        B3: satpam
+A4: Rahmat      B4: satpam
+A5: Ibu Siti    B5: bendahara
+A6: Pak Joko    B6: bendahara
+```
+
+The Pos PIN (`VITE_PIN_POS`) and Kas PIN (`VITE_PIN_KAS`) are each shared by
+everyone with that `peran` — they only gate the *screen*. Once in, the app makes
+that person pick their own name from the matching rows here before they can do
+anything (remembered per device after that), so `Pembayaran!petugas` and
+`Verifikasi!oleh` say who actually acted, not a hardcoded name or free text.
+Admin adds or removes a row here to add/remove someone; no deploy needed. Satpam
+and bendahara never touch this tab or any other — they only ever see the app.
+
+---
+
+## 4. `Pembayaran` — Form responses (append-only ledger)
 
 A–I come from the Form. J onward are formulas or treasurer input.
 
@@ -61,7 +114,7 @@ A–I come from the Form. J onward are formulas or treasurer input.
 | D | tahun | Form, prefilled 2026 |
 | E | nominal | Form (prefilled with the outstanding amount) |
 | F | metode | Form: `tunai` / `transfer` |
-| G | petugas | Form: `Pos Satpam – Ujang` / `Warga` |
+| G | petugas | Form: a name from `Petugas!A` (satpam), or `Warga` |
 | H | catatan | Form, optional |
 | I | bukti_url | Form — the file-upload question's Drive link, blank for `tunai` rows |
 | J | tarif | formula |
@@ -90,13 +143,13 @@ N2: =IF($F2="transfer","bank", IF($L2="","kas","bank"))
 Protect A:I (form range) and leave L:M editable by the treasurer only.
 
 `K2` accepts **either** path to "sah": the treasurer ticking `M` directly in the sheet
-(always available, zero setup), or a matching row in the new `Verifikasi` tab below
-(what the Kas app screen actually does when bendahara taps "Verifikasi" — see §5).
-Neither is authoritative over the other; whichever happens first wins.
+(always available, zero setup), or a matching row in the `Verifikasi` tab (§7 —
+what the Kas app screen actually does when bendahara taps "Verifikasi"). Neither
+is authoritative over the other; whichever happens first wins.
 
 ---
 
-## 3. `Status` — the digital card, one row per house
+## 5. `Status` — the digital card, one row per house
 
 A2:A15 `=Rumah!A2:A15` (the `alamat` keys, `N7-01` … `N8-07`). B1:M1 = 1..12 (month numbers).
 Two blocks side by side: **amount received** and **status text**.
@@ -135,7 +188,7 @@ Outstanding per house (AC2):
 
 ---
 
-## 4. `Setoran` — cash → bank batches (Form responses)
+## 6. `Setoran` — cash → bank batches (Form responses)
 
 | Col | Header |
 | --- | --- |
@@ -154,7 +207,7 @@ Suggested rows to bank (paste in Setoran!F2):
 
 ---
 
-## 5. `Verifikasi` — transfer sign-off (Form responses, append-only)
+## 7. `Verifikasi` — transfer sign-off (Form responses, append-only)
 
 | Col | Header | Source |
 | --- | --- | --- |
@@ -162,7 +215,7 @@ Suggested rows to bank (paste in Setoran!F2):
 | B | alamat | Form (prefilled from the Kas app's pending-transfer list) |
 | C | bulan | Form, 1–12 |
 | D | tahun | Form |
-| E | oleh | Form, free text (who verified it) |
+| E | oleh | Form — a name from `Petugas!A` where `peran="bendahara"` |
 
 One row per transfer bendahara has checked against the uploaded bukti (`Pembayaran!I`,
 the file-upload question's Drive link — the Kas app screen surfaces it as a "Lihat
@@ -170,18 +223,19 @@ bukti" link right next to the Verifikasi button, no need to go digging in Drive)
 confirmed. No update to any existing row — this tab exists *because* Forms can only
 append, never edit a cell, so "mark this transfer verified" has to be its own ledger
 entry rather than flipping `Pembayaran!M`, matching how every other write in this
-project works. `Pembayaran!K` reads it (§2). Bendahara can still tick `Pembayaran!M`
+project works. `Pembayaran!K` reads it (§4). Bendahara can still tick `Pembayaran!M`
 by hand instead if they're already in the sheet — both paths lead to "sah".
 
 ---
 
-## 6. `Pengeluaran` — spending (Form responses)
+## 8. `Pengeluaran` — spending (Form responses)
 
 `A Timestamp · B keterangan · C nominal · D sumber (kas|bank)`
 
 ---
 
-## 7. `API` — the only tab the website reads
+## 9. `API` — per-house data + global numbers (the third tab the app reads,
+     alongside `Blok` and `Petugas`)
 
 One flat table the front end parses; keep column order stable.
 
@@ -231,64 +285,12 @@ enough to avoid double-charging). There's no next-year Status grid — paying ah
 into next year only needs "which months are already spoken for," not a full second
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
-A third, unrelated little table rides in the same tab, starting at `AC1` — one row
-per **block**, not per house (10 rows, not ~200):
-
-```
-AC1: "blok"   AD1: "warna"
-AC2: "Blvd"   AD2: "#2a78d6"
-AC3: "1"      AD3: "#9C4A1A"
-AC4: "2"      AD4: "#eb6834"
-AC5: "3"      AD5: "#1baf7a"
-AC6: "5"      AD6: "#eda100"
-AC7: "6"      AD7: "#e87ba4"
-AC8: "7"      AD8: "#008300"
-AC9: "8"      AD9: "#4a3aa7"
-AC10: "9"     AD10: "#e34948"
-AC11: "10"    AD11: "#0F86A3"
-```
-
-Plain typed values, no formula — this is the block color-code feature: each block
-gets its own color (the Warga card header, the Pos house-number badge). `AD` is
-what the admin edits to recolor a block; no deploy needed. Leave a row blank and
-the app falls back to its built-in default for that block
-(`BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`) — the hex values above are exactly
-that default, seeded here so the Sheet and the app agree on day one. Satpam never
-touches this tab or any other — they only ever see the rendered app.
-
-A fourth table, `AE1: "satpam"` / `AE2:AE…`, is just a flat list of names — as many
-rows as there are satpam, no fixed count:
-
-```
-AE1: "satpam"
-AE2: "Ujang"
-AE3: "Dedi"
-AE4: "Rahmat"
-```
-
-The Pos PIN (`VITE_PIN_POS`) is still shared by every satpam — it only gates the
-*screen*. Once in, the app makes them pick their name from this list before they
-can record anything (remembered per device after that), so the `petugas` column on
-`Pembayaran` says who actually took the cash, not a hardcoded name. Admin adds or
-removes a name here; no deploy needed, same as the block colors above.
-
-A fifth table, `AF1: "bendahara"` / `AF2:AF…`, is the same idea for the Kas screen —
-bendahara/admin/komite, whoever is allowed to verify a transfer:
-
-```
-AF1: "bendahara"
-AF2: "Ibu Siti"
-AF3: "Pak Joko"
-```
-
-Same pattern as `satpam`: the Kas PIN (`VITE_PIN_KAS`) gates the screen for everyone
-on this list, then the app asks which one of them it's talking to (remembered per
-device) so `Verifikasi!E` (`oleh`, §5) says who actually signed off, not free text.
-
-Publish the spreadsheet to the web, then the app reads:
+Publish the spreadsheet to the web, then the app reads all three:
 
 ```
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=API
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Blok
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Petugas
 ```
 
 Sheet-side caching is ~1–5 minutes. After a write the app optimistically shows the

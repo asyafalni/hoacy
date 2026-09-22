@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { usePendingSync } from '../composables/usePendingSync';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { urlPembayaran, submitPembayaran } from '../lib/forms';
+import { submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
@@ -21,9 +21,9 @@ const PIN = import.meta.env.VITE_PIN_POS || '';
 const PER_PAGE = 10;
 
 // The Pos PIN is shared by every satpam — it only gates the screen. Each payment
-// still needs to say which one of them actually took the cash (docs/sheets-schema.md
-// §6, API!AE), so the app makes them pick their name once per device and remembers
-// it, instead of hardcoding a single name for everyone.
+// still needs to say which one of them actually took the cash (Petugas tab, peran
+// "satpam" — docs/sheets-schema.md §3), so the app makes them pick their name once
+// per device and remembers it, instead of hardcoding a single name for everyone.
 const petugasAktif = ref(localStorage.getItem('iuran.petugas.pos') || '');
 function pilihPetugas(nama) {
   petugasAktif.value = nama;
@@ -47,7 +47,8 @@ const chipStyle = (active) => active ? 'min-height:40px'
 const page = ref(1);
 const sel = ref(null);        // selected house
 const bulan = ref([]);        // month indices being paid
-const separuh = ref(false);   // partial: 50%
+const custom = ref(false);    // free-form nominal instead of the full tarif
+const customNominal = ref(null);
 const toast = ref('');
 
 // arrears first — the whole point of the post screen is speed
@@ -69,25 +70,36 @@ const belum = (h) => h.status
   .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
   .map((x) => x.i);
 
-function pilih(h) { sel.value = h; bulan.value = belum(h).slice(0, 2); separuh.value = false; }
+function pilih(h) {
+  sel.value = h; bulan.value = belum(h).slice(0, 2);
+  custom.value = false; customNominal.value = null;
+}
 function toggle(i) {
   const a = bulan.value;
   bulan.value = a.includes(i) ? a.filter((x) => x !== i) : [...a, i].sort((x, y) => x - y);
 }
 
+// Partial payment is rare and never a clean 50% in practice — a free-form amount
+// beats a rigid halfway toggle. Whatever's entered still splits evenly across
+// however many months are selected, same as "Penuh" does.
 const total = computed(() => {
   if (!sel.value) return 0;
-  const raw = bulan.value.length * sel.value.tarif * (separuh.value ? 0.5 : 1);
-  return Math.round(raw / 1000) * 1000;
+  if (custom.value) return Math.max(0, Math.round(Number(customNominal.value) || 0));
+  return bulan.value.length * sel.value.tarif;
 });
+const totalValid = computed(() => !custom.value || (Number(customNominal.value) > 0));
 
 const submitting = ref(false);   // disables the button — stops a double-tap from firing two rows
 
+// Deliberately no "open the Google Form directly" fallback anywhere on this
+// screen: only Kas (bendahara/admin/komite) is meant to ever touch Sheet/Form
+// URLs. If a submission is stuck, "Coba lagi" retries the same silent POST —
+// see usePendingSync.js and the pending banner below.
 async function catat() {
-  if (!sel.value || !bulan.value.length || submitting.value) return;
+  if (!sel.value || !bulan.value.length || !totalValid.value || submitting.value) return;
   submitting.value = true;
   try {
-    const per = Math.round(total.value / bulan.value.length / 1000) * 1000;
+    const per = Math.round(total.value / bulan.value.length);
     for (const i of bulan.value) {
       const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
                     metode: 'tunai', petugas: petugasAktif.value };
@@ -108,13 +120,6 @@ async function retryPending(p) {
   await submitPembayaran(p);
   await load();
 }
-
-// fallback when the silent POST is unreliable: open the prefilled form
-const formUrl = computed(() => sel.value && bulan.value.length
-  ? urlPembayaran({ noRumah: sel.value.alamat, bulan: bulan.value[0] + 1,
-                    nominal: Math.round(total.value / bulan.value.length),
-                    metode: 'tunai', petugas: petugasAktif.value })
-  : '#');
 </script>
 
 <template>
@@ -136,7 +141,7 @@ const formUrl = computed(() => sel.value && bulan.value.length
       </button>
     </div>
     <p v-if="!satpamList.length" class="text-muted" style="font-size:12px">
-      Daftar nama satpam belum diisi admin di Sheet (tab API, kolom AE).
+      Daftar nama satpam belum diisi admin di Sheet (tab Petugas, peran "satpam").
     </p>
   </section>
 
@@ -184,13 +189,9 @@ const formUrl = computed(() => sel.value && bulan.value.length
       </div>
       <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
         <span>{{ p.noRumah }} · {{ BULAN[p.bulan - 1] }} · {{ rupiahPendek(p.nominal) }}</span>
-        <span class="row" style="gap:6px">
-          <button class="btn btn-ghost" style="font-size:11px;padding-inline:6px" @click="retryPending(p)">
-            Coba lagi
-          </button>
-          <a class="btn btn-ghost" style="font-size:11px;padding-inline:6px"
-             :href="urlPembayaran(p)" target="_blank">Buka Form</a>
-        </span>
+        <button class="btn btn-ghost" style="font-size:11px;padding-inline:6px" @click="retryPending(p)">
+          Coba lagi
+        </button>
       </div>
     </Card>
 
@@ -292,9 +293,11 @@ const formUrl = computed(() => sel.value && bulan.value.length
 
         <div class="kick">Nominal diterima</div>
         <div class="row">
-          <Button class="grow" :variant="separuh ? 'secondary' : 'primary'" @click="separuh = false">Penuh</Button>
-          <Button class="grow" :variant="separuh ? 'primary' : 'secondary'" @click="separuh = true">Sebagian (50%)</Button>
+          <Button class="grow" :variant="!custom ? 'primary' : 'secondary'" @click="custom = false">Penuh</Button>
+          <Button class="grow" :variant="custom ? 'primary' : 'secondary'" @click="custom = true">Jumlah lain</Button>
         </div>
+        <input v-if="custom" class="input" type="number" inputmode="numeric" min="1"
+               v-model.number="customNominal" placeholder="Nominal diterima, mis. 150000">
 
         <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
              padding:var(--space-3) var(--space-4)">
@@ -304,11 +307,9 @@ const formUrl = computed(() => sel.value && bulan.value.length
           </span>
         </div>
 
-        <Button block :disabled="submitting" @click="catat">
+        <Button block :disabled="submitting || !totalValid" @click="catat">
           {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
         </Button>
-        <a class="btn btn-ghost" :href="formUrl" target="_blank"
-           style="justify-content:center;font-size:11.5px">buka Google Form (jika jaringan buruk)</a>
       </div>
     </div>
 

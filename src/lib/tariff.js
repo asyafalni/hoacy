@@ -32,8 +32,8 @@ export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
 // Every block in Cluster N. Shared by the warga login picker and the Pos blok filter.
 export const BLOK_LIST = ['Blvd', '1', '2', '3', '5', '6', '7', '8', '9', '10'];
 
-// Fallback only — the real source is API!AC:AD (docs/sheets-schema.md §7), editable
-// by the admin straight in the Sheet, no deploy needed. This just covers local dev
+// Fallback only — the real source is the Blok tab (docs/sheets-schema.md §2),
+// editable by the admin straight in the Sheet, no deploy needed. This just covers local dev
 // (mockData.js) and any block the admin hasn't set yet. Order matches BLOK_LIST;
 // all 10 hues pass the dataviz-skill categorical checks (lightness/chroma/CVD/
 // normal-vision separation) against this app's cream surface (#f5ead8).

@@ -11,7 +11,7 @@ Four forms, each wired to one tab of **Iuran_BlokN_2026**.
 | Tahun | short text | `entry.1000003` |
 | Nominal | short text | `entry.1000004` |
 | Metode | multiple choice: tunai / transfer | `entry.1000005` |
-| Petugas | short text | `entry.1000006` |
+| Petugas | short text — a name from `Petugas!A` (peran `satpam`), or `Warga` | `entry.1000006` |
 | Catatan | short text | `entry.1000007` |
 | Bukti transfer | **file upload** | — (Drive; no entry id, cannot be prefilled) |
 
@@ -39,7 +39,7 @@ https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url
   &entry.1000003=2026
   &entry.1000004=360000
   &entry.1000005=tunai
-  &entry.1000006=Pos+Satpam+-+Ujang
+  &entry.1000006=Ujang
 ```
 
 The satpam only reviews and taps **Kirim** — nothing to type. One request per month
@@ -84,9 +84,9 @@ The Kas screen's "Perlu diverifikasi" list comes from a direct read of the
 `I` (bukti_url) per pending row — a "Lihat bukti" link opens the Drive photo
 before they decide to verify. Tapping **Verifikasi** fires this form silently
 (same `/formResponse` no-cors pattern as Form A), prefilled with that house/month
-and `oleh` = whichever name the bendahara typed in at setup (see `Bendahara.vue`).
-`Pembayaran!K` picks the new row up via `COUNTIFS(Verifikasi!...)` — §2/§5 of
-`docs/sheets-schema.md`.
+and `oleh` = whichever `Petugas` roster name (peran `bendahara`) they picked at
+the "Siapa Anda?" screen (see `Bendahara.vue`). `Pembayaran!K` picks the new row
+up via `COUNTIFS(Verifikasi!...)` — §4/§7 of `docs/sheets-schema.md`.
 
 ## Verifying a transfer
 

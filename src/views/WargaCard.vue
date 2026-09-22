@@ -39,8 +39,8 @@ const pinError = ref(false);
 
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
-// Each block gets its own color (admin-set in the Sheet, API!AC:AD — see
-// docs/sheets-schema.md §7), applied to the card header here and to the house
+// Each block gets its own color (admin-set in the Sheet, Blok tab — see
+// docs/sheets-schema.md §2), applied to the card header here and to the house
 // badge in PosSatpam.vue.
 const warnaKartu = computed(() =>
   (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))
@@ -124,7 +124,7 @@ const muka = computed(() => !me.value ? [] : me.value.status
   .filter((x) => x.s === '-')
   .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
 
-// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §7)
+// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §9)
 const mukaDepan = computed(() => {
   if (!me.value) return [];
   const sudah = new Set(me.value.mukaTahunDepan || []);

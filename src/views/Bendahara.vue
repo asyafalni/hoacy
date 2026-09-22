@@ -20,13 +20,14 @@ const total = computed(() => Number(meta.value.jumlah_rumah || rumah.value.lengt
 const persen = computed(() => (total.value ? Math.round((lunas.value / total.value) * 100) : 0));
 
 // Setor ke Bank = one Setoran row; then paste the batch id into Pembayaran!L
-// for the rows currently marked "kas" (docs/sheets-schema.md §4).
+// for the rows currently marked "kas" (docs/sheets-schema.md §6).
 const setorUrl = computed(() =>
   urlSetoran({ batchId: batchId(), nominal: kas.value, oleh: 'Bendahara' }));
 
 // Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
-// everyone on the roster (API!AF), so each person picks their own name once per
-// device before anything shows, and it's what gets recorded on Verifikasi!oleh.
+// everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
+// §3), so each person picks their own name once per device before anything shows,
+// and it's what gets recorded on Verifikasi!oleh.
 const bendaharaNama = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 function pilihBendahara(nama) {
   bendaharaNama.value = nama;
@@ -72,7 +73,7 @@ async function verifikasi(p) {
       </button>
     </div>
     <p v-if="!bendaharaList.length" class="text-muted" style="font-size:12px">
-      Daftar nama belum diisi admin di Sheet (tab API, kolom AF).
+      Daftar nama belum diisi admin di Sheet (tab Petugas, peran "bendahara").
     </p>
   </section>
 
@@ -131,7 +132,7 @@ async function verifikasi(p) {
 
     <!-- transfer menunggu verifikasi — bukti (Pembayaran!I, Drive) bisa dibuka
          sebelum tap Verifikasi, yang menulis ke tab Verifikasi (append-only, lihat
-         docs/sheets-schema.md §5), bukan mengedit baris asalnya -->
+         docs/sheets-schema.md §7), bukan mengedit baris asalnya -->
     <Card v-if="pending.length" style="gap:2px">
       <span class="kick">Perlu diverifikasi ({{ pending.length }})</span>
       <div v-for="p in pending" :key="keyOf(p)" class="col" style="gap:6px;padding:8px 0;

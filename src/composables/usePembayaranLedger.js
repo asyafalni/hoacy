@@ -3,7 +3,7 @@ import { gviz, parse } from './useSheet.js';
 
 // Raw Pembayaran rows, fetched separately from the API tab — the Kas screen needs
 // row-level detail (who submitted, bukti_url) that the aggregated API tab doesn't
-// carry. Columns per docs/sheets-schema.md §2:
+// carry. Columns per docs/sheets-schema.md §4:
 // A Timestamp, B alamat, C bulan, D tahun, E nominal, F metode, G petugas,
 // H catatan, I bukti_url, J tarif, K keabsahan, L disetor_batch, M terverifikasi,
 // N lokasi_uang.
