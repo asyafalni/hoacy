@@ -19,8 +19,15 @@ export function useSheet() {
   async function load() {
     loading.value = true;
     try {
-      const res = await fetch(gviz('API'));
-      rows.value = parse(await res.text());
+      if (SHEET) {
+        const res = await fetch(gviz('API'));
+        rows.value = parse(await res.text());
+      } else {
+        // Local dev only — no real Sheet configured, use the fixture instead
+        // of hitting gviz with an undefined id. See src/composables/mockData.js.
+        rows.value = (await import('./mockData.js')).MOCK_ROWS;
+        console.warn('[useSheet] VITE_SHEET_ID kosong — memakai data mockup lokal.');
+      }
       error.value = null;
     } catch (e) {
       error.value = e;

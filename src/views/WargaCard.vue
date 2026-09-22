@@ -1,7 +1,7 @@
 <script setup vapor>
 import { ref, computed } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { BULAN, rupiah, rupiahPendek, alamat, parseAlamat } from '../lib/tariff';
+import { BULAN, rupiah, rupiahPendek, alamat, parseAlamat, REKENING } from '../lib/tariff';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -209,7 +209,7 @@ function kirimKonfirmasi() {
         {{ owed.length ? 'Bayar transfer' : 'Bayar di muka' }}
       </Button>
       <div class="text-muted num" style="text-align:center;font-size:10.5px">
-        BCA 7290-1188-03 a.n. Kas RT 03/14 · jatuh tempo tgl 20
+        {{ REKENING.bank }} {{ REKENING.nomor }} a.n. {{ REKENING.nama }} · jatuh tempo tgl 20
       </div>
     </Card>
 
@@ -229,10 +229,10 @@ function kirimKonfirmasi() {
              padding:var(--space-3) var(--space-4);gap:6px">
           <div class="spread" style="font-size:12.5px">
             <span class="text-muted">Rekening tujuan</span>
-            <span class="num" style="font-weight:700">BCA 7290-1188-03</span>
+            <span class="num" style="font-weight:700">{{ REKENING.bank }} {{ REKENING.nomor }}</span>
           </div>
           <div class="spread" style="font-size:12.5px">
-            <span class="text-muted">Atas nama</span><span style="font-weight:600">Kas RT 03/14</span>
+            <span class="text-muted">Atas nama</span><span style="font-weight:600">{{ REKENING.nama }}</span>
           </div>
         </div>
 

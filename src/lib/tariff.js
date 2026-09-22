@@ -2,6 +2,9 @@
 // app can prefill a nominal before the next fetch lands.
 export const IURAN_RT = 50000;
 
+// Single source for the destination account shown on Kartu/Pos/Kas — change it here.
+export const REKENING = { bank: 'BRI', nomor: '038401002159562', nama: 'Cluster The Cypress' };
+
 export function islk({ luas, tipe }) {
   if (tipe === 'kavling') return 400 * luas;
   if (luas < 120) return 225000;

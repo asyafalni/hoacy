@@ -1,7 +1,7 @@
 <script setup vapor>
 import { computed } from 'vue';
 import { useSheet } from '../composables/useSheet';
-import { rupiah, rupiahPendek } from '../lib/tariff';
+import { rupiah, rupiahPendek, REKENING } from '../lib/tariff';
 import { urlSetoran, batchId } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
@@ -47,7 +47,7 @@ const setorUrl = computed(() =>
     </Card>
 
     <Card>
-      <span class="kick">Rekening BCA 7290-xxx</span>
+      <span class="kick">Rekening {{ REKENING.bank }} {{ REKENING.nomor.slice(0, 4) }}-xxxx</span>
       <div class="num" style="font-family:var(--font-heading);font-size:28px;line-height:1.1">
         {{ rupiah(bank) }}
       </div>

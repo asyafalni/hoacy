@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, vaporInteropPlugin } from 'vue';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import './assets/tokens.css';
 import './assets/app.css';
@@ -10,6 +10,10 @@ const routes = [
   { path: '/kas', name: 'bendahara', component: () => import('./views/Bendahara.vue') },
 ];
 
+// Every SFC here is <script setup vapor>, but <router-view> resolves its match
+// (a vapor component) from inside vue-router's own vdom component — that's the
+// "vapor component found in vdom tree" case the interop plugin is for.
 createApp(App)
+  .use(vaporInteropPlugin)
   .use(createRouter({ history: createWebHashHistory(), routes }))
   .mount('#app');
