@@ -69,3 +69,15 @@ export function urlWhatsapp({ nama, telp, alamat }) {
     + `Buka linknya lalu masukkan PIN (default: 3 digit terakhir no. HP Anda) untuk lihat status & bayar iuran.`;
   return `https://wa.me/${telp}?text=${encodeURIComponent(pesan)}`;
 }
+
+/** `Pembayaran!I` (bukti_url) is a Google Drive **share** link
+ *  ("/file/d/<id>/view..."), not a direct image URL — an <img> can't render
+ *  it as-is. Rewrite known Drive share shapes to Drive's thumbnail endpoint,
+ *  which does serve the actual bytes; anything that doesn't match (e.g. the
+ *  plain image URLs mockData.js uses for local dev) passes through untouched,
+ *  so the same <img :src> works in both dev and production. */
+export function driveImageUrl(url) {
+  if (!url) return url;
+  const id = url.match(/\/file\/d\/([^/]+)/)?.[1] || url.match(/[?&]id=([^&]+)/)?.[1];
+  return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w1000` : url;
+}

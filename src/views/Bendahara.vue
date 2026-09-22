@@ -4,7 +4,7 @@ import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN, REKENING } from '../lib/tariff';
-import { urlSetoran, batchId, submitVerifikasi } from '../lib/forms';
+import { urlSetoran, batchId, submitVerifikasi, driveImageUrl } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
@@ -46,6 +46,14 @@ function gantiBendahara() {
 // begitu keliatan, sampai habis.
 const showRiwayatKas = ref(false);
 useScrollLock(showRiwayatKas);
+
+// Lihat bukti — dulu buka tab baru (link Drive mentah), sekarang tetap di
+// halaman ini, gambarnya ditampilkan langsung (driveImageUrl rewrite ke
+// endpoint thumbnail Drive yang beneran ngeluarin byte gambar).
+const buktiTampil = ref(null);   // { alamat, bulan, buktiUrl } atau null
+useScrollLock(buktiTampil);
+const buktiGagal = ref(false);
+function lihatBukti(p) { buktiGagal.value = false; buktiTampil.value = p; }
 const riwayatVisibleN = ref(10);
 const riwayatTampil = computed(() => tunai.value.slice(0, riwayatVisibleN.value));
 const riwayatScrollEl = ref(null);   // the sheet's own scrolling element — must be
@@ -181,11 +189,11 @@ async function verifikasi(p) {
         </div>
         <div v-if="p.catatan" class="text-muted" style="font-size:11px">{{ p.catatan }}</div>
         <div class="row" style="gap:6px">
-          <a v-if="p.buktiUrl" class="btn btn-secondary" :href="p.buktiUrl" target="_blank"
+          <button v-if="p.buktiUrl" type="button" class="btn btn-secondary" @click="lihatBukti(p)"
              style="flex:1;justify-content:center;font-size:12px;padding:6px 10px;
                     background:var(--color-surface);box-shadow:var(--shadow-sm)">
             Lihat bukti
-          </a>
+          </button>
           <span v-else class="text-muted" style="flex:1;font-size:11px;align-self:center">
             (tanpa bukti — cek Sheet)
           </span>
@@ -248,6 +256,32 @@ async function verifikasi(p) {
             — {{ tunai.length }} dari {{ tunai.length }} —
           </p>
         </div>
+      </div>
+    </div>
+
+    <!-- bukti transfer — dulu link keluar ke Drive di tab baru, sekarang
+         gambarnya langsung ditampilkan di sini -->
+    <div v-if="buktiTampil" class="dialog-backdrop sheet-backdrop" @click.self="buktiTampil = null">
+      <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh;overflow-y:auto">
+        <div class="spread">
+          <div>
+            <div class="dialog-title">Bukti Transfer</div>
+            <div class="text-muted" style="font-size:12px">
+              {{ buktiTampil.alamat }} · {{ BULAN[buktiTampil.bulan - 1] }}
+            </div>
+          </div>
+          <button class="btn btn-ghost" @click="buktiTampil = null">×</button>
+        </div>
+
+        <img v-if="!buktiGagal" :src="driveImageUrl(buktiTampil.buktiUrl)" alt="Bukti transfer"
+             style="width:100%;border-radius:var(--radius-md);display:block"
+             @error="buktiGagal = true">
+        <p v-else class="text-muted" style="text-align:center;font-size:12.5px">
+          Gambar tidak bisa dimuat di sini — mungkin izin file Drive-nya belum "siapa saja
+          dengan link".
+          <a :href="buktiTampil.buktiUrl" target="_blank">Buka langsung di Drive →</a>
+        </p>
       </div>
     </div>
   </section>
