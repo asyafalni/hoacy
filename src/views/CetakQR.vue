@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import QRCode from 'qrcode';
 import { useSheet } from '../composables/useSheet';
+import { urlKartu } from '../lib/forms';
 import PinGate from '../components/PinGate.vue';
 
 // Rollout tool for bendahara: one printable QR per house, stuck on a door/mailbox,
@@ -14,14 +15,9 @@ const { rumah } = useSheet();
 
 const qrSvg = ref({});   // alamat -> inline <svg> markup
 watch(rumah, async (list) => {
-  const base = import.meta.env.BASE_URL;
   for (const h of list) {
     if (qrSvg.value[h.alamat]) continue;
-    // ?alamat must sit before the #, not after — WargaCard reads it off
-    // location.search, and with hash-history routing only the part before the
-    // hash is ever in .search (the part after # is .hash, invisible to it).
-    const link = `${location.origin}${base}?alamat=${encodeURIComponent(h.alamat)}#/`;
-    qrSvg.value[h.alamat] = await QRCode.toString(link, { type: 'svg', margin: 1, width: 132 });
+    qrSvg.value[h.alamat] = await QRCode.toString(urlKartu(h.alamat), { type: 'svg', margin: 1, width: 132 });
   }
 }, { immediate: true });
 </script>

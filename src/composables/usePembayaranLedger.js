@@ -36,13 +36,18 @@ export function usePembayaranLedger() {
       catatan: r[7], buktiUrl: r[8], timestamp: r[0],
     })));
 
+  // No slice() cap here — Bendahara.vue's riwayat sheet paginates this itself
+  // (lazy-render 10 at a time), so the full history is available to scroll
+  // through instead of being cut off at a fixed count.
   const tunai = computed(() => reversed.value
     .filter((r) => r[5] === 'tunai')
-    .slice(0, 30)
     .map((r) => ({
       alamat: r[1], bulan: r[2], tahun: r[3], nominal: r[4],
       petugas: r[6], catatan: r[7], timestamp: r[0],
     })));
 
-  return { loading, load, pending, tunai };
+  // Raw rows, exposed for anything that needs to aggregate across the whole
+  // ledger itself (e.g. RingkasanPublik's terkumpul-vs-target history) rather
+  // than the row-shaped views above.
+  return { loading, load, pending, tunai, rows };
 }

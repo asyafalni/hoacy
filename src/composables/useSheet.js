@@ -17,6 +17,7 @@ const rows = ref([]);        // API tab — key/value block + per-house block
 const blokRows = ref([]);    // Blok tab — one row per block
 const petugasRows = ref([]); // Petugas tab — one row per satpam/bendahara
 const opexRows = ref([]);    // Opex tab — one row per cost category
+const riwayatRows = ref([]); // Riwayat tab — one row per month, newest first
 const loading = ref(true);
 const error = ref(null);
 const optimistic = ref([]);   // rows submitted this session, not yet in the sheet
@@ -26,12 +27,13 @@ export function useSheet() {
     loading.value = true;
     try {
       if (SHEET) {
-        const [api, blok, petugas, opex] = await Promise.all(
-          ['API', 'Blok', 'Petugas', 'Opex'].map((tab) => fetch(gviz(tab)).then((r) => r.text())));
+        const [api, blok, petugas, opex, riwayat] = await Promise.all(
+          ['API', 'Blok', 'Petugas', 'Opex', 'Riwayat'].map((tab) => fetch(gviz(tab)).then((r) => r.text())));
         rows.value = parse(api);
         blokRows.value = parse(blok);
         petugasRows.value = parse(petugas);
         opexRows.value = parse(opex);
+        riwayatRows.value = parse(riwayat);
       } else {
         // Local dev only — no real Sheet configured, use the fixtures instead
         // of hitting gviz with an undefined id. See src/composables/mockData.js.
@@ -40,6 +42,7 @@ export function useSheet() {
         blokRows.value = mock.MOCK_BLOK_ROWS;
         petugasRows.value = mock.MOCK_PETUGAS_ROWS;
         opexRows.value = mock.MOCK_OPEX_ROWS;
+        riwayatRows.value = mock.MOCK_RIWAYAT_ROWS;
         console.warn('[useSheet] VITE_SHEET_ID kosong — memakai data mockup lokal.');
       }
       error.value = null;
@@ -54,18 +57,20 @@ export function useSheet() {
   const meta = computed(() =>
     Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
 
-  // per-house block (cols D..AA)
+  // per-house block (cols D..Z) — no `tipe` here: it only feeds the tariff
+  // formula server-side (Rumah!I), nothing in the app reads it, see
+  // docs/sheets-schema.md §10.
   const rumah = computed(() =>
     rows.value.filter((r) => r[3]).map((r) => ({
       // alamat = cluster + blok + '-' + rumah, e.g. N7-09
-      alamat: r[3], nama: r[4], telp: r[5], luas: r[6], tipe: r[7],
-      tarif: r[8], tunggakan: r[9],
-      status: r.slice(10, 22),   // 12 months of "Lunas|Sebagian|Pending|Belum|-"
-      cluster: r[22], blok: r[23], rumah: r[24],
+      alamat: r[3], nama: r[4], telp: r[5], luas: r[6],
+      tarif: r[7], tunggakan: r[8],
+      status: r.slice(9, 21),   // 12 months of "Lunas|Sebagian|Pending|Belum|-"
+      cluster: r[21], blok: r[22], rumah: r[23],
       // months (1-12) of next year already submitted — see docs/sheets-schema.md §10
-      mukaTahunDepan: r[25] ? String(r[25]).split(',').map(Number).filter(Boolean) : [],
+      mukaTahunDepan: r[24] ? String(r[24]).split(',').map(Number).filter(Boolean) : [],
       // per-house PIN — deterrent gate on the Warga card, see WargaCard.vue
-      pin: r[26] != null ? String(r[26]) : '',
+      pin: r[25] != null ? String(r[25]) : '',
     })));
 
   // per-block color (its own Blok tab, docs/sheets-schema.md §2), admin-editable
@@ -94,8 +99,23 @@ export function useSheet() {
       kategori: r[0], ikon: r[1] || '📋', nominal: Number(r[2]) || 0,
     })));
 
+  // Riwayat tab (docs/sheets-schema.md §11): pre-aggregated per month, newest
+  // row first (mirrors the Sheet's own fill-down order). Reversed to
+  // chronological order here, and any leading (oldest) all-zero months are
+  // trimmed so "semua data" doesn't open on a flat run of empty bars from
+  // before the cluster had any payments — this tab is filled with a fixed
+  // number of rows (e.g. 36), not dynamically sized to actual history.
+  const riwayat = computed(() => {
+    const bulanan = riwayatRows.value
+      .filter((r) => r[0] && r[1])
+      .map((r) => ({ tahun: Number(r[0]), bulan: Number(r[1]), terkumpul: Number(r[2]) || 0 }))
+      .reverse();
+    const firstNonZero = bulanan.findIndex((b) => b.terkumpul > 0);
+    return firstNonZero <= 0 ? bulanan : bulanan.slice(firstNonZero);
+  });
+
   /** Local echo so the satpam sees the row immediately after submitting. */
   function echo(rec) { optimistic.value.push({ ...rec, at: Date.now() }); }
 
-  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, bendaharaList, opexList, optimistic, echo };
+  return { load, rows, loading, error, meta, rumah, blokWarna, satpamList, bendaharaList, opexList, riwayat, optimistic, echo };
 }

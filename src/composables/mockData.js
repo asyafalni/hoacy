@@ -65,16 +65,20 @@ const terkumpulBulanIni = houses.reduce((sum, h) => {
 const targetBulanIni = houses.reduce((sum, h) => sum + h.tarif, 0);
 
 // `Opex` tab (docs/sheets-schema.md §9) — category totals only, e.g. "Gaji Satpam"
-// is every satpam's wage combined, never itemized per person.
+// is every satpam's wage combined, never itemized per person. Col D (diperbarui)
+// is a plain hand-typed date, updated whenever bendahara touches that row's nominal.
 export const MOCK_OPEX_ROWS = [
-  ['Gaji Satpam', '🛡️', 2400000],
-  ['Kebersihan', '🧹', 300000],
-  ['Listrik & Air Pos', '💡', 150000],
-  ['Lain-lain', '📋', 100000],
+  ['Gaji Satpam', '🛡️', 2400000, '2026-08-01'],
+  ['Kebersihan', '🧹', 300000, '2026-08-01'],
+  ['Listrik & Air Pos', '💡', 150000, '2026-09-05'],
+  ['Lain-lain', '📋', 100000, '2026-08-01'],
 ];
 // opex_bulanan mirrors =SUM(Opex!$C:$C) — computed from the rows above, same as
 // the real sheet, instead of a second hand-typed number that could drift from them.
 const opexBulanan = MOCK_OPEX_ROWS.reduce((sum, [, , nominal]) => sum + nominal, 0);
+// opex_diperbarui mirrors =TEXT(MAX(Opex!$D:$D), "dd mmm yyyy") — the most recent
+// of the per-row dates above, so residents can see at a glance if the baseline is stale.
+const opexDiperbarui = MOCK_OPEX_ROWS.map(([, , , d]) => d).sort().at(-1);
 
 const meta = [
   ['kas_tunai', 1750000],
@@ -87,10 +91,15 @@ const meta = [
   ['terkumpul_bulan_ini', terkumpulBulanIni],
   ['target_bulan_ini', targetBulanIni],
   ['opex_bulanan', opexBulanan],
+  ['opex_diperbarui', opexDiperbarui],
 ];
 
+// `tipe` (rumah|kavling) feeds the tariff formula server-side (Rumah!I) but the
+// API tab's per-house block never carries it through — nothing in the app reads
+// it, see useSheet.js's `rumah` computed. Kept on the fixture objects above only
+// because tarifBulanan()/islk() need it as an input.
 const houseRow = (h) => [
-  h.alamat, h.nama, h.telp, h.luas, h.tipe, h.tarif, h.tunggakan,
+  h.alamat, h.nama, h.telp, h.luas, h.tarif, h.tunggakan,
   ...h.status, h.cluster, h.blok, h.rumah, h.mukaTahunDepan, h.pin || h.telp.slice(-3),
 ];
 
@@ -99,7 +108,7 @@ const houseRow = (h) => [
 const rowCount = Math.max(meta.length, houses.length);
 export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   const [k, v] = meta[i] || [null, null];
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null))];
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(23).fill(null))];
 });
 
 // `Blok` tab (docs/sheets-schema.md §2) — one row per block. Blok 7 is overridden
@@ -130,6 +139,14 @@ const pembayaranRow = ({ alamat, bulan, tahun = 2026, nominal, metode, petugas, 
 
 export const MOCK_PEMBAYARAN_ROWS = [
   pembayaranRow({ alamat: 'N7-01', bulan: 8, nominal: 300000, metode: 'tunai', petugas: 'Ujang' }, '2026-08-03 08:12:00'),
+
+  // N7-01 (Budi Santoso), tahun 2025: lunas Jan-Okt, tapi Nov & Des belum — buat
+  // nguji "kartu tahun sebelumnya" (WargaCard.vue): rumah ini sekarang juga
+  // nunggak bulan berjalan (status generator di atas), jadi bisa sekalian nguji
+  // tunggakan lintas tahun (2025 + 2026) digabung dalam satu konfirmasi transfer.
+  ...Array.from({ length: 10 }, (_, i) => pembayaranRow(
+    { alamat: 'N7-01', bulan: i + 1, tahun: 2025, nominal: 300000, metode: 'tunai', petugas: 'Ujang' },
+    `2025-${String(i + 1).padStart(2, '0')}-05 08:00:00`)),
   pembayaranRow({ alamat: 'N8-02', bulan: 7, nominal: 450000, metode: 'tunai', petugas: 'Ujang' }, '2026-08-03 08:20:00'),
   pembayaranRow({ alamat: 'N7-03', bulan: 7, nominal: 180000, metode: 'transfer', petugas: 'Warga',
     catatan: 'bukti: transfer-juli.jpg', buktiUrl: 'https://picsum.photos/seed/N7-03-jul/500/700', keabsahan: 'pending' },
@@ -145,4 +162,17 @@ export const MOCK_PEMBAYARAN_ROWS = [
     catatan: 'bukti: sept_hendra.jpg', buktiUrl: 'https://picsum.photos/seed/N7-09-sep/500/700', keabsahan: 'pending' },
     '2026-09-16 07:55:00'),
   pembayaranRow({ alamat: 'N5-11', bulan: 9, nominal: 320000, metode: 'tunai', petugas: 'Ujang' }, '2026-09-18 16:40:00'),
+];
+
+// `Riwayat` tab (docs/sheets-schema.md §11) — pre-aggregated per month, newest
+// first, independent of MOCK_PEMBAYARAN_ROWS above (same relationship as the
+// real Sheet: a SUMIFS formula over Pembayaran, not something the client
+// derives itself — RingkasanPublik.vue never fetches the raw ledger). Row 2's
+// nominal mirrors terkumpul_bulan_ini so the "Terkumpul bulan ini" card and
+// the riwayat chart's current-month bar agree.
+export const MOCK_RIWAYAT_ROWS = [
+  [2026, 9, terkumpulBulanIni],
+  [2026, 8, 10600000], [2026, 7, 9800000], [2026, 6, 12100000], [2026, 5, 9950000],
+  [2026, 4, 11200000], [2026, 3, 10450000], [2026, 2, 8800000], [2026, 1, 9100000],
+  [2025, 12, 9600000], [2025, 11, 8200000],
 ];

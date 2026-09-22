@@ -1,6 +1,6 @@
 # Google Sheet schema & formulas
 
-Spreadsheet name: **Iuran_ClusterN_2026**. Ten tabs. Row 1 is always the header.
+Spreadsheet name: **Iuran_ClusterN_2026**. Eleven tabs. Row 1 is always the header.
 Formulas are written for row 2 — fill down, or wrap in `ARRAYFORMULA` where noted.
 
 ---
@@ -241,12 +241,13 @@ by hand instead if they're already in the sheet — both paths lead to "sah".
 | A | kategori | text, e.g. `Gaji Satpam` |
 | B | ikon | one emoji, e.g. `🛡️` |
 | C | nominal | number |
+| D | diperbarui | date — bendahara updates this by hand whenever `C` changes |
 
 ```
-A2: Gaji Satpam        B2: 🛡️   C2: 2400000
-A3: Kebersihan         B3: 🧹   C3: 300000
-A4: Listrik & Air Pos  B4: 💡   C4: 150000
-A5: Lain-lain          B5: 📋   C5: 100000
+A2: Gaji Satpam        B2: 🛡️   C2: 2400000   D2: 2026-08-01
+A3: Kebersihan         B3: 🧹   C3: 300000    D3: 2026-08-01
+A4: Listrik & Air Pos  B4: 💡   C4: 150000    D4: 2026-09-05
+A5: Lain-lain          B5: 📋   C5: 100000    D5: 2026-08-01
 ```
 
 Plain typed rows, no formula, same "admin opens the Sheet and edits it directly"
@@ -259,6 +260,13 @@ route), and a named amount per individual satpam would be exactly the kind of
 identifiable personal data that page is built to avoid. `ikon` is a single emoji
 bendahara picks from their own keyboard — no icon-name mapping to maintain in
 code, it just renders as typed.
+
+`diperbarui` has no formula behind it on purpose — there's no Apps Script trigger
+in this project to auto-stamp an edit, so it's a manual "update the date when you
+touch the number" habit, same trust level as everything else on this tab. The most
+recent of these dates across all rows is surfaced as `API!opex_diperbarui` (§10) —
+"OPEX terakhir diperbarui: ..." on the public dashboard, so residents can see at a
+glance whether the minimum-cost baseline is stale.
 
 ---
 
@@ -291,6 +299,9 @@ B10: =SUM(Rumah!$K$2:$K$1000)
 
 A11: "opex_bulanan"
 B11: =SUM(Opex!$C$2:$C$1000)
+
+A12: "opex_diperbarui"
+B12: =IFERROR(TEXT(MAX(Opex!$D$2:$D$1000), "dd mmm yyyy"), "")
 ```
 
 `tahun_aktif` is what the app shows as the card's year and uses as the base for
@@ -309,37 +320,97 @@ spent. It reads `0` (and the dashboard shows no surplus/deficit line) until
 Then, starting at D1, a per-house block the app renders directly:
 
 ```
-D1: "alamat" E1:"nama" F1:"telp" G1:"luas" H1:"tipe" I1:"tarif" J1:"tunggakan"
-K1..V1: 1..12 status text   W1:"cluster" X1:"blok" Y1:"rumah"
-Z1: "muka_tahun_depan"   AA1: "pin"
+D1: "alamat" E1:"nama" F1:"telp" G1:"luas" H1:"tarif" I1:"tunggakan"
+J1..U1: 1..12 status text   V1:"cluster" W1:"blok" X1:"rumah"
+Y1: "muka_tahun_depan"   Z1:"pin"
 D2: =Rumah!A2   E2: =Rumah!E2  F2: =Rumah!F2  G2: =Rumah!G2
-H2: =Rumah!H2   I2: =Rumah!K2  J2: =Status!AC2
-W2: =Rumah!B2   X2: =Rumah!C2  Y2: =Rumah!D2
-K2: =Status!P2  … V2: =Status!AA2
-Z2: =TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$C:$C,
+H2: =Rumah!K2   I2: =Status!AC2
+V2: =Rumah!B2   W2: =Rumah!C2   X2: =Rumah!D2
+J2: =Status!P2  … U2: =Status!AA2
+Y2: =TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$C:$C,
       Pembayaran!$B:$B=D2, Pembayaran!$D:$D=$B$8+1))))
-AA2: =Rumah!L2
+Z2: =Rumah!L2
 ```
 
-`AA`/pin rides along in the same public, published-to-web feed as everything else
+No `tipe` (Rumah!H) here on purpose — it only feeds Rumah's own tariff formula
+(§1, `I2`), already baked into `tarif` by the time it reaches this tab, and the
+app never reads a house's `tipe` directly. Dropped in a schema-cleanup pass
+(audited via grep across `src/`) rather than carried along unused.
+
+`Z`/pin rides along in the same public, published-to-web feed as everything else
 here (see `docs/deploy.md`) — the Warga card checks it client-side, so treat it the
 same as the Pos/Kas PIN: a deterrent against a neighbour browsing the app UI, not a
 secret that survives someone reading the raw gviz JSON directly.
 
-`Z` is a comma-joined list of month numbers (1–12) that already have a `Pembayaran`
+`Y` is a comma-joined list of month numbers (1–12) that already have a `Pembayaran`
 row for **next year** (`$B$8+1` — sah or pending, doesn't matter, a row existing is
 enough to avoid double-charging). There's no next-year Status grid — paying ahead
 into next year only needs "which months are already spoken for," not a full second
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
-Publish the spreadsheet to the web, then the app reads all four:
+Publish the spreadsheet to the web, then the public-facing composable (`useSheet.js`,
+used by `/`, `/pos`, `/kas`, `/ringkasan`) reads all five:
 
 ```
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=API
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Blok
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Petugas
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Opex
+https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=Riwayat
 ```
+
+`Pembayaran` itself is a sixth published tab (gviz doesn't support per-tab access
+control — see `docs/deploy.md`), but the app only ever fetches it from
+`usePembayaranLedger.js`, used by two PIN-gated screens that legitimately need
+row-level detail: `Bendahara.vue` (Kas) shows pending transfers with `bukti_url`,
+and `WargaCard.vue` uses it to recompute a resident's own card for **years before
+`tahun_aktif`** — `Status` only ever holds the current year (§5), so a past year's
+12-month grid is reconstructed client-side from the raw ledger, filtered to that
+one house's `alamat`, the same `bayar >= tarif` logic as `Status!P2` just
+parameterized by year instead of reading `$A$1`. **`/ringkasan` (no PIN, open to
+anyone) must never call `usePembayaranLedger` or fetch `Pembayaran` directly** —
+that tab carries `alamat` and a Drive link to each resident's transfer-proof
+photo, exactly the kind of per-house, per-payment data the PDP note at the top of
+`RingkasanPublik.vue` is built to keep off that page. `Riwayat` (§11) exists
+specifically so the public "terkumpul vs target" history can show a month-by-month
+trend without the public page ever touching the raw ledger — see that section for
+why.
 
 Sheet-side caching is ~1–5 minutes. After a write the app optimistically shows the
 new row locally and re-fetches; see `src/composables/useSheet.js`.
+
+---
+
+## 11. `Riwayat` — monthly terkumpul history, pre-aggregated (formula)
+
+| Col | Header | Notes |
+| --- | --- | --- |
+| A | tahun | **formula** |
+| B | bulan | **formula**, 1–12 |
+| C | terkumpul | **formula** — `sah` `Pembayaran` for that (tahun, bulan) |
+
+Row 2 is the current month; each row below it steps one month further back, so the
+whole tab reads newest-to-oldest and rolls forward automatically — same spirit as
+`Status!$A$1`'s year rollover, just monthly instead of yearly:
+
+```
+A2: =YEAR(TODAY())              B2: =MONTH(TODAY())
+C2: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$C:$C,B2, Pembayaran!$D:$D,A2, Pembayaran!$K:$K,"sah")
+
+A3: =IF(B2=1, A2-1, A2)         B3: =IF(B2=1, 12, B2-1)
+C3: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$C:$C,B3, Pembayaran!$D:$D,A3, Pembayaran!$K:$K,"sah")
+```
+
+Fill A/B/C down as many rows as months of history the public dashboard should be
+able to show — 36 rows (3 years) is a reasonable starting depth; extending it later
+is just filling more rows, never a breaking change. `RingkasanPublik.vue`'s "Riwayat
+Terkumpul vs Target" bottom sheet (opened by tapping the "Terkumpul bulan ini" card)
+reads this tab, groups it by the requested duration (3/6/12 bulan or semua = every
+row present), and pairs each month's `terkumpul` against the *current*
+`API!target_bulanan` as a constant reference line — this tab has no `target` column
+of its own because the Sheet doesn't keep a historical tariff snapshot per month;
+see the caveat text already on that bottom sheet.
+
+This is the only reason `Riwayat` exists: a plain `SUMIFS` per month, published
+alongside `API`/`Blok`/`Petugas`/`Opex`, so the public page's fetch list never has to
+include the raw `Pembayaran` ledger to show a trend line.

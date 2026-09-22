@@ -1,6 +1,8 @@
 <script setup vapor>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { usePembayaranLedger } from '../composables/usePembayaranLedger';
+import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, alamat, REKENING, IURAN_RT, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
@@ -9,6 +11,13 @@ import Button from '../components/ui/Button.vue';
 import RekeningCard from '../components/RekeningCard.vue';
 
 const { rumah, meta, blokWarna } = useSheet();
+// Own house only, but gviz has no server-side row filter — this fetches the
+// whole ledger same as Bendahara.vue does, filtered down client-side below.
+// Fine here for the same reason it's fine there: this screen is PIN-gated
+// (deterrent, not real access control — see the note further down), unlike
+// RingkasanPublik.vue which deliberately never touches this composable.
+const { rows: pembayaranRowsAll, load: loadPembayaran } = usePembayaranLedger();
+onMounted(loadPembayaran);
 
 // No login, but blok+rumah alone is guessable by any resident — so opening a card
 // also needs that house's PIN (Rumah!L in the Sheet, defaults to the last 3 digits
@@ -96,6 +105,7 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
 // whose LAST question is a file-upload (Drive) — that question requires a Google
 // sign-in, which is exactly the step that makes the proof auditable.
 const trOpen = ref(false);
+useScrollLock(trOpen);
 const trFile = ref(null);
 const camInput = ref(null);
 const fileInput = ref(null);
@@ -105,6 +115,63 @@ const trMukaDepan = ref(false);  // nested further: reveals next year's months
 // tahun_aktif datang dari Sheet (API!B8, = YEAR(TODAY())) supaya app tidak pernah
 // hardcode tahun — fallback ke tahun device kalau Sheet belum dimigrasi.
 const tahunIni = computed(() => Number(meta.value.tahun_aktif) || new Date().getFullYear());
+
+// ── Kartu tahun-tahun sebelumnya ──────────────────────────────────────────────
+// `Status` (dan karenanya `me.status`/`me.tunggakan`) cuma tahun berjalan — grid-nya
+// reset tiap 1 Januari (sheets-schema.md §5). Buat tahun lalu, hitung ulang di sini
+// dari `Pembayaran` mentah (append-only, nggak pernah direset), rumus yang sama
+// persis dengan Status!P2/AC2 di Sheet, cuma tahunnya diparameterkan. `tarif`
+// dianggap sama seperti sekarang untuk tahun lalu juga — Sheet nggak menyimpan
+// snapshot tarif historis, sama seperti catatan di Riwayat (sheets-schema.md §11).
+const pembayaranMeSemua = computed(() => !me.value ? []
+  : pembayaranRowsAll.value.filter((r) => r[1] === me.value.alamat));
+
+// Tahun mana saja yang punya data — bukan cuma "tahunIni - 3" hardcoded, biar
+// nggak nampilin tahun kosong buat rumah yang baru gabung cluster.
+const historyYears = computed(() => {
+  const tahunList = pembayaranMeSemua.value.map((r) => Number(r[3])).filter(Boolean);
+  if (!tahunList.length) return [];
+  const minTahun = Math.min(...tahunList);
+  const years = [];
+  for (let y = tahunIni.value - 1; y >= minTahun; y -= 1) years.push(y);
+  return years;
+});
+
+function hitungTahun(tahun) {
+  const tarif = Number(me.value?.tarif) || 0;
+  const rowsTahun = pembayaranMeSemua.value.filter((r) => Number(r[3]) === tahun);
+  let tunggakan = 0;
+  const status = Array.from({ length: 12 }, (_, i) => {
+    const bulan = i + 1;
+    const sah = rowsTahun.filter((r) => Number(r[2]) === bulan && r[10] === 'sah')
+      .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
+    tunggakan += Math.max(0, tarif - sah);
+    if (sah >= tarif) return 'Lunas';
+    if (sah > 0) return 'Sebagian';
+    const pending = rowsTahun.filter((r) => Number(r[2]) === bulan && r[10] === 'pending')
+      .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
+    return pending > 0 ? 'Pending' : 'Belum';
+  });
+  return { status, tunggakan };
+}
+
+const tahunDilihat = ref(0);   // 0 = tahun berjalan; diinisialisasi di watch(rumah) bawah
+watch(me, (h) => { if (h) tahunDilihat.value = tahunIni.value; });
+const tahunData = computed(() => (!me.value || tahunDilihat.value === tahunIni.value)
+  ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0 }
+  : hitungTahun(tahunDilihat.value));
+
+// tunggakan tahun-tahun sebelumnya, dipakai buat bayar (bukan cuma dilihat) —
+// digabung lintas tahun biar bisa dilunasi sekaligus dalam satu konfirmasi.
+const owedPastYears = computed(() => {
+  const out = [];
+  for (const tahun of historyYears.value) {
+    hitungTahun(tahun).status.forEach((s, i) => {
+      if (s === 'Belum' || s === 'Sebagian') out.push({ bulan: i + 1, tahun });
+    });
+  }
+  return out.sort((a, b) => a.tahun - b.tahun || a.bulan - b.bulan);
+});
 
 // trMonths menyimpan { bulan (1-12), tahun } — bukan cuma index bulan — supaya bisa
 // mencampur bulan tahun berjalan dan bulan tahun depan dalam satu konfirmasi.
@@ -134,9 +201,10 @@ const mukaDepan = computed(() => {
 });
 
 function openTransfer() {
-  if (!owed.value.length && !muka.value.length && !mukaDepan.value.length) return;
-  trMonths.value = owed.value.length ? [owed.value[0]] : [];
-  trMuka.value = !owed.value.length;               // sudah lunas kewajiban -> langsung buka bagian muka
+  if (!owed.value.length && !owedPastYears.value.length && !muka.value.length && !mukaDepan.value.length) return;
+  trMonths.value = owed.value.length ? [owed.value[0]]
+    : owedPastYears.value.length ? [owedPastYears.value[0]] : [];
+  trMuka.value = !owed.value.length && !owedPastYears.value.length;  // semua kewajiban lunas -> langsung buka bagian muka
   trMukaDepan.value = trMuka.value && !muka.value.length;  // tahun ini juga tuntas -> langsung ke tahun depan
   trFile.value = null;
   trOpen.value = true;
@@ -258,17 +326,34 @@ function kirimKonfirmasi() {
 
       <div style="padding:var(--space-4)">
         <div class="spread" style="margin-bottom:var(--space-2)">
-          <span class="kick">Tahun {{ tahunIni }}</span>
-          <Tag :status="me.tunggakan > 0 ? 'Sebagian' : 'Lunas'">
-            {{ me.tunggakan > 0 ? rupiahPendek(me.tunggakan) + ' belum dibayar' : 'Lunas' }}
+          <span class="kick">Tahun {{ tahunDilihat }}</span>
+          <Tag :status="tahunData.tunggakan > 0 ? 'Sebagian' : 'Lunas'">
+            {{ tahunData.tunggakan > 0 ? rupiahPendek(tahunData.tunggakan) + ' belum dibayar' : 'Lunas' }}
           </Tag>
         </div>
+
+        <!-- lihat kartu tahun-tahun sebelumnya — cuma muncul kalau ada datanya -->
+        <div v-if="historyYears.length" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:var(--space-3)">
+          <button type="button" class="btn" :class="tahunDilihat === tahunIni ? 'btn-primary' : 'btn-secondary'"
+                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="tahunDilihat = tahunIni">
+            {{ tahunIni }}
+          </button>
+          <button v-for="y in historyYears" :key="y" type="button" class="btn"
+                  :class="tahunDilihat === y ? 'btn-primary' : 'btn-secondary'"
+                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="tahunDilihat = y">
+            {{ y }}
+          </button>
+        </div>
+
         <div class="months">
-          <div v-for="(s, i) in me.status" :key="i" class="month" :class="cls(s)">
+          <div v-for="(s, i) in tahunData.status" :key="i" class="month" :class="cls(s)">
             <div style="font-size:12.5px;font-weight:700">{{ BULAN[i] }}</div>
             <div class="num" style="font-size:10px;opacity:.8">{{ s === '-' ? '—' : s }}</div>
           </div>
         </div>
+        <p v-if="tahunDilihat !== tahunIni" class="text-muted" style="font-size:10px;margin:var(--space-2) 0 0">
+          Tarif dihitung pakai tarif sekarang — Sheet tidak menyimpan riwayat tarif per tahun.
+        </p>
       </div>
     </div>
 
@@ -285,14 +370,21 @@ function kirimKonfirmasi() {
         </div>
         <div class="hr" style="margin:2px 0"></div>
         <div class="spread">
-          <span style="font-size:13px;font-weight:700">Total tagihan</span>
+          <span style="font-size:13px;font-weight:700">Total tagihan {{ tahunIni }}</span>
           <span class="num" style="font-family:var(--font-heading);font-size:24px;color:var(--color-accent-700)">
             {{ rupiah(me.tunggakan) }}
           </span>
         </div>
+        <div v-if="owedPastYears.length" class="spread" style="font-size:12px">
+          <span class="text-muted">+ tunggakan tahun sebelumnya ({{ owedPastYears.length }} bln)</span>
+          <span class="num" style="font-weight:700;color:var(--color-accent-700)">
+            {{ rupiah(owedPastYears.length * me.tarif) }}
+          </span>
+        </div>
       </div>
-      <Button block :disabled="!owed.length && !muka.length && !mukaDepan.length" @click="openTransfer">
-        {{ owed.length ? 'Bayar transfer' : 'Bayar di muka' }}
+      <Button block :disabled="!owed.length && !owedPastYears.length && !muka.length && !mukaDepan.length"
+              @click="openTransfer">
+        {{ owed.length || owedPastYears.length ? 'Bayar transfer' : 'Bayar di muka' }}
       </Button>
       <div class="text-muted num" style="text-align:center;font-size:10.5px">
         {{ REKENING.bank }} {{ REKENING.nomor }} a.n. {{ REKENING.nama }} · jatuh tempo tgl 20
@@ -327,6 +419,21 @@ function kirimKonfirmasi() {
         <p v-else class="text-muted" style="font-size:12px;margin:0">
           Tidak ada tunggakan tahun ini — lanjut bayar di muka di bawah.
         </p>
+
+        <!-- tunggakan lintas tahun — selalu tampil kalau ada, bukan disembunyikan
+             di balik toggle "+", karena ini kewajiban lama yang mudah terlewat -->
+        <template v-if="owedPastYears.length">
+          <div class="kick" style="color:var(--color-accent-700)">
+            Tunggakan tahun sebelumnya ({{ owedPastYears.length }} bulan)
+          </div>
+          <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+            <button v-for="m in owedPastYears" :key="keyOf(m)" class="btn"
+                    :class="trKeys.has(keyOf(m)) ? 'btn-primary' : 'btn-secondary'"
+                    @click="toggleTr(m)">
+              {{ BULAN[m.bulan - 1].slice(0, 3) }} '{{ String(m.tahun).slice(2) }}
+            </button>
+          </div>
+        </template>
 
         <button v-if="!trMuka && muka.length" type="button" class="btn btn-ghost"
                 style="justify-content:flex-start;font-size:12px;padding-left:0" @click="trMuka = true">

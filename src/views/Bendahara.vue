@@ -1,7 +1,8 @@
 <script setup vapor>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
+import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN, REKENING } from '../lib/tariff';
 import { urlSetoran, batchId, submitVerifikasi } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
@@ -22,7 +23,7 @@ const persen = computed(() => (total.value ? Math.round((lunas.value / total.val
 // Setor ke Bank = one Setoran row; then paste the batch id into Pembayaran!L
 // for the rows currently marked "kas" (docs/sheets-schema.md §6).
 const setorUrl = computed(() =>
-  urlSetoran({ batchId: batchId(), nominal: kas.value, oleh: 'Bendahara' }));
+  urlSetoran({ batchId: batchId(), nominal: kas.value, oleh: bendaharaNama.value || 'Bendahara' }));
 
 // Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
 // everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
@@ -37,6 +38,33 @@ function gantiBendahara() {
   bendaharaNama.value = '';
   localStorage.removeItem('iuran.bendahara.nama');
 }
+
+// Riwayat kas masuk — bottom sheet, bukan dilempar semua ke halaman utama.
+// Lazy-render 10 baris per langkah (bukan lazy-fetch — seluruh tab Pembayaran
+// sudah sekali fetch lewat gviz, ini cuma ngerem berapa banyak yang di-render
+// sekaligus) — IntersectionObserver di sentinel bawah list nambah 10 lagi
+// begitu keliatan, sampai habis.
+const showRiwayatKas = ref(false);
+useScrollLock(showRiwayatKas);
+const riwayatVisibleN = ref(10);
+const riwayatTampil = computed(() => tunai.value.slice(0, riwayatVisibleN.value));
+const riwayatScrollEl = ref(null);   // the sheet's own scrolling element — must be
+                                      // the observer's `root`, not the viewport, or
+                                      // the sentinel counts as "visible" immediately
+                                      // and the whole list loads in one burst.
+const riwayatSentinel = ref(null);
+let riwayatObserver = null;
+watch(showRiwayatKas, async (open) => {
+  if (!open) { riwayatObserver?.disconnect(); return; }
+  riwayatVisibleN.value = 10;
+  await nextTick();
+  riwayatObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && riwayatVisibleN.value < tunai.value.length) {
+      riwayatVisibleN.value += 10;
+    }
+  }, { root: riwayatScrollEl.value, rootMargin: '200px' });
+  if (riwayatSentinel.value) riwayatObserver.observe(riwayatSentinel.value);
+});
 
 const keyOf = (p) => `${p.alamat}-${p.bulan}-${p.tahun}`;
 const verifying = ref([]);
@@ -85,9 +113,19 @@ async function verifikasi(p) {
           {{ total }} rumah · sinkron {{ meta.updated || '—' }}
         </div>
       </div>
-      <button class="btn btn-ghost" style="font-size:12px" @click="gantiBendahara">
-        {{ bendaharaNama }} · Ganti
-      </button>
+      <div class="row" style="gap:4px;flex:none">
+        <button class="btn btn-ghost" style="font-size:12px;padding:6px 8px" title="Riwayat kas masuk"
+                @click="showRiwayatKas = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 7v5l3 3"></path>
+          </svg>
+        </button>
+        <button class="btn btn-ghost" style="font-size:12px" @click="gantiBendahara">
+          {{ bendaharaNama }} · Ganti
+        </button>
+      </div>
     </div>
 
     <Card elev="md" style="background:var(--color-neutral-900);color:var(--color-neutral-100)">
@@ -141,6 +179,7 @@ async function verifikasi(p) {
           <span style="font-weight:700;font-size:13px">{{ p.alamat }} · {{ BULAN[p.bulan - 1] }}</span>
           <span class="num" style="font-weight:700">{{ rupiah(p.nominal) }}</span>
         </div>
+        <div v-if="p.catatan" class="text-muted" style="font-size:11px">{{ p.catatan }}</div>
         <div class="row" style="gap:6px">
           <a v-if="p.buktiUrl" class="btn btn-secondary" :href="p.buktiUrl" target="_blank"
              style="flex:1;justify-content:center;font-size:12px;padding:6px 10px;
@@ -158,29 +197,59 @@ async function verifikasi(p) {
       </div>
     </Card>
 
-    <!-- audit trail buat cross-check laporan satpam — siapa lapor, berapa, kapan -->
-    <Card v-if="tunai.length" style="gap:2px">
-      <span class="kick">Riwayat kas masuk (tunai)</span>
-      <div v-for="t in tunai" :key="t.timestamp + t.alamat + t.bulan" class="spread"
-           style="padding:6px 0;border-top:1px solid var(--color-divider)">
-        <div>
-          <div style="font-size:12.5px;font-weight:600">{{ t.alamat }} · {{ BULAN[t.bulan - 1] }}</div>
-          <div class="text-muted" style="font-size:11px">{{ t.petugas }} · {{ t.timestamp }}</div>
-        </div>
-        <span class="num" style="font-weight:700;font-size:12.5px">{{ rupiahPendek(t.nominal) }}</span>
-      </div>
-    </Card>
-
     <p class="text-muted" style="font-size:11.5px">
       Verifikasi bisa lewat tombol di atas, atau langsung centang kolom
       <code>terverifikasi</code> pada tab <code>Pembayaran</code> di Sheet — dua-duanya
       berujung sama. Status <em>Pending → Lunas</em> dihitung formula.
     </p>
 
+    <a class="btn btn-secondary" href="#/kas/rumah"
+       style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+      Lihat semua kartu rumah
+    </a>
     <a class="btn btn-secondary" href="#/kas/qr"
        style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
       Cetak QR per rumah
     </a>
+
+    <!-- riwayat kas masuk (tunai) — bottom sheet, lazy-render 10 baris per
+         langkah lewat IntersectionObserver di sentinel, bukan nge-dump semua
+         audit trail sekaligus ke layar -->
+    <div v-if="showRiwayatKas" class="dialog-backdrop sheet-backdrop" @click.self="showRiwayatKas = false">
+      <div ref="riwayatScrollEl" class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh;overflow-y:auto">
+        <div class="spread">
+          <div>
+            <div class="dialog-title">Riwayat Kas Masuk</div>
+            <div class="text-muted" style="font-size:12px">Tunai · audit trail buat cross-check laporan satpam</div>
+          </div>
+          <button class="btn btn-ghost" @click="showRiwayatKas = false">×</button>
+        </div>
+
+        <div v-if="!tunai.length" class="text-muted" style="text-align:center;font-size:12.5px">
+          Belum ada kas masuk tunai.
+        </div>
+        <div v-else class="col" style="gap:2px">
+          <div v-for="t in riwayatTampil" :key="t.timestamp + t.alamat + t.bulan" class="spread"
+               style="padding:8px 0;border-top:1px solid var(--color-divider)">
+            <div>
+              <div style="font-size:12.5px;font-weight:600">{{ t.alamat }} · {{ BULAN[t.bulan - 1] }}</div>
+              <div class="text-muted" style="font-size:11px">
+                {{ t.petugas }} · {{ t.timestamp }}{{ t.catatan ? ' · ' + t.catatan : '' }}
+              </div>
+            </div>
+            <span class="num" style="font-weight:700;font-size:12.5px">{{ rupiahPendek(t.nominal) }}</span>
+          </div>
+          <div ref="riwayatSentinel" style="height:1px"></div>
+          <p v-if="riwayatVisibleN < tunai.length" class="text-muted" style="text-align:center;font-size:11px">
+            Memuat lagi…
+          </p>
+          <p v-else class="text-muted" style="text-align:center;font-size:11px">
+            — {{ tunai.length }} dari {{ tunai.length }} —
+          </p>
+        </div>
+      </div>
+    </div>
   </section>
  </PinGate>
 </template>

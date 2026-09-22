@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { usePendingSync } from '../composables/usePendingSync';
+import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
@@ -47,6 +48,8 @@ const chipStyle = (active) => active ? 'min-height:40px'
 const page = ref(1);
 const sel = ref(null);        // selected house
 const bulan = ref([]);        // month indices being paid
+useScrollLock(showFilter);
+useScrollLock(sel);
 const custom = ref(false);    // free-form nominal instead of the full tarif
 const customNominal = ref(null);
 const toast = ref('');

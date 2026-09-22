@@ -46,7 +46,7 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 | --- | --- | --- |
 | `/` | Warga | enter blok + house no (no login), see the 12-month card, confirm a transfer with proof |
 | `/pos` | Satpam | search house, pick months, full or partial, record cash |
-| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers, print QR (`/kas/qr`) |
+| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers, print QR (`/kas/qr`), browse every house's card (`/kas/rumah`) |
 | `/ringkasan` | Public — anyone | cluster-wide aggregates only: collected vs target this month, surplus/deficit vs OPEX. No PIN, no per-house or per-block numbers — see the PDP note in `RingkasanPublik.vue` |
 
 `/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public
