@@ -321,7 +321,7 @@ Plain typed rows, no formula, same "admin opens the Sheet and edits it directly"
 pattern as `Blok`/`Petugas` — add, remove or retotal a line and `API!opex_bulanan`
 (§10) picks it up on the next fetch, no deploy, no Form. `Gaji Satpam` is
 deliberately the *total* payroll for every satpam combined, not one row per
-person — this tab feeds the "Rincian OPEX" bottom sheet on the public `/ringkasan`
+person — this tab feeds the "Rincian OPEX" bottom sheet on the public `/sum`
 page (§10, `RingkasanPublik.vue` — a sheet on the same page, not a separate
 route), and a named amount per individual satpam would be exactly the kind of
 identifiable personal data that page is built to avoid. `ikon` is a single emoji
@@ -417,7 +417,7 @@ into next year only needs "which months are already spoken for," not a full seco
 12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
 Publish the spreadsheet to the web, then the public-facing composable (`useSheet.js`,
-used by `/`, `/pos`, `/kas`, `/ringkasan`) reads all seven:
+used by `/`, `/pos`, `/kas`, `/sum`) reads all seven:
 
 ```
 https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&sheet=API
@@ -449,7 +449,7 @@ and `WargaCard.vue` uses it to recompute a resident's own card for **years befor
 one house's `alamat`, the same `bayar >= tarif` logic as `Status!P2` (tarif itself
 also period-correct now, via `tarifPada()` against `RumahRiwayat`/`TarifVersi` — see
 §12/§13 — not a flat "today's rate" assumption), just parameterized by year instead
-of reading `$A$1`. **`/ringkasan` (no PIN, open to
+of reading `$A$1`. **`/sum` (no PIN, open to
 anyone) must never call `usePembayaranLedger` or fetch `Pembayaran` directly** —
 that tab carries `alamat` and a Drive link to each resident's transfer-proof
 photo, exactly the kind of per-house, per-payment data the PDP note at the top of

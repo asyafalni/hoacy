@@ -10,7 +10,7 @@ const routes = [
   { path: '/kas',       name: 'bendahara',  component: () => import('./views/Bendahara.vue') },
   { path: '/kas/qr',    name: 'cetak-qr',   component: () => import('./views/CetakQR.vue') },
   { path: '/kas/rumah', name: 'semua-kartu', component: () => import('./views/SemuaKartu.vue') },
-  { path: '/ringkasan', name: 'ringkasan',  component: () => import('./views/RingkasanPublik.vue') },
+  { path: '/sum',       name: 'ringkasan',  component: () => import('./views/RingkasanPublik.vue') },
 ];
 
 // Every SFC here is <script setup vapor>, but <router-view> resolves its match

@@ -105,7 +105,7 @@ export function useSheet() {
 
   // Opex tab (docs/sheets-schema.md §9): itemized fixed monthly cost, category
   // totals only — e.g. "Gaji Satpam" is every satpam's wage summed into one row,
-  // never one row per person. Feeds the public /ringkasan/opex breakdown.
+  // never one row per person. Feeds the public /sum "Rincian OPEX" sheet.
   const opexList = computed(() =>
     opexRows.value.filter((r) => r[0]).map((r) => ({
       kategori: r[0], ikon: r[1] || '📋', nominal: Number(r[2]) || 0,
