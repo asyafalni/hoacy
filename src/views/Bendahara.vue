@@ -5,8 +5,10 @@ import { rupiah, rupiahPendek } from '../lib/tariff';
 import { urlSetoran, batchId } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
+import PinGate from '../components/PinGate.vue';
 
 const { meta, rumah } = useSheet();
+const PIN = import.meta.env.VITE_PIN_KAS || '';
 
 const kas   = computed(() => Number(meta.value.kas_tunai || 0));
 const bank  = computed(() => Number(meta.value.rekening || 0));
@@ -21,6 +23,7 @@ const setorUrl = computed(() =>
 </script>
 
 <template>
+ <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
   <section class="scr col" style="gap:var(--space-3)">
     <div>
       <h4 style="margin:0">Kas RT 03/14</h4>
@@ -74,4 +77,5 @@ const setorUrl = computed(() =>
       pada tab <code>Pembayaran</code>. Status <em>Pending → Lunas</em> dihitung formula.
     </p>
   </section>
+ </PinGate>
 </template>

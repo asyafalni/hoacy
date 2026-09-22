@@ -7,7 +7,7 @@ import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 
-const { rumah } = useSheet();
+const { rumah, meta } = useSheet();
 
 // No login: blok is fixed, resident types the house number. Persisted so the card
 // opens straight away next time (and a per-house QR link can set it via ?rumah=).
@@ -43,34 +43,68 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
 // whose LAST question is a file-upload (Drive) — that question requires a Google
 // sign-in, which is exactly the step that makes the proof auditable.
 const trOpen = ref(false);
-const trMonths = ref([]);
 const trFile = ref(null);
+const camInput = ref(null);
+const fileInput = ref(null);
+const trMuka = ref(false);       // "bayar di muka": reveals not-yet-due months, off by default
+const trMukaDepan = ref(false);  // nested further: reveals next year's months
 
+// tahun_aktif datang dari Sheet (API!B8, = YEAR(TODAY())) supaya app tidak pernah
+// hardcode tahun — fallback ke tahun device kalau Sheet belum dimigrasi.
+const tahunIni = computed(() => Number(meta.value.tahun_aktif) || new Date().getFullYear());
+
+// trMonths menyimpan { bulan (1-12), tahun } — bukan cuma index bulan — supaya bisa
+// mencampur bulan tahun berjalan dan bulan tahun depan dalam satu konfirmasi.
+const trMonths = ref([]);
+const keyOf = (m) => `${m.tahun}-${m.bulan}`;
+const trKeys = computed(() => new Set(trMonths.value.map(keyOf)));
+
+// tunggakan + kewajiban berjalan — apa yang muncul otomatis saat dialog dibuka
 const owed = computed(() => !me.value ? [] : me.value.status
   .map((s, i) => ({ s, i }))
   .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
-  .map((x) => x.i));
+  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
+
+// belum jatuh tempo tahun ini (status "-") — hanya muncul kalau klik "bayar di muka"
+const muka = computed(() => !me.value ? [] : me.value.status
+  .map((s, i) => ({ s, i }))
+  .filter((x) => x.s === '-')
+  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
+
+// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §6)
+const mukaDepan = computed(() => {
+  if (!me.value) return [];
+  const sudah = new Set(me.value.mukaTahunDepan || []);
+  return Array.from({ length: 12 }, (_, i) => i + 1)
+    .filter((b) => !sudah.has(b))
+    .map((b) => ({ bulan: b, tahun: tahunIni.value + 1 }));
+});
 
 function openTransfer() {
-  if (!owed.value.length) return;
-  trMonths.value = [owed.value[0]];
+  if (!owed.value.length && !muka.value.length && !mukaDepan.value.length) return;
+  trMonths.value = owed.value.length ? [owed.value[0]] : [];
+  trMuka.value = !owed.value.length;               // sudah lunas kewajiban -> langsung buka bagian muka
+  trMukaDepan.value = trMuka.value && !muka.value.length;  // tahun ini juga tuntas -> langsung ke tahun depan
   trFile.value = null;
   trOpen.value = true;
 }
-function toggleTr(i) {
-  trMonths.value = trMonths.value.includes(i)
-    ? trMonths.value.filter((x) => x !== i)
-    : [...trMonths.value, i].sort((a, b) => a - b);
+function toggleTr(m) {
+  const k = keyOf(m);
+  trMonths.value = trKeys.value.has(k)
+    ? trMonths.value.filter((x) => keyOf(x) !== k)
+    : [...trMonths.value, m].sort((a, b) => a.tahun - b.tahun || a.bulan - b.bulan);
 }
-function pickFile(e) { trFile.value = e.target.files?.[0] || null; }
+function pickFile(e) { trFile.value = e.target.files?.[0] || null; e.target.value = ''; }
+function openCamera() { camInput.value?.click(); }
+function openGallery() { fileInput.value?.click(); }
 
 const trTotal = computed(() => trMonths.value.length * (me.value?.tarif || 0));
 const trReady = computed(() => !!trFile.value && trMonths.value.length > 0);
 
 // one Form per month — separate rows keep partial history auditable
-const trUrls = computed(() => !me.value ? [] : trMonths.value.map((i) =>
+const trUrls = computed(() => !me.value ? [] : trMonths.value.map((m) =>
   urlPembayaran({
-    noRumah: me.value.alamat, bulan: i + 1, nominal: me.value.tarif,
+    noRumah: me.value.alamat, bulan: m.bulan, tahun: m.tahun, nominal: me.value.tarif,
     metode: 'transfer', petugas: 'Warga',
     catatan: trFile.value ? `bukti: ${trFile.value.name}` : '',
   })));
@@ -147,7 +181,7 @@ function kirimKonfirmasi() {
 
       <div style="padding:var(--space-4)">
         <div class="spread" style="margin-bottom:var(--space-2)">
-          <span class="kick">Tahun 2026</span>
+          <span class="kick">Tahun {{ tahunIni }}</span>
           <Tag :status="me.tunggakan > 0 ? 'Sebagian' : 'Lunas'">
             {{ me.tunggakan > 0 ? rupiahPendek(me.tunggakan) + ' belum dibayar' : 'Lunas' }}
           </Tag>
@@ -171,7 +205,9 @@ function kirimKonfirmasi() {
       <p class="text-muted" style="font-size:11.5px;margin:0">
         Tarif {{ rupiah(me.tarif) }}/bulan (ISLK per luas tanah + Iuran RT Rp 50.000).
       </p>
-      <Button block @click="openTransfer">Bayar transfer</Button>
+      <Button block :disabled="!owed.length && !muka.length && !mukaDepan.length" @click="openTransfer">
+        {{ owed.length ? 'Bayar transfer' : 'Bayar di muka' }}
+      </Button>
       <div class="text-muted num" style="text-align:center;font-size:10.5px">
         BCA 7290-1188-03 a.n. Kas RT 03/14 · jatuh tempo tgl 20
       </div>
@@ -200,38 +236,76 @@ function kirimKonfirmasi() {
           </div>
         </div>
 
-        <div class="kick">Bulan yang dibayar</div>
-        <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
-          <button v-for="i in owed" :key="i" class="btn"
-                  :class="trMonths.includes(i) ? 'btn-primary' : 'btn-secondary'"
-                  @click="toggleTr(i)">
-            {{ BULAN[i] }}
-          </button>
-        </div>
+        <template v-if="owed.length">
+          <div class="kick">Bulan yang dibayar</div>
+          <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+            <button v-for="m in owed" :key="keyOf(m)" class="btn"
+                    :class="trKeys.has(keyOf(m)) ? 'btn-primary' : 'btn-secondary'"
+                    @click="toggleTr(m)">
+              {{ BULAN[m.bulan - 1] }}
+            </button>
+          </div>
+        </template>
+        <p v-else class="text-muted" style="font-size:12px;margin:0">
+          Tidak ada tunggakan tahun ini — lanjut bayar di muka di bawah.
+        </p>
+
+        <button v-if="!trMuka && muka.length" type="button" class="btn btn-ghost"
+                style="justify-content:flex-start;font-size:12px;padding-left:0" @click="trMuka = true">
+          + Bayar di muka untuk bulan berikutnya
+        </button>
+        <template v-if="trMuka && muka.length">
+          <div class="kick">Bayar di muka ({{ tahunIni }}, belum jatuh tempo)</div>
+          <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+            <button v-for="m in muka" :key="keyOf(m)" class="btn"
+                    :class="trKeys.has(keyOf(m)) ? 'btn-primary' : 'btn-secondary'"
+                    @click="toggleTr(m)">
+              {{ BULAN[m.bulan - 1] }}
+            </button>
+          </div>
+        </template>
+
+        <button v-if="trMuka && !trMukaDepan && mukaDepan.length" type="button" class="btn btn-ghost"
+                style="justify-content:flex-start;font-size:12px;padding-left:0" @click="trMukaDepan = true">
+          + Bahkan bayar untuk tahun {{ tahunIni + 1 }}
+        </button>
+        <template v-if="trMukaDepan && mukaDepan.length">
+          <div class="kick">Tahun {{ tahunIni + 1 }}</div>
+          <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+            <button v-for="m in mukaDepan" :key="keyOf(m)" class="btn"
+                    :class="trKeys.has(keyOf(m)) ? 'btn-primary' : 'btn-secondary'"
+                    @click="toggleTr(m)">
+              {{ BULAN[m.bulan - 1] }} '{{ String(m.tahun).slice(2) }}
+            </button>
+          </div>
+        </template>
 
         <div class="kick">Bukti transfer</div>
-        <label style="display:block;cursor:pointer;border-radius:var(--radius-lg);
-               padding:var(--space-4);text-align:center;border:1px dashed"
-               :style="{ borderColor: trFile ? 'var(--color-accent-2-500)' : 'var(--color-neutral-400)',
-                         background: trFile ? 'var(--color-accent-2-100)' : 'var(--color-bg)' }">
-          <input type="file" accept="image/*,application/pdf" @change="pickFile" style="display:none">
-          <template v-if="!trFile">
-            <div style="width:40px;height:40px;margin:0 auto var(--space-2);border-radius:50%;
-                        background:var(--color-neutral-200);color:var(--color-neutral-700);
-                        display:flex;align-items:center;justify-content:center;font-size:17px">↑</div>
-            <div style="font-size:12.5px;font-weight:600">Ketuk untuk unggah bukti</div>
-            <div class="text-muted" style="font-size:11px">Foto struk / screenshot m-banking · JPG, PNG, PDF</div>
-          </template>
-          <div v-else class="row" style="text-align:left">
+        <input ref="camInput" type="file" accept="image/*" capture="environment"
+               @change="pickFile" style="display:none">
+        <input ref="fileInput" type="file" accept="image/*,application/pdf"
+               @change="pickFile" style="display:none">
+
+        <div v-if="!trFile" class="row" style="gap:var(--space-2)">
+          <button type="button" class="btn btn-secondary grow" @click="openCamera">📷 Ambil foto</button>
+          <button type="button" class="btn btn-secondary grow" @click="openGallery">🖼 Pilih file</button>
+        </div>
+        <div v-else style="border-radius:var(--radius-lg);padding:var(--space-4);
+                    border:1px dashed var(--color-accent-2-500);background:var(--color-accent-2-100)">
+          <div class="row" style="text-align:left">
             <div style="width:40px;height:40px;flex:none;border-radius:50%;
                         background:var(--color-accent-2-500);color:var(--color-bg);
                         display:flex;align-items:center;justify-content:center;font-size:16px">✓</div>
             <div class="grow">
               <div class="truncate" style="font-size:12.5px;font-weight:700">{{ trFile.name }}</div>
-              <div class="text-muted" style="font-size:11px">Ketuk untuk mengganti</div>
+              <div class="text-muted" style="font-size:11px">
+                <a href="#" @click.prevent="openCamera">Ambil ulang</a> ·
+                <a href="#" @click.prevent="openGallery">Ganti file</a>
+              </div>
             </div>
           </div>
-        </label>
+        </div>
+        <div class="text-muted" style="font-size:11px">Foto struk / screenshot m-banking · JPG, PNG, PDF</div>
 
         <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
              padding:var(--space-3) var(--space-4)">

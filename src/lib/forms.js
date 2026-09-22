@@ -7,7 +7,8 @@ const params = (obj) => {
 };
 
 /** Prefilled "Catat Pembayaran" URL — one call per month being paid. */
-export function urlPembayaran({ noRumah, bulan, tahun = 2026, nominal, metode, petugas, catatan }) {
+export function urlPembayaran({ noRumah, bulan, tahun = new Date().getFullYear(),
+                                 nominal, metode, petugas, catatan }) {
   const p = params({
     [E.VITE_E_RUMAH]: noRumah,
     [E.VITE_E_BULAN]: bulan,

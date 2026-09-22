@@ -1,5 +1,5 @@
 /* App-level layout only. Everything visual comes from tokens.css. */
-.app { max-width: 480px; margin: 0 auto; min-height: 100dvh; padding-bottom: 96px; }
+.app { max-width: 480px; margin: 0 auto; min-height: 100dvh; }
 .scr { padding: 0 var(--space-4) var(--space-6); }
 .row { display: flex; align-items: center; gap: var(--space-3); }
 .col { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -8,22 +8,6 @@
 .num { font-variant-numeric: tabular-nums; }
 .kick { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-700); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* bottom tab bar — 44px minimum hit target */
-.tabs {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--space-3);
-  width: min(448px, calc(100% - var(--space-6)));
-  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--space-1);
-  padding: var(--space-1); border-radius: 999px;
-  background: var(--color-neutral-900); box-shadow: var(--shadow-lg);
-}
-.tabs a {
-  min-height: 44px; display: flex; align-items: center; justify-content: center;
-  border-radius: 999px; text-decoration: none; font-size: 13px;
-  font-family: var(--font-heading); color: var(--color-neutral-300);
-}
-.tabs a:hover { background: var(--color-neutral-800); color: var(--color-neutral-100); }
-.tabs a.router-link-exact-active { background: var(--color-accent); color: var(--color-bg); }
 
 .months { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 .month { border-radius: var(--radius-md); padding: 9px var(--space-3); border: 1px solid; }

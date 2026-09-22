@@ -22,6 +22,14 @@ silent `/formResponse` route — so the **warga** flow always opens `viewform`
 Get the real ids: open the form → ⋮ → **Get pre-filled link**, fill anything,
 copy the URL, read the `entry.NNN` keys.
 
+**File-upload question settings** (question ⋮ → the file-upload block itself):
+allowed file types → check **Image** only (uncheck the rest, or add PDF if you
+also want screenshots-as-PDF), max number of files → **1**, max file size →
+**10 MB** is plenty for a phone photo. Restricting the type to Image is what
+makes mobile browsers default straight to the camera when the app's "Ambil
+foto" button opens this input — Forms' file-upload question is just an
+`<input type=file>` under the hood, same as `WargaCard.vue`'s own picker.
+
 ### Prefill URL (what every button in the app builds)
 
 ```

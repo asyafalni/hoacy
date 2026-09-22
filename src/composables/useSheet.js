@@ -33,7 +33,7 @@ export function useSheet() {
   const meta = computed(() =>
     Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
 
-  // per-house block (cols D..V)
+  // per-house block (cols D..Z)
   const rumah = computed(() =>
     rows.value.filter((r) => r[3]).map((r) => ({
       // alamat = cluster + blok + '-' + rumah, e.g. N7-09
@@ -41,6 +41,8 @@ export function useSheet() {
       tarif: r[8], tunggakan: r[9],
       status: r.slice(10, 22),   // 12 months of "Lunas|Sebagian|Pending|Belum|-"
       cluster: r[22], blok: r[23], rumah: r[24],
+      // months (1-12) of next year already submitted — see docs/sheets-schema.md §6
+      mukaTahunDepan: r[25] ? String(r[25]).split(',').map(Number).filter(Boolean) : [],
     })));
 
   /** Local echo so the satpam sees the row immediately after submitting. */

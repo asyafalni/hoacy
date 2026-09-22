@@ -77,12 +77,16 @@ Protect A:H (form range) and leave K:L editable by the treasurer only.
 A2:A15 `=Rumah!A2:A15` (the `alamat` keys, `N7-01` … `N8-07`). B1:M1 = 1..12 (month numbers).
 Two blocks side by side: **amount received** and **status text**.
 
+`$A$1` holds the active year — put the formula `=YEAR(TODAY())` in it, **not** a typed
+number. That's what makes the whole card grid roll over to the new year automatically
+every 1 January with zero manual sheet edits; every formula below just reads `$A$1`.
+
 ```
 Amount received (B2, fill right + down):
 =SUMIFS(Pembayaran!$E:$E,
         Pembayaran!$B:$B, $A2,
         Pembayaran!$C:$C, B$1,
-        Pembayaran!$D:$D, $A$1,           // $A$1 holds the year, 2026
+        Pembayaran!$D:$D, $A$1,           // $A$1 = YEAR(TODAY()), see above
         Pembayaran!$J:$J, "sah")
 
 Status text (P2, fill right + down — P1:AA1 also 1..12):
@@ -147,18 +151,31 @@ A4: "tunggakan_total"   B4: =SUM(Status!$AC:$AC)
 A5: "lunas_bulan_ini"   B5: =COUNTIF(INDEX(Status!$P:$AA,0,MONTH(TODAY())), "Lunas")
 A6: "jumlah_rumah"      B6: =COUNTA(Rumah!$A2:$A)
 A7: "updated"           B7: =TEXT(NOW(), "yyyy-mm-dd hh:mm")
+A8: "tahun_aktif"       B8: =YEAR(TODAY())
 ```
+
+`tahun_aktif` is what the app shows as the card's year and uses as the base for
+"bayar di muka" — read it instead of assuming any particular year.
 
 Then, starting at D1, a per-house block the app renders directly:
 
 ```
 D1: "alamat" E1:"nama" F1:"telp" G1:"luas" H1:"tipe" I1:"tarif" J1:"tunggakan"
 K1..V1: 1..12 status text   W1:"cluster" X1:"blok" Y1:"rumah"
+Z1: "muka_tahun_depan"
 D2: =Rumah!A2   E2: =Rumah!E2  F2: =Rumah!F2  G2: =Rumah!G2
 H2: =Rumah!H2   I2: =Rumah!K2  J2: =Status!AC2
 W2: =Rumah!B2   X2: =Rumah!C2  Y2: =Rumah!D2
 K2: =Status!P2  … V2: =Status!AA2
+Z2: =TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$C:$C,
+      Pembayaran!$B:$B=D2, Pembayaran!$D:$D=$B$8+1))))
 ```
+
+`Z` is a comma-joined list of month numbers (1–12) that already have a `Pembayaran`
+row for **next year** (`$B$8+1` — sah or pending, doesn't matter, a row existing is
+enough to avoid double-charging). There's no next-year Status grid — paying ahead
+into next year only needs "which months are already spoken for," not a full second
+12-month card. The app subtracts this list from 1..12 to build the next-year picker.
 
 Publish the spreadsheet to the web, then the app reads:
 

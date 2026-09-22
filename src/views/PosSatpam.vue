@@ -6,8 +6,10 @@ import { urlPembayaran, submitPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
+import PinGate from '../components/PinGate.vue';
 
 const { rumah, echo, load } = useSheet();
+const PIN = import.meta.env.VITE_PIN_POS || '';
 const PETUGAS = 'Pos Satpam - Ujang';
 
 const q = ref('');
@@ -63,6 +65,7 @@ const formUrl = computed(() => sel.value && bulan.value.length
 </script>
 
 <template>
+ <PinGate :pin="PIN" storage-key="pos" title="Pos Satpam" env-var="VITE_PIN_POS">
   <section class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
@@ -141,4 +144,5 @@ const formUrl = computed(() => sel.value && bulan.value.length
                 width:min(432px,calc(100% - 32px));background:var(--color-neutral-900);
                 color:var(--color-neutral-100);font-size:12.5px">{{ toast }}</div>
   </section>
+ </PinGate>
 </template>

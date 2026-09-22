@@ -48,5 +48,13 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 | `/pos` | Satpam | search house, pick months, full or partial, record cash |
 | `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers |
 
+`/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public
+nav — only `/` is. Petugas (satpam, bendahara, admin, the relevant komite) open
+`/pos` or `/kas` from a bookmarked link and unlock it with a PIN
+(`VITE_PIN_POS` / `VITE_PIN_KAS`, remembered per device after the first entry).
+This is a deterrent, not real security — the PIN ships in the public JS bundle
+like everything else in this no-server app — but it stops warga from wandering
+into a cash-recording screen by accident. See `PinGate.vue`.
+
 Design reference: the `Iuran Warga - Cluster N v2` design component in this project.
 Visual language: the Organic design system (`src/assets/tokens.css` is its token sheet).

@@ -23,11 +23,5 @@ onMounted(load);
     </p>
 
     <router-view />
-
-    <nav class="tabs">
-      <router-link to="/">Kartu</router-link>
-      <router-link to="/pos">Pos</router-link>
-      <router-link to="/kas">Kas</router-link>
-    </nav>
   </div>
 </template>
