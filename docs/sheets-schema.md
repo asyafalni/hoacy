@@ -257,8 +257,12 @@ already inside them — which is why historical payments go into `Impor`, not th
 
 ## `M-Impor<tahun>` — historical payments, one tab per year
 
-`M-Impor2023`, `M-Impor2024`, `M-Impor2025`, … — one tab per year so the komite can
-split the work and check a year at a time. One row per house per paid month:
+`M-Impor2023`, `M-Impor2024`, `M-Impor2025`, `M-Impor2026` — one tab per year so the
+komite can split the work and check a year at a time. They hold **every payment
+made before go-live**, including the go-live year's earlier months (go-live
+October 2026 → January–September 2026 go in `M-Impor2026`). Start with the year of
+the earliest `M-RumahRiwayat` baseline; tracking only from 2026 means baselines in
+January 2026 and just `M-Impor2026`. One row per house per paid month:
 
 | Col | Header | Notes |
 | --- | --- | --- |
@@ -366,7 +370,7 @@ A single formula in **A1** (it writes its own header row) that turns `L-Tunai`,
 ```
 A1:
 =ARRAYFORMULA(LET(
-  impor,   VSTACK('M-Impor2023'!A2:E, 'M-Impor2024'!A2:E, 'M-Impor2025'!A2:E),
+  impor,   VSTACK('M-Impor2023'!A2:E, 'M-Impor2024'!A2:E, 'M-Impor2025'!A2:E, 'M-Impor2026'!A2:E),
   ia,      CHOOSECOLS(impor, 1),
   L, VSTACK(
        HSTACK('L-Tunai'!A2:E, IF(LEN('L-Tunai'!A2:A), "tunai", ), IF(LEN('L-Tunai'!A2:A), "", )),
@@ -448,7 +452,8 @@ One formula in A1, only the year differs:
 Empty until that year's data arrives, then fills itself — nothing to do each
 January. For reading and reporting per year; the Kas screen's **Iuran per
 tahun** opens exactly one of these per year picked. Years before 2026 are filled
-from the matching `M-Impor<tahun>` tab, so create `D-Iuran2023`…`D-Iuran2025` too.
+from the matching `M-Impor<tahun>` tab, so create `D-Iuran<tahun>` from the
+earliest imported year.
 
 ---
 

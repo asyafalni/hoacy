@@ -48,7 +48,7 @@ Buat tab-tab ini, isi baris 1 dengan header persis seperti di
 | `M-Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
 | `M-Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
 | `M-SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
-| `M-Impor2023`, `M-Impor2024`, `M-Impor2025` | Header saja dulu (alamat, tahun, bulan, nominal, tanggal_bayar). Pasang data validation sesuai dokumen. Kalau data lama Anda mulai dari tahun lain, sesuaikan nama tabnya. |
+| `M-Impor2023` … `M-Impor2026` | Header saja dulu (alamat, tahun, bulan, nominal, tanggal_bayar). Pasang data validation sesuai dokumen. Satu tab per tahun, dari tahun baseline paling awal sampai **tahun go-live** (bulan-bulan sebelum go-live di tahun itu juga masuk sini). Kalau hanya melacak mulai 2026, cukup `M-Impor2026`. |
 
 ---
 
@@ -118,6 +118,7 @@ M-SaldoAwal	Master	Saldo kas & rekening saat go-live	Bendahara
 M-Impor2023	Master	Data iuran lama 2023, satu baris per rumah per bulan	Komite
 M-Impor2024	Master	Data iuran lama 2024	Komite
 M-Impor2025	Master	Data iuran lama 2025	Komite
+M-Impor2026	Master	Data iuran 2026 sebelum go-live	Komite
 L-Tunai	Ledger	Uang tunai yang diterima satpam (dari Pos)	Form A
 L-Transfer	Ledger	Konfirmasi transfer warga + bukti	Form B
 L-Setoran	Ledger	Setor kas ke bank (negatif = tarik dari bank)	Form C
@@ -207,7 +208,8 @@ simpan catatan pribadi (alasan nonaktif, dll.) di sini.
    bulan pertama data lama Anda). Setiap bulan sejak baseline yang tidak ada
    pembayarannya akan tampil sebagai tunggakan — jadi baseline dan data impor
    harus sejalan.
-3. **`M-Impor2023/2024/2025`**: satu baris per rumah per bulan yang sudah dibayar.
+3. **`M-Impor2023` … `M-Impor2026`**: satu baris per rumah per bulan yang sudah dibayar
+   **sebelum go-live** — termasuk bulan-bulan awal tahun go-live.
    Komite bisa membagi per tahun. Salah ketik cukup diedit langsung di baris itu.
 4. **`M-SaldoAwal`**: isi saldo kas tunai dan rekening **pada tanggal go-live**.
 5. Cek hasil: buka `/kas` → *Lihat semua kartu rumah* — rumah dengan tunggakan
