@@ -15,7 +15,14 @@ npm run build      # -> dist/
 VITE_BASE=/hoacy/ npm run build
 ```
 
-`.github/workflows/pages.yml`:
+`.env` is not in git, so the build on GitHub gets it from a secret — without it
+the site silently runs on the local mock data:
+
+1. Repo **Settings → Secrets and variables → Actions → New repository secret**:
+   name `DOTENV`, value = the whole content of your working `.env` (every
+   `VITE_*` line, including `VITE_BASE=/hoacy/`).
+2. Repo **Settings → Pages → Source: GitHub Actions**.
+3. Add `.github/workflows/pages.yml`, push to `main`:
 
 ```yaml
 name: pages
@@ -29,7 +36,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
-      - run: VITE_BASE=/hoacy/ npm run build
+      - run: printf '%s\n' "$DOTENV" > .env
+        env: { DOTENV: '${{ secrets.DOTENV }}' }
+      - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
   deploy:
@@ -38,6 +47,9 @@ jobs:
     environment: github-pages
     steps: [{ uses: actions/deploy-pages@v4 }]
 ```
+
+After a change to any id or PIN, update the `DOTENV` secret and re-run the
+workflow (Actions → pages → Run workflow, or push again).
 
 The sheet id and form ids are **public by design** (the sheet is published, the form
 accepts anonymous responses). Do not put anything private in that spreadsheet.

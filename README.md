@@ -6,6 +6,7 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 
 ## Contents
 
+    docs/setup.md           Step-by-step setup guide (Bahasa Indonesia) — start here
     docs/sheets-schema.md   Tabs, columns and every formula (build this first)
     docs/form-mapping.md    Form fields, prefill URLs, silent-submit option
     docs/deploy.md          Build + GitHub Pages
