@@ -4,30 +4,29 @@ import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN, REKENING } from '../lib/tariff';
-import { urlSetoran, batchId, submitVerifikasi, driveImageUrl } from '../lib/forms';
+import { urlSetoran, submitVerifikasi, driveImageUrl } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { meta, rumah, bendaharaList } = useSheet();
+const { meta, totals, bendaharaList } = useSheet();
 const { pending, tunai, load: loadLedger } = usePembayaranLedger();
 onMounted(loadLedger);
 const PIN = import.meta.env.VITE_PIN_KAS || '';
 
 const kas   = computed(() => Number(meta.value.kas_tunai || 0));
 const bank  = computed(() => Number(meta.value.rekening || 0));
-const lunas = computed(() => Number(meta.value.lunas_bulan_ini || 0));
-const total = computed(() => Number(meta.value.jumlah_rumah || rumah.value.length || 0));
-const persen = computed(() => (total.value ? Math.round((lunas.value / total.value) * 100) : 0));
+const total = computed(() => totals.value.jumlahRumah);
+const persen = computed(() => (total.value ? Math.round((totals.value.lunasBulanIni / total.value) * 100) : 0));
 
-// Setor ke Bank = one Setoran row; then paste the batch id into Pembayaran!L
-// for the rows currently marked "kas" (docs/sheets-schema.md §6).
+// Setor ke Bank = one Setoran row; API!kas_tunai/rekening move the amount from
+// kas to bank by formula, nothing to mark on Pembayaran (docs/sheets-schema.md `Setoran`).
 const setorUrl = computed(() =>
-  urlSetoran({ batchId: batchId(), nominal: kas.value, oleh: bendaharaNama.value || 'Bendahara' }));
+  urlSetoran({ nominal: kas.value, oleh: bendaharaNama.value || 'Bendahara' }));
 
 // Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
 // everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
-// §3), so each person picks their own name once per device before anything shows,
+// `Petugas`), so each person picks their own name once per device before anything shows,
 // and it's what gets recorded on Verifikasi!oleh.
 const bendaharaNama = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 function pilihBendahara(nama) {
@@ -171,14 +170,14 @@ async function verifikasi(p) {
       <div class="spread" style="font-size:12.5px">
         <span class="text-muted">Tunggakan seluruh cluster</span>
         <span class="num" style="font-weight:700;color:var(--color-accent-700)">
-          {{ rupiahPendek(meta.tunggakan_total || 0) }}
+          {{ rupiahPendek(totals.tunggakan) }}
         </span>
       </div>
     </Card>
 
     <!-- transfer menunggu verifikasi — bukti (Pembayaran!I, Drive) bisa dibuka
          sebelum tap Verifikasi, yang menulis ke tab Verifikasi (append-only, lihat
-         docs/sheets-schema.md §7), bukan mengedit baris asalnya -->
+         docs/sheets-schema.md `Verifikasi`), bukan mengedit baris asalnya -->
     <Card v-if="pending.length" style="gap:2px">
       <span class="kick">Perlu diverifikasi ({{ pending.length }})</span>
       <div v-for="p in pending" :key="keyOf(p)" class="col" style="gap:6px;padding:8px 0;
@@ -204,12 +203,6 @@ async function verifikasi(p) {
         </div>
       </div>
     </Card>
-
-    <p class="text-muted" style="font-size:11.5px">
-      Verifikasi bisa lewat tombol di atas, atau langsung centang kolom
-      <code>terverifikasi</code> pada tab <code>Pembayaran</code> di Sheet — dua-duanya
-      berujung sama. Status <em>Pending → Lunas</em> dihitung formula.
-    </p>
 
     <a class="btn btn-secondary" href="#/kas/rumah"
        style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">

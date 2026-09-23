@@ -4,24 +4,23 @@ import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, alamat, REKENING, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { tarifPada } from '../lib/tarifHistoris';
 import { urlPembayaran } from '../lib/forms';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import RekeningCard from '../components/RekeningCard.vue';
 
-const { rumah, meta, blokWarna, rumahRiwayatRows, tarifVersiRows, rateCardAktif } = useSheet();
+const { rumah, blokWarna, rateCardAktif, tarifRumah, TAHUN } = useSheet();
 // Own house only, but gviz has no server-side row filter — this fetches the
 // whole ledger same as Bendahara.vue does, filtered down client-side below.
 // Fine here for the same reason it's fine there: this screen is PIN-gated
 // (deterrent, not real access control — see the note further down), unlike
 // RingkasanPublik.vue which deliberately never touches this composable.
-const { rows: pembayaranRowsAll, load: loadPembayaran } = usePembayaranLedger();
+const { entries: pembayaranSemua, load: loadPembayaran } = usePembayaranLedger();
 onMounted(loadPembayaran);
 
 // No login, but blok+rumah alone is guessable by any resident — so opening a card
-// also needs that house's PIN (Rumah!L in the Sheet, defaults to the last 3 digits
+// also needs that house's PIN (Rumah!G in the Sheet, defaults to the last 3 digits
 // of the phone number, admin can overwrite it per row). This is a deterrent, same
 // as the Pos/Kas PinGate: the Sheet is public-by-design (docs/deploy.md), so the PIN
 // itself travels in the same gviz response the app already reads — it stops a
@@ -50,7 +49,7 @@ const pinError = ref(false);
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
 // Each block gets its own color (admin-set in the Sheet, Blok tab — see
-// docs/sheets-schema.md §2), applied to the card header here and to the house
+// docs/sheets-schema.md `Blok`), applied to the card header here and to the house
 // badge in PosSatpam.vue.
 const warnaKartu = computed(() =>
   (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))
@@ -113,28 +112,26 @@ const fileInput = ref(null);
 const trMuka = ref(false);       // "bayar di muka": reveals not-yet-due months, off by default
 const trMukaDepan = ref(false);  // nested further: reveals next year's months
 
-// tahun_aktif datang dari Sheet (API!B8, = YEAR(TODAY())) supaya app tidak pernah
-// hardcode tahun — fallback ke tahun device kalau Sheet belum dimigrasi.
-const tahunIni = computed(() => Number(meta.value.tahun_aktif) || new Date().getFullYear());
+const tahunIni = TAHUN;
 
 // ── Kartu tahun-tahun sebelumnya ──────────────────────────────────────────────
-// `Status` (dan karenanya `me.status`/`me.tunggakan`) cuma tahun berjalan — grid-nya
-// reset tiap 1 Januari (sheets-schema.md §5). Buat tahun lalu, hitung ulang di sini
+// `Status` (dan karenanya `me.status/me.tunggakan`) cuma tahun berjalan — grid-nya
+// reset tiap 1 Januari (sheets-schema.md `Status`). Buat tahun lalu, hitung ulang di sini
 // dari `Pembayaran` mentah (append-only, nggak pernah direset), rumus yang sama
 // persis dengan Status!P2/AC2 di Sheet, cuma tahunnya diparameterkan. Tarif per
-// bulan diambil dari `RumahRiwayat`/`TarifVersi` (sheets-schema.md §12/§13) —
+// bulan diambil dari `RumahRiwayat/TarifVersi` (sheets-schema.md `RumahRiwayat/TarifVersi`) —
 // luas/tipe dan rate-card yang BERLAKU di bulan itu, bukan yang berlaku sekarang.
 const pembayaranMeSemua = computed(() => !me.value ? []
-  : pembayaranRowsAll.value.filter((r) => r[1] === me.value.alamat));
+  : pembayaranSemua.value.filter((e) => e.alamat === me.value.alamat));
 
 // Tahun mana saja yang punya data — bukan cuma "tahunIni - 3" hardcoded, biar
 // nggak nampilin tahun kosong buat rumah yang baru gabung cluster.
 const historyYears = computed(() => {
-  const tahunList = pembayaranMeSemua.value.map((r) => Number(r[3])).filter(Boolean);
+  const tahunList = pembayaranMeSemua.value.map((e) => e.tahun).filter(Boolean);
   if (!tahunList.length) return [];
   const minTahun = Math.min(...tahunList);
   const years = [];
-  for (let y = tahunIni.value - 1; y >= minTahun; y -= 1) years.push(y);
+  for (let y = tahunIni - 1; y >= minTahun; y -= 1) years.push(y);
   return years;
 });
 
@@ -145,11 +142,11 @@ const historyYears = computed(() => {
 // padahal bedanya ada di grid, cuma nggak pernah ditulis angkanya).
 function hitungTarifBulan(tahun) {
   return Array.from({ length: 12 }, (_, i) =>
-    tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, me.value.alamat, tahun, i + 1));
+    tarifRumah(me.value.alamat, tahun, i + 1));
 }
 
 function hitungTahun(tahun) {
-  const rowsTahun = pembayaranMeSemua.value.filter((r) => Number(r[3]) === tahun);
+  const rowsTahun = pembayaranMeSemua.value.filter((e) => e.tahun === tahun);
   const tarifBulan = hitungTarifBulan(tahun);
   let tunggakan = 0;
   let dataLengkap = true;
@@ -161,23 +158,23 @@ function hitungTahun(tahun) {
     // datanya). Tandai sebagai tidak diketahui, sama seperti "-" yang dipakai
     // buat bulan yang belum jatuh tempo.
     if (tarif == null) { dataLengkap = false; return '-'; }
-    const sah = rowsTahun.filter((r) => Number(r[2]) === bulan && r[10] === 'sah')
-      .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
+    const sah = rowsTahun.filter((e) => e.bulan === bulan && e.keabsahan === 'sah')
+      .reduce((sum, e) => sum + e.nominal, 0);
     tunggakan += Math.max(0, tarif - sah);
     if (sah >= tarif) return 'Lunas';
     if (sah > 0) return 'Sebagian';
-    const pending = rowsTahun.filter((r) => Number(r[2]) === bulan && r[10] === 'pending')
-      .reduce((sum, r) => sum + (Number(r[4]) || 0), 0);
+    const pending = rowsTahun.filter((e) => e.bulan === bulan && e.keabsahan === 'pending')
+      .reduce((sum, e) => sum + e.nominal, 0);
     return pending > 0 ? 'Pending' : 'Belum';
   });
   return { status, tunggakan, dataLengkap, tarifBulan };
 }
 
 const tahunDilihat = ref(0);   // 0 = tahun berjalan; diinisialisasi di watch(rumah) bawah
-watch(me, (h) => { if (h) tahunDilihat.value = tahunIni.value; });
-const tahunData = computed(() => (!me.value || tahunDilihat.value === tahunIni.value)
+watch(me, (h) => { if (h) tahunDilihat.value = tahunIni; });
+const tahunData = computed(() => (!me.value || tahunDilihat.value === tahunIni)
   ? { status: me.value?.status || [], tunggakan: me.value?.tunggakan || 0, dataLengkap: true,
-      tarifBulan: me.value ? hitungTarifBulan(tahunIni.value) : [] }
+      tarifBulan: me.value ? hitungTarifBulan(tahunIni) : [] }
   : hitungTahun(tahunDilihat.value));
 
 // tunggakan tahun-tahun sebelumnya, dipakai buat bayar (bukan cuma dilihat) —
@@ -207,21 +204,21 @@ const trKeys = computed(() => new Set(trMonths.value.map(keyOf)));
 const owed = computed(() => !me.value ? [] : me.value.status
   .map((s, i) => ({ s, i }))
   .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
-  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
+  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni })));
 
 // belum jatuh tempo tahun ini (status "-") — hanya muncul kalau klik "bayar di muka"
 const muka = computed(() => !me.value ? [] : me.value.status
   .map((s, i) => ({ s, i }))
   .filter((x) => x.s === '-')
-  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni.value })));
+  .map((x) => ({ bulan: x.i + 1, tahun: tahunIni })));
 
-// bulan tahun depan yang belum ada baris Pembayaran-nya (API!Z, lihat sheets-schema.md §10)
+// bulan tahun depan yang belum ada baris Pembayaran-nya (API!W, lihat sheets-schema.md `API`)
 const mukaDepan = computed(() => {
   if (!me.value) return [];
   const sudah = new Set(me.value.mukaTahunDepan || []);
   return Array.from({ length: 12 }, (_, i) => i + 1)
     .filter((b) => !sudah.has(b))
-    .map((b) => ({ bulan: b, tahun: tahunIni.value + 1 }));
+    .map((b) => ({ bulan: b, tahun: tahunIni + 1 }));
 });
 
 function openTransfer() {
@@ -243,15 +240,17 @@ function pickFile(e) { trFile.value = e.target.files?.[0] || null; e.target.valu
 function openCamera() { camInput.value?.click(); }
 function openGallery() { fileInput.value?.click(); }
 
-const trTotal = computed(() => trMonths.value.length * (me.value?.tarif || 0));
+// Tarif bulan yang dibayar, bukan tarif hari ini — tunggakan tahun lalu /
+// sebelum upgrade rumah bisa beda nominalnya (RumahRiwayat/TarifVersi).
+const tarifBulan = (m) => tarifRumah(me.value.alamat, m.tahun, m.bulan) || me.value.tarif;
+const trTotal = computed(() => !me.value ? 0 : trMonths.value.reduce((sum, m) => sum + tarifBulan(m), 0));
 const trReady = computed(() => !!trFile.value && trMonths.value.length > 0);
 
 // one Form per month — separate rows keep partial history auditable
 const trUrls = computed(() => !me.value ? [] : trMonths.value.map((m) =>
   urlPembayaran({
-    noRumah: me.value.alamat, bulan: m.bulan, tahun: m.tahun, nominal: me.value.tarif,
+    noRumah: me.value.alamat, bulan: m.bulan, tahun: m.tahun, nominal: tarifBulan(m),
     metode: 'transfer', petugas: 'Warga',
-    catatan: trFile.value ? `bukti: ${trFile.value.name}` : '',
   })));
 
 function kirimKonfirmasi() {

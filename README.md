@@ -14,16 +14,17 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 
 ## How it works
 
-1. **Read** — the site fetches the `API` tab over Google's gviz endpoint
-   (`/gviz/tq?tqx=out:json&sheet=API`). Every derived number — tariff per house,
-   monthly status, Kas Tunai vs Rekening balance, arrears — is a **Sheet formula**,
-   not app logic. The app renders; the Sheet computes.
-2. **Write** — every action opens a **prefilled Google Form**:
-   satpam records cash, warga submits a transfer, bendahara deposits to bank.
-   The form response row is the immutable ledger; formulas re-derive everything.
-3. **Money location** — `metode = tunai` lands in **Kas Tunai** until the treasurer
-   fills that row's `disetor_batch`; then it counts as **Rekening**.
-   `metode = transfer` is **pending** until `terverifikasi` is checked.
+1. **Read** — the site fetches a handful of published tabs over Google's gviz
+   endpoint (`/gviz/tq?tqx=out:json&sheet=<TAB>`). The Sheet computes per-house
+   status/arrears and the kas/rekening balances; the app computes anything it can
+   derive from rows it already has (cluster totals, a house's tarif for any month).
+2. **Write** — every action submits a **prefilled Google Form**:
+   satpam records cash, warga submits a transfer, bendahara verifies or deposits.
+   Form responses are an append-only ledger — nothing is ever edited; a change
+   (a verification, a bigger house, a new rate) is always a new row.
+3. **Money location** — `tunai` counts as **Kas Tunai** and `transfer` as
+   **Rekening** (once verified); a "Setor ke Bank" row moves its amount from kas to
+   rekening.
 
 ## Setup order
 

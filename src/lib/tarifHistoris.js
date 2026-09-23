@@ -4,7 +4,7 @@ import { islk } from './tariff.js';
 // year cards and RingkasanPublik.vue's aging/dibayar-di-muka math, so there's
 // one place that knows how to walk RumahRiwayat/TarifVersi instead of two
 // slightly-different approximations. Mirrors the Sheet-side design in
-// docs/sheets-schema.md §12/§13: both are append-only, "latest row whose
+// docs/sheets-schema.md `RumahRiwayat/TarifVersi`: both are append-only, "latest row whose
 // periode <= target" wins — never edited, only added to.
 export const periodeOf = (tahun, bulan) => Number(tahun) * 100 + Number(bulan);
 
@@ -22,7 +22,7 @@ export function luasTipePada(rumahRiwayatRows, alamatRumah, tahun, bulan) {
 
 /** TarifVersi row: [tahun_berlaku, bulan_berlaku, t1_maks, t1_tarif, t2_maks,
  *  t2_tarif, t3_maks, t3_tarif, t4_maks, t4_tarif, t5_tarif, kavling_per_m2,
- *  iuran_rt] — see docs/sheets-schema.md §13. */
+ *  iuran_rt] — see docs/sheets-schema.md `TarifVersi`. */
 export function rateCardPada(tarifVersiRows, tahun, bulan) {
   const target = periodeOf(tahun, bulan);
   let best = null;

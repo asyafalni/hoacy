@@ -1,56 +1,45 @@
 const E = import.meta.env;
 
-const params = (obj) => {
+// Every Form's entry ids come from .env (docs/form-mapping.md) — they're
+// generated per Form by Google, so the real ones never match anything that
+// could be hardcoded here.
+function formUrl(formId, fields) {
   const p = new URLSearchParams({ usp: 'pp_url' });
-  for (const [k, v] of Object.entries(obj)) if (v !== undefined && v !== '') p.set(k, v);
-  return p;
-};
+  for (const [k, v] of Object.entries(fields)) if (k !== 'undefined' && v !== undefined && v !== '') p.set(k, v);
+  return `https://docs.google.com/forms/d/e/${formId}/viewform?${p}`;
+}
 
-/** Prefilled "Catat Pembayaran" URL — one call per month being paid. */
+/** Fire-and-forget silent submit. The response is opaque (no-cors), so callers
+ *  treat it as optimistic and confirm on the next fetch (see usePendingSync). */
+function submit(viewformUrl) {
+  return fetch(viewformUrl.replace('/viewform?', '/formResponse?'), { method: 'POST', mode: 'no-cors' });
+}
+
+/** Form A "Catat Pembayaran" → Pembayaran — one call per month being paid. */
 export function urlPembayaran({ noRumah, bulan, tahun = new Date().getFullYear(),
                                  nominal, metode, petugas, catatan }) {
-  const p = params({
-    [E.VITE_E_RUMAH]: noRumah,
-    [E.VITE_E_BULAN]: bulan,
-    [E.VITE_E_TAHUN]: tahun,
-    [E.VITE_E_NOMINAL]: nominal,
-    [E.VITE_E_METODE]: metode,
-    [E.VITE_E_PETUGAS]: petugas,
+  return formUrl(E.VITE_FORM_PEMBAYARAN, {
+    [E.VITE_E_RUMAH]: noRumah, [E.VITE_E_BULAN]: bulan, [E.VITE_E_TAHUN]: tahun,
+    [E.VITE_E_NOMINAL]: nominal, [E.VITE_E_METODE]: metode, [E.VITE_E_PETUGAS]: petugas,
     [E.VITE_E_CATATAN]: catatan,
   });
-  return `https://docs.google.com/forms/d/e/${E.VITE_FORM_PEMBAYARAN}/viewform?${p}`;
+}
+export const submitPembayaran = (rec) => submit(urlPembayaran(rec));
+
+/** Form B "Setor ke Bank" → Setoran — moving cash from kas into the bank. */
+export function urlSetoran({ nominal, oleh }) {
+  return formUrl(E.VITE_FORM_SETORAN, { [E.VITE_E_SETOR_NOMINAL]: nominal, [E.VITE_E_SETOR_OLEH]: oleh });
 }
 
-/** Fire-and-forget submit. Opaque response: treat as optimistic, confirm on refetch. */
-export function submitPembayaran(rec) {
-  const url = urlPembayaran(rec).replace('/viewform?', '/formResponse?');
-  return fetch(url, { method: 'POST', mode: 'no-cors' });
-}
-
-export function urlSetoran({ batchId, nominal, oleh }) {
-  const p = params({ 'entry.2000001': batchId, 'entry.2000002': nominal, 'entry.2000003': oleh });
-  return `https://docs.google.com/forms/d/e/${E.VITE_FORM_SETORAN}/viewform?${p}`;
-}
-
-export const batchId = () => {
-  const d = new Date(), z = (n) => String(n).padStart(2, '0');
-  return `SET-${String(d.getFullYear()).slice(2)}${z(d.getMonth() + 1)}${z(d.getDate())}-1`;
-};
-
-/** "Verifikasi Transfer" — flips Pembayaran!J pending -> sah for one house/month
- *  via Verifikasi (append-only), never by editing the original row directly. */
+/** Form D "Verifikasi Transfer" → Verifikasi — flips one house/month's transfer
+ *  from pending to sah via an append-only row, never by editing Pembayaran. */
 export function urlVerifikasi({ alamat, bulan, tahun = new Date().getFullYear(), oleh }) {
-  const p = params({
-    'entry.3000001': alamat, 'entry.3000002': bulan, 'entry.3000003': tahun, 'entry.3000004': oleh,
+  return formUrl(E.VITE_FORM_VERIFIKASI, {
+    [E.VITE_E_VERIF_ALAMAT]: alamat, [E.VITE_E_VERIF_BULAN]: bulan,
+    [E.VITE_E_VERIF_TAHUN]: tahun, [E.VITE_E_VERIF_OLEH]: oleh,
   });
-  return `https://docs.google.com/forms/d/e/${E.VITE_FORM_VERIFIKASI}/viewform?${p}`;
 }
-
-/** Fire-and-forget, same opaque/optimistic pattern as submitPembayaran. */
-export function submitVerifikasi(rec) {
-  const url = urlVerifikasi(rec).replace('/viewform?', '/formResponse?');
-  return fetch(url, { method: 'POST', mode: 'no-cors' });
-}
+export const submitVerifikasi = (rec) => submit(urlVerifikasi(rec));
 
 /** A resident's own card, deep-linked — used by CetakQR's QR codes and the
  *  "kirim via WhatsApp" button in SemuaKartu.vue. `?alamat` must sit before the
@@ -63,7 +52,7 @@ export function urlKartu(alamat) {
 }
 
 /** wa.me deep link, prefilled with the card link — telp is already 62xxx
- *  (docs/sheets-schema.md §1) so it can go straight into the wa.me path. */
+ *  (docs/sheets-schema.md `Rumah`) so it can go straight into the wa.me path. */
 export function urlWhatsapp({ nama, telp, alamat }) {
   const pesan = `Halo ${nama}, ini link kartu iuran untuk rumah ${alamat}:\n${urlKartu(alamat)}\n\n`
     + `Buka linknya lalu masukkan PIN (default: 3 digit terakhir no. HP Anda) untuk lihat status & bayar iuran.`;

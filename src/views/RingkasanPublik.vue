@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
 import { useChartTooltip } from '../composables/useChartTooltip';
 import { useScrollLock } from '../composables/useScrollLock';
-import { tarifPada } from '../lib/tarifHistoris';
 import { rupiah, rupiahPendek, BULAN } from '../lib/tariff';
 import Card from '../components/ui/Card.vue';
 
@@ -17,32 +16,33 @@ import Card from '../components/ui/Card.vue';
 // pure aggregate figures that can't be traced to an individual sit outside the
 // law's definition of "data pribadi" — that's the line every number on this page
 // is checked against. See the Q&A in project history for the full reasoning.
-// This is also why this page uses `useSheet()`'s `riwayat` (Riwayat tab, §11 —
+// This is also why this page uses `useSheet()`'s `riwayat` (Riwayat tab, `Riwayat` —
 // a pre-aggregated SUMIFS per month) instead of `usePembayaranLedger`: that
 // composable fetches the raw Pembayaran ledger (alamat, catatan, bukti_url —
 // a photo of someone's transfer proof), fine for the PIN-gated Kas screen but
-// not for a zero-barrier public page. See docs/sheets-schema.md §10/§11.
-const { meta, rumah, opexList, riwayat, rumahRiwayatRows, tarifVersiRows, load } = useSheet();
+// not for a zero-barrier public page. See docs/sheets-schema.md `API/Riwayat`.
+const {
+  meta, rumah, totals, opexList, riwayat, tarifRumah, load,
+  TAHUN: tahunAktif, BULAN_INI: bulanIni,
+} = useSheet();
 onMounted(load);
-
-const tahunAktif = computed(() => Number(meta.value.tahun_aktif) || new Date().getFullYear());
 
 const kas = computed(() => Number(meta.value.kas_tunai || 0));
 const bank = computed(() => Number(meta.value.rekening || 0));
-const tunggakan = computed(() => Number(meta.value.tunggakan_total || 0));
-const jumlahRumah = computed(() => Number(meta.value.jumlah_rumah || rumah.value.length || 0));
+const tunggakan = computed(() => totals.value.tunggakan);
+const jumlahRumah = computed(() => totals.value.jumlahRumah);
 
-const terkumpul = computed(() => Number(meta.value.terkumpul_bulan_ini || 0));
-const target = computed(() => Number(meta.value.target_bulan_ini || 0));
+const terkumpul = computed(() => totals.value.terkumpulBulanIni);
+const target = computed(() => totals.value.target);
 const persenTarget = computed(() => (target.value ? Math.min(100, Math.round((terkumpul.value / target.value) * 100)) : 0));
 
-const opex = computed(() => Number(meta.value.opex_bulanan || 0));
-const opexDiperbarui = computed(() => meta.value.opex_diperbarui || '');
+const opex = computed(() => totals.value.opex);
+const opexDiperbarui = computed(() => totals.value.opexDiperbarui);
 const opexBelumDiisi = computed(() => !opex.value);
 
-// Riwayat terkumpul vs target, per bulan — dari Riwayat tab (§11), pre-agregat
+// Riwayat terkumpul vs target, per bulan — dari Riwayat tab (`Riwayat`), pre-agregat
 // di Sheet lewat SUMIFS, bukan dihitung di sini dari Pembayaran mentah (lihat
-// catatan PDP di atas). Target historisnya dianggap konstan = target_bulan_ini
+// catatan PDP di atas). Target historisnya dianggap konstan = target bulan ini
 // sekarang, karena Sheet ini nggak menyimpan snapshot tarif per bulan — cukup
 // akurat untuk cluster yang jumlah rumah & tarifnya jarang berubah, tapi diberi
 // label jelas di kartu supaya nggak disalahartikan sebagai historis.
@@ -67,15 +67,14 @@ const { wrapEl: riwayatWrapEl, tip: riwayatTip, show: showRiwayatTip, hide: hide
 // bulan-bulan depan — itu kewajiban (jasa yang masih harus RT berikan), bukan
 // surplus bebas pakai. Dua sumbernya: (1) bulan tahun ini yang statusnya sudah
 // "Lunas" padahal belum jatuh tempo (lihat IFS di Status!P2, sheets-schema.md
-// §5 — bisa "Lunas" duluan kalau sudah dibayar), dan (2) bulan tahun depan di
-// `mukaTahunDepan` (API!Z, §10). Cuma agregat yang tampil di sini — hitungan
+// `Status` — bisa "Lunas" duluan kalau sudah dibayar), dan (2) bulan tahun depan di
+// `mukaTahunDepan` (API!W, `API`). Cuma agregat yang tampil di sini — hitungan
 // per-rumah tetap tidak pernah dirender (lihat catatan PDP di atas).
-const bulanIni = new Date().getMonth() + 1;
 const dibayarDimukaDetail = computed(() => {
   let rumahCount = 0, bulanTahunIni = 0, nominalTahunIni = 0, bulanTahunDepan = 0, nominalTahunDepan = 0;
   for (const h of rumah.value) {
     // Tarif per bulan yang sebenarnya berlaku bulan itu (RumahRiwayat/TarifVersi,
-    // sheets-schema.md §12/§13) — bukan tarif hari ini dipukul rata, karena bulan
+    // sheets-schema.md `RumahRiwayat/TarifVersi`) — bukan tarif hari ini dipukul rata, karena bulan
     // yang "dibayar di muka" ini masih dalam tahun berjalan atau tahun depan, dan
     // rate-card bisa saja sudah dijadwalkan berubah di antaranya.
     const mukaIniBulan = h.status
@@ -84,10 +83,10 @@ const dibayarDimukaDetail = computed(() => {
     if (mukaIniBulan.length || mukaDepanBulan.length) rumahCount += 1;
     bulanTahunIni += mukaIniBulan.length;
     nominalTahunIni += mukaIniBulan.reduce((sum, x) =>
-      sum + (tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, h.alamat, tahunAktif.value, x.bulan) || 0), 0);
+      sum + (tarifRumah(h.alamat, tahunAktif, x.bulan) || 0), 0);
     bulanTahunDepan += mukaDepanBulan.length;
     nominalTahunDepan += mukaDepanBulan.reduce((sum, bulan) =>
-      sum + (tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, h.alamat, tahunAktif.value + 1, bulan) || 0), 0);
+      sum + (tarifRumah(h.alamat, tahunAktif + 1, bulan) || 0), 0);
   }
   return { rumahCount, bulanTahunIni, nominalTahunIni, bulanTahunDepan, nominalTahunDepan,
            total: nominalTahunIni + nominalTahunDepan };
@@ -124,7 +123,7 @@ const tunggakanAging = computed(() => {
   // Distribusi umur lebih kepake buat bendahara daripada satu angka rata-rata
   // (rata-rata gampang ketutup satu rumah nunggak ekstrem lama). Catatan: umur
   // di sini paling mentok ~12 bulan untuk sekarang — grid Status per rumah
-  // reset tiap 1 Januari (sheets-schema.md §5, `$A$1 = YEAR(TODAY())`), jadi
+  // reset tiap 1 Januari (sheets-schema.md `Status`, `$A$1 = YEAR(TODAY())`), jadi
   // tunggakan lintas-tahun belum tercatat lanjut. Bucket >1 tahun disiapkan di
   // sini buat pas struktur datanya diperluas nanti, tapi hari ini isinya 0.
   // warna makin tua/gelap makin lama umurnya — sinyal visual sekilas, tanpa
@@ -450,7 +449,7 @@ useScrollLock(showDibayarDimuka);
     </div>
 
     <!-- riwayat terkumpul vs target — bottom sheet, dibuka dari kartu "Terkumpul
-         bulan ini". Garis putus-putus = target_bulan_ini sekarang, dipakai
+         bulan ini". Garis putus-putus = target bulan ini, dipakai
          konstan ke belakang juga (lihat catatan di script, riwayatBulanan). -->
     <div v-if="showRiwayat" class="dialog-backdrop sheet-backdrop" @click.self="showRiwayat = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;

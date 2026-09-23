@@ -1,8 +1,8 @@
 // Local-dev fixture only. useSheet.js falls back to this when VITE_SHEET_ID is
 // unset, so the app is clickable without a real Google Sheet. Shape matches
 // exactly what parse() would produce from the API tab's gviz response — see
-// docs/sheets-schema.md §10 for the real column layout (A/B key-value interleaved
-// with D..Z per-house columns on the same sheet rows).
+// docs/sheets-schema.md `API` for the real column layout (A/B key-value interleaved
+// with D..Y per-house columns on the same sheet rows).
 import { islk, IURAN_RT, BLOK_LIST } from '../lib/tariff.js';
 
 const S = { L: 'Lunas', S: 'Sebagian', P: 'Pending', B: 'Belum', '-': '-' };
@@ -28,11 +28,11 @@ const houses = [
     tarif: 425000, tunggakan: 425000, cluster: 'N', blok: 7, rumah: '09', mukaTahunDepan: '',
     status: [S.L,S.L,S.L,S.L,S.L,S.L,S.L,S.L,S.B,S['-'],S['-'],S['-']] },
   // Kavling kosong dibangun jadi rumah Juni 2025 (luas tanahnya sama, cuma tipenya
-  // berubah) — demonstrasi RumahRiwayat untuk kasus upgrade paling umum di Q1/Q10.
-  { alamat: 'N9-11', nama: 'Wawan Kurniadi', telp: '6281234500911', luas: 200, tipe: 'rumah',
-    tarif: 360000, tunggakan: 360000, cluster: 'N', blok: 9, rumah: '11', mukaTahunDepan: '',
+  // berubah) — demonstrasi RumahRiwayat untuk kasus upgrade paling umum.
+  { alamat: 'N9-09', nama: 'Wawan Kurniadi', telp: '6281234500909', luas: 200, tipe: 'rumah',
+    tarif: 360000, tunggakan: 360000, cluster: 'N', blok: 9, rumah: '09', mukaTahunDepan: '',
     status: [S.L,S.L,S.L,S.L,S.L,S.L,S.L,S.L,S.B,S['-'],S['-'],S['-']] },
-  // Rumah lama yang digabung ke tetangga Januari 2026 (Q3/Q10) — tunggakan
+  // Rumah lama yang digabung ke tetangga Januari 2026 — tunggakan
   // dilunasi dulu, baru ditandai nonaktif. Tetap ada di Rumah/RumahRiwayat/
   // Pembayaran (audit), tapi harus hilang dari Warga/Pos/Semua Kartu Rumah.
   { alamat: 'N6-07', nama: 'Marto Wijoyo', telp: '6281234500607', luas: 100, tipe: 'rumah',
@@ -65,23 +65,19 @@ for (let i = 0; i < 34; i++) {
   });
 }
 
-// Everything aggregate below excludes decommissioned houses (aktif:false),
-// mirroring the real API!jumlah_rumah/target_bulan_ini formulas (§10) which
-// now filter on Rumah!L — N6-07 stays in `houses` (still rendered into a row
-// for Rumah/RumahRiwayat/Pembayaran, for audit) but drops out of every total.
+// Decommissioned houses (aktif:false) drop out of every total — N6-07 stays in
+// `houses` (still rendered into a row, for audit) but useSheet.js filters it out.
 const housesAktif = houses.filter((h) => h.aktif !== false);
 
-// Mirrors the real B9/B10 formulas (docs/sheets-schema.md §10): sum of whatever
-// landed for the current month (index 8 = September, matching the status
-// patterns generated above) across every house, vs. sum of everyone's tarif.
+// What landed for the current month (index 8 = September, matching the status
+// patterns above) — seeds Riwayat's current-month row below.
 const terkumpulBulanIni = housesAktif.reduce((sum, h) => {
   if (h.status[8] === S.L) return sum + h.tarif;
   if (h.status[8] === S.S) return sum + Math.round(h.tarif * 0.5);
   return sum;
 }, 0);
-const targetBulanIni = housesAktif.reduce((sum, h) => sum + h.tarif, 0);
 
-// `Opex` tab (docs/sheets-schema.md §9) — category totals only, e.g. "Gaji Satpam"
+// `Opex` tab (docs/sheets-schema.md `Opex`) — category totals only, e.g. "Gaji Satpam"
 // is every satpam's wage combined, never itemized per person. Col D (diperbarui)
 // is a plain hand-typed date, updated whenever bendahara touches that row's nominal.
 export const MOCK_OPEX_ROWS = [
@@ -90,49 +86,35 @@ export const MOCK_OPEX_ROWS = [
   ['Listrik & Air Pos', '💡', 150000, '2026-09-05'],
   ['Lain-lain', '📋', 100000, '2026-08-01'],
 ];
-// opex_bulanan mirrors =SUM(Opex!$C:$C) — computed from the rows above, same as
-// the real sheet, instead of a second hand-typed number that could drift from them.
-const opexBulanan = MOCK_OPEX_ROWS.reduce((sum, [, , nominal]) => sum + nominal, 0);
-// opex_diperbarui mirrors =TEXT(MAX(Opex!$D:$D), "dd mmm yyyy") — the most recent
-// of the per-row dates above, so residents can see at a glance if the baseline is stale.
-const opexDiperbarui = MOCK_OPEX_ROWS.map(([, , , d]) => d).sort().at(-1);
-
+// Only what the app can't derive itself — every other cluster total
+// (tunggakan, target, jumlah rumah, terkumpul bulan ini, OPEX) is computed
+// client-side in useSheet.js's `totals` (docs/sheets-schema.md `API`).
 const meta = [
   ['kas_tunai', 1750000],
   ['rekening', 6250000],
-  ['tunggakan_total', housesAktif.reduce((sum, h) => sum + h.tunggakan, 0)],
-  ['lunas_bulan_ini', housesAktif.filter((h) => h.status[8] === S.L).length],
-  ['jumlah_rumah', housesAktif.length],
   ['updated', '2026-09-22 09:00'],
-  ['tahun_aktif', 2026],
-  ['terkumpul_bulan_ini', terkumpulBulanIni],
-  ['target_bulan_ini', targetBulanIni],
-  ['opex_bulanan', opexBulanan],
-  ['opex_diperbarui', opexDiperbarui],
 ];
 
-// `tipe` (rumah|kavling) feeds the tariff formula server-side (Rumah!I) but the
-// API tab's per-house block never carries it through — nothing in the app reads
-// it, see useSheet.js's `rumah` computed. Kept on the fixture objects above only
-// because tarifBulanan()/islk() need it as an input.
-// `aktif` (docs/sheets-schema.md §1/§12): none of these fixtures are
-// decommissioned, so it's always TRUE here — the column exists so useSheet.js's
-// filter has something real to read.
+// API per-house block (docs/sheets-schema.md `API`, cols D..Y). No luas/tipe/tarif:
+// the app resolves those itself from MOCK_RUMAHRIWAYAT_ROWS/MOCK_TARIFVERSI_ROWS
+// below — the fixtures' own `luas/tipe/tarif` fields only exist to generate
+// consistent tunggakan/status numbers here, and must agree with what that lookup
+// returns for today.
 const houseRow = (h) => [
-  h.alamat, h.nama, h.telp, h.luas, h.tarif, h.tunggakan,
+  h.alamat, h.nama, h.telp, h.tunggakan,
   ...h.status, h.cluster, h.blok, h.rumah, h.mukaTahunDepan, h.pin || h.telp.slice(-3),
   h.aktif !== false,
 ];
 
-// Rows past meta.length still need to exist for houses beyond row 7 — the key/value
+// Rows past meta.length still need to exist for houses beyond row 3 — the key/value
 // block is short, but the per-house block below it runs the full length of `houses`.
 const rowCount = Math.max(meta.length, houses.length);
 export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   const [k, v] = meta[i] || [null, null];
-  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(24).fill(null))];
+  return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(22).fill(null))];
 });
 
-// `Blok` tab (docs/sheets-schema.md §2) — one row per block. Blok 7 is overridden
+// `Blok` tab (docs/sheets-schema.md `Blok`) — one row per block. Blok 7 is overridden
 // here on purpose, different from BLOK_WARNA_DEFAULT in tariff.js — proves the
 // "admin edits the Sheet, app picks it up" path actually works.
 export const MOCK_BLOK_ROWS = [
@@ -140,22 +122,19 @@ export const MOCK_BLOK_ROWS = [
   ['6', '#e87ba4'], ['7', '#7C3AED'], ['8', '#4a3aa7'], ['9', '#e34948'], ['10', '#0F86A3'],
 ];
 
-// `Petugas` tab (docs/sheets-schema.md §3) — one row per person, peran satpam|bendahara.
+// `Petugas` tab (docs/sheets-schema.md `Petugas`) — one row per person, peran satpam|bendahara.
 export const MOCK_PETUGAS_ROWS = [
   ['Ujang', 'satpam'], ['Dedi', 'satpam'], ['Rahmat', 'satpam'],
   ['Ibu Siti', 'bendahara'], ['Pak Joko', 'bendahara'],
 ];
 
-// Raw `Pembayaran` ledger — usePembayaranLedger.js falls back to this the same way
-// useSheet.js falls back to MOCK_ROWS. Columns: Timestamp, alamat, bulan, tahun,
-// nominal, metode, petugas, catatan, bukti_url, then J..N (tarif/keabsahan/
-// disetor_batch/terverifikasi/lokasi_uang) are formula/treasurer columns the app
-// never reads except keabsahan (index 10), set directly here since there's no
-// live formula engine in mock mode.
+// Raw `Pembayaran` ledger (docs/sheets-schema.md `Pembayaran`) — usePembayaranLedger.js
+// falls back to this the same way useSheet.js falls back to MOCK_ROWS. A–I are
+// the Form's columns, J (keabsahan) is the Sheet's formula — set directly here
+// since there's no formula engine in mock mode.
 const pembayaranRow = ({ alamat, bulan, tahun = 2026, nominal, metode, petugas, catatan = '',
                           buktiUrl = '', keabsahan = 'sah' }, ts) => [
-  ts, alamat, bulan, tahun, nominal, metode, petugas, catatan, buktiUrl,
-  null, keabsahan, null, null, null,
+  ts, alamat, bulan, tahun, nominal, metode, petugas, catatan, buktiUrl, keabsahan,
 ];
 
 export const MOCK_PEMBAYARAN_ROWS = [
@@ -170,37 +149,37 @@ export const MOCK_PEMBAYARAN_ROWS = [
     `2025-${String(i + 1).padStart(2, '0')}-05 08:00:00`)),
   pembayaranRow({ alamat: 'N8-02', bulan: 7, nominal: 450000, metode: 'tunai', petugas: 'Ujang' }, '2026-08-03 08:20:00'),
   pembayaranRow({ alamat: 'N7-03', bulan: 7, nominal: 180000, metode: 'transfer', petugas: 'Warga',
-    catatan: 'bukti: transfer-juli.jpg', buktiUrl: 'https://picsum.photos/seed/N7-03-jul/500/700', keabsahan: 'pending' },
+    buktiUrl: 'https://picsum.photos/seed/N7-03-jul/500/700', keabsahan: 'pending' },
     '2026-08-05 19:41:00'),
   pembayaranRow({ alamat: 'N1-13', bulan: 8, nominal: 385000, metode: 'tunai', petugas: 'Dedi' }, '2026-08-10 09:03:00'),
   pembayaranRow({ alamat: 'N3-15', bulan: 8, nominal: 385000, metode: 'tunai', petugas: 'Dedi' }, '2026-08-10 09:11:00'),
   pembayaranRow({ alamat: 'N8-05', bulan: 9, nominal: 35000, metode: 'transfer', petugas: 'Warga',
-    catatan: 'bukti: bukti_sept.png', buktiUrl: 'https://picsum.photos/seed/N8-05-sep/500/700', keabsahan: 'pending' },
+    buktiUrl: 'https://picsum.photos/seed/N8-05-sep/500/700', keabsahan: 'pending' },
     '2026-09-14 21:02:00'),
   pembayaranRow({ alamat: 'N6-13', bulan: 9, nominal: 295000, metode: 'tunai', petugas: 'Rahmat' }, '2026-09-15 10:22:00'),
   pembayaranRow({ alamat: 'N2-11', bulan: 9, nominal: 310000, metode: 'tunai', petugas: 'Rahmat' }, '2026-09-15 10:30:00'),
   pembayaranRow({ alamat: 'N7-09', bulan: 9, nominal: 425000, metode: 'transfer', petugas: 'Warga',
-    catatan: 'bukti: sept_hendra.jpg', buktiUrl: 'https://picsum.photos/seed/N7-09-sep/500/700', keabsahan: 'pending' },
+    buktiUrl: 'https://picsum.photos/seed/N7-09-sep/500/700', keabsahan: 'pending' },
     '2026-09-16 07:55:00'),
   pembayaranRow({ alamat: 'N5-11', bulan: 9, nominal: 320000, metode: 'tunai', petugas: 'Ujang' }, '2026-09-18 16:40:00'),
 
-  // N9-11 (Wawan Kurniadi), tahun 2025: bayar tarif kavling (Rp130.000, 400/m² +
+  // N9-09 (Wawan Kurniadi), tahun 2025: bayar tarif kavling (Rp130.000, 400/m² +
   // iuran RT) Jan-Mei, lalu lompat ke tarif rumah (Rp360.000) begitu bangunannya
   // jadi Juni 2025 — RumahRiwayat mencatat konversi itu di bulan yang sama.
   // Sept-Des 2025 sengaja dibiarkan belum bayar buat nguji tunggakan lintas tahun.
   ...Array.from({ length: 5 }, (_, i) => pembayaranRow(
-    { alamat: 'N9-11', bulan: i + 1, tahun: 2025, nominal: 130000, metode: 'tunai', petugas: 'Dedi' },
+    { alamat: 'N9-09', bulan: i + 1, tahun: 2025, nominal: 130000, metode: 'tunai', petugas: 'Dedi' },
     `2025-${String(i + 1).padStart(2, '0')}-05 08:00:00`)),
   ...Array.from({ length: 3 }, (_, i) => pembayaranRow(
-    { alamat: 'N9-11', bulan: i + 6, tahun: 2025, nominal: 360000, metode: 'tunai', petugas: 'Dedi' },
+    { alamat: 'N9-09', bulan: i + 6, tahun: 2025, nominal: 360000, metode: 'tunai', petugas: 'Dedi' },
     `2025-${String(i + 6).padStart(2, '0')}-05 08:00:00`)),
 ];
 
-// `Riwayat` tab (docs/sheets-schema.md §11) — pre-aggregated per month, newest
+// `Riwayat` tab (docs/sheets-schema.md `Riwayat`) — pre-aggregated per month, newest
 // first, independent of MOCK_PEMBAYARAN_ROWS above (same relationship as the
 // real Sheet: a SUMIFS formula over Pembayaran, not something the client
 // derives itself — RingkasanPublik.vue never fetches the raw ledger). Row 2's
-// nominal mirrors terkumpul_bulan_ini so the "Terkumpul bulan ini" card and
+// nominal matches terkumpulBulanIni above, so the "Terkumpul bulan ini" card and
 // the riwayat chart's current-month bar agree.
 export const MOCK_RIWAYAT_ROWS = [
   [2026, 9, terkumpulBulanIni],
@@ -209,35 +188,35 @@ export const MOCK_RIWAYAT_ROWS = [
   [2025, 12, 9600000], [2025, 11, 8200000],
 ];
 
-// `RumahRiwayat` tab (docs/sheets-schema.md §12) — append-only, one row per
+// `RumahRiwayat` tab (docs/sheets-schema.md `RumahRiwayat`) — append-only, one row per
 // luas/tipe change. Every house gets a 2023-01 baseline row (its luas/tipe
 // *before* any of the changes below, so tarifPada() has something to resolve
 // for any month this app can show) — real data entry only needs to add a row
 // when something actually changes. Two houses demonstrate that:
 // - N7-01 (Budi Santoso): 90m² since 2023, absorbed the strip next door and
 //   grew to its current 130m² starting March 2025 — upgrade in place, same
-//   address (Q10's first case).
-// - N9-11 (Wawan Kurniadi): empty 200m² kavling since 2023, built into a
+//   address.
+// - N9-09 (Wawan Kurniadi): empty 200m² kavling since 2023, built into a
 //   rumah (same land, luas unchanged) starting June 2025 — the "type" upgrade
 //   specifically, not just a size change.
 // N6-07 (decommissioned, see `houses` above) never changed shape — it's here
 // purely to prove `aktif:false` excludes it from every app lookup, not to
 // exercise RumahRiwayat, so it only needs the baseline row every house gets.
-const RIWAYAT_AWAL = { 'N7-01': [90, 'rumah'], 'N9-11': [200, 'kavling'] };
+const RIWAYAT_AWAL = { 'N7-01': [90, 'rumah'], 'N9-09': [200, 'kavling'] };
 export const MOCK_RUMAHRIWAYAT_ROWS = [
   ...houses.map((h) => {
     const [luas, tipe] = RIWAYAT_AWAL[h.alamat] || [h.luas, h.tipe];
     return [h.alamat, 2023, 1, luas, tipe];
   }),
   ['N7-01', 2025, 3, 130, 'rumah'],
-  ['N9-11', 2025, 6, 200, 'rumah'],
+  ['N9-09', 2025, 6, 200, 'rumah'],
 ];
 
-// `TarifVersi` tab (docs/sheets-schema.md §13) — append-only rate cards, one
+// `TarifVersi` tab (docs/sheets-schema.md `TarifVersi`) — append-only rate cards, one
 // row per RT-wide price change. Three eras, oldest first:
 // - before 2023: an even older tier 2 amount (240rb, not 250rb) + iuran_rt
 //   35rb — demonstrates that ISLK tier AMOUNTS can change too, not just
-//   iuran_rt (Q2 — the user explicitly asked for both to be covered).
+//   iuran_rt.
 // - 2023: tier 2 already at today's 250rb, but iuran_rt still 40rb.
 // - 2024 onward (today): iuran_rt raised to 50rb — matches TARIF_DEFAULT in
 //   tariff.js exactly, so the hand-written fixtures above (which hardcode

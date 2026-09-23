@@ -1,26 +1,28 @@
 # Google Forms as the write endpoint
 
-Four forms, each wired to one tab of **Iuran_BlokN_2026**.
+Four forms, each linked to one ledger tab of **Iuran_ClusterN**
+(`docs/sheets-schema.md`). Every entry id is read from `.env` — Google generates
+them per Form, so copy the real ones from each Form: ⋮ → **Get pre-filled link**,
+fill anything, copy the URL, read the `entry.NNN` keys.
 
 ## A. Form "Catat Pembayaran" → `Pembayaran`
 
-| Question | Type | entry id (yours will differ) |
+| Question | Type | `.env` key |
 | --- | --- | --- |
-| Alamat (cluster+blok-rumah, mis. N7-09) | short text | `entry.1000001` |
-| Bulan | short text (1–12) | `entry.1000002` |
-| Tahun | short text | `entry.1000003` |
-| Nominal | short text | `entry.1000004` |
-| Metode | multiple choice: tunai / transfer | `entry.1000005` |
-| Petugas | short text — a name from `Petugas!A` (peran `satpam`), or `Warga` | `entry.1000006` |
-| Catatan | short text | `entry.1000007` |
-| Bukti transfer | **file upload** | — (Drive; no entry id, cannot be prefilled) |
+| Alamat (mis. N7-09) | short text | `VITE_E_RUMAH` |
+| Bulan | short text (1–12) | `VITE_E_BULAN` |
+| Tahun | short text | `VITE_E_TAHUN` |
+| Nominal | short text | `VITE_E_NOMINAL` |
+| Metode | multiple choice: tunai / transfer | `VITE_E_METODE` |
+| Petugas | short text — a `Petugas` name (peran `satpam`), or `Warga` | `VITE_E_PETUGAS` |
+| Catatan | short text, optional | `VITE_E_CATATAN` |
+| Bukti transfer | **file upload — must be the last question** | — (Drive; can't be prefilled) |
+
+Form id: `VITE_FORM_PEMBAYARAN`.
 
 The file-upload question makes the form require a Google sign-in and blocks the
 silent `/formResponse` route — so the **warga** flow always opens `viewform`
 (one tab per month), while the **satpam** cash flow keeps the silent submit.
-
-Get the real ids: open the form → ⋮ → **Get pre-filled link**, fill anything,
-copy the URL, read the `entry.NNN` keys.
 
 **File-upload question settings** (question ⋮ → the file-upload block itself):
 allowed file types → check **Image** only (uncheck the rest, or add PDF if you
@@ -60,37 +62,32 @@ network is bad; the satpam then has a visible receipt screen.
 
 ## B. Form "Setor ke Bank" → `Setoran`
 
-`batch_id` prefilled as `SET-260921-1`, `nominal` prefilled with the current
-Kas Tunai balance, `oleh` prefilled with the treasurer's name.
-After submitting, paste the batch id into `Pembayaran!L` for the banked rows.
+| Question | Type | `.env` key |
+| --- | --- | --- |
+| Nominal | short text | `VITE_E_SETOR_NOMINAL` |
+| Oleh | short text — the bendahara's `Petugas` name | `VITE_E_SETOR_OLEH` |
+
+Form id: `VITE_FORM_SETORAN`. The Kas screen's "Setor ke Bank" button opens it
+prefilled with the current kas balance and the signed-in bendahara. Submitting is
+the whole deposit — `API!kas_tunai`/`rekening` move the amount by formula.
 
 ## C. Form "Pengeluaran" → `Pengeluaran`
 
-`keterangan`, `nominal`, `sumber` (kas | bank). No prefill needed.
+`keterangan`, `nominal`, `sumber` (kas | bank). No prefill, no app screen —
+bendahara opens it directly.
 
 ## D. Form "Verifikasi Transfer" → `Verifikasi`
 
-| Question | Type | entry id (yours will differ) |
+| Question | Type | `.env` key |
 | --- | --- | --- |
-| Alamat | short text | `entry.3000001` |
-| Bulan | short text (1–12) | `entry.3000002` |
-| Tahun | short text | `entry.3000003` |
-| Oleh | short text | `entry.3000004` |
+| Alamat | short text | `VITE_E_VERIF_ALAMAT` |
+| Bulan | short text (1–12) | `VITE_E_VERIF_BULAN` |
+| Tahun | short text | `VITE_E_VERIF_TAHUN` |
+| Oleh | short text | `VITE_E_VERIF_OLEH` |
 
-The Kas screen's "Perlu diverifikasi" list comes from a direct read of the
-`Pembayaran` tab (not the `API` tab — `usePembayaranLedger.js`), filtered to
-`metode="transfer"` and `keabsahan="pending"`. Reading `Pembayaran` directly
-(rather than adding yet more columns to `API`) is also how bendahara gets to see
-`I` (bukti_url) per pending row — a "Lihat bukti" link opens the Drive photo
-before they decide to verify. Tapping **Verifikasi** fires this form silently
-(same `/formResponse` no-cors pattern as Form A), prefilled with that house/month
-and `oleh` = whichever `Petugas` roster name (peran `bendahara`) they picked at
-the "Siapa Anda?" screen (see `Bendahara.vue`). `Pembayaran!K` picks the new row
-up via `COUNTIFS(Verifikasi!...)` — §4/§7 of `docs/sheets-schema.md`.
-
-## Verifying a transfer
-
-Two equivalent paths, either one flips `Pembayaran!K` from `pending` to `sah`:
-the treasurer ticks `Pembayaran!M` directly in the sheet, or taps **Verifikasi**
-in the Kas app screen (Form D above). Both are just inputs to the same formula —
-neither is more "official" than the other.
+Form id: `VITE_FORM_VERIFIKASI`. The Kas screen lists pending transfers (read
+straight from `Pembayaran` via `usePembayaranLedger.js`), shows each bukti photo
+inline ("Lihat bukti"), and "Verifikasi" submits this form silently with that
+house/month and the signed-in bendahara. That new row is the **only** way a transfer
+becomes `sah` (`Pembayaran!J`); if the app is down, submitting this Form directly
+does the same.

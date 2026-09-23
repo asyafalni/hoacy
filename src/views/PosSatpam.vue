@@ -10,7 +10,7 @@ import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { rumah, blokWarna, satpamList, echo, load } = useSheet();
+const { rumah, blokWarna, satpamList, tarifRumah, TAHUN, load } = useSheet();
 const { pending, add: addPending, reconcile } = usePendingSync();
 watch(rumah, (list) => { if (list.length) reconcile(list); });
 // light tint of the block's color behind the house number — dark text stays legible
@@ -23,7 +23,7 @@ const PER_PAGE = 10;
 
 // The Pos PIN is shared by every satpam — it only gates the screen. Each payment
 // still needs to say which one of them actually took the cash (Petugas tab, peran
-// "satpam" — docs/sheets-schema.md §3), so the app makes them pick their name once
+// "satpam" — docs/sheets-schema.md `Petugas`), so the app makes them pick their name once
 // per device and remembers it, instead of hardcoding a single name for everyone.
 const petugasAktif = ref(localStorage.getItem('iuran.petugas.pos') || '');
 function pilihPetugas(nama) {
@@ -85,10 +85,13 @@ function toggle(i) {
 // Partial payment is rare and never a clean 50% in practice — a free-form amount
 // beats a rigid halfway toggle. Whatever's entered still splits evenly across
 // however many months are selected, same as "Penuh" does.
+// Each month at its own tarif (RumahRiwayat/TarifVersi) — a house upgraded
+// mid-year owes its earlier months at the old, lower rate.
+const tarifBulanIni = (i) => tarifRumah(sel.value.alamat, TAHUN, i + 1) || sel.value.tarif;
 const total = computed(() => {
   if (!sel.value) return 0;
   if (custom.value) return Math.max(0, Math.round(Number(customNominal.value) || 0));
-  return bulan.value.length * sel.value.tarif;
+  return bulan.value.reduce((sum, i) => sum + tarifBulanIni(i), 0);
 });
 const totalValid = computed(() => !custom.value || (Number(customNominal.value) > 0));
 
@@ -104,11 +107,10 @@ async function catat() {
   try {
     const per = Math.round(total.value / bulan.value.length);
     for (const i of bulan.value) {
-      const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: per,
+      const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: custom.value ? per : tarifBulanIni(i),
                     metode: 'tunai', petugas: petugasAktif.value };
-      echo(rec);
       addPending(rec);                 // survives a reload/crash — see usePendingSync
-      await submitPembayaran(rec);     // opaque; the echo + pending entry are what the satpam sees
+      await submitPembayaran(rec);     // opaque; the pending entry is what the satpam sees
     }
     toast.value = `${sel.value.nama} · ${bulan.value.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
     sel.value = null; bulan.value = [];
