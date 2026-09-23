@@ -267,17 +267,21 @@ January 2026 and just `M-Impor2026`. One row per house per paid month:
 | Col | Header | Notes |
 | --- | --- | --- |
 | A | alamat | *Data validation → Dropdown (from a range)* `'M-Rumah'!A2:A` |
-| B | tahun | *Data validation → Custom formula* `=B2=2024` (the tab's year) |
-| C | bulan | number 1–12 |
-| D | nominal | what was actually paid for that month |
-| E | tanggal_bayar | optional — the date the money came in, if known (*Is valid date*) |
+| B | bulan | number 1–12 (*Data validation → Number between 1 and 12*) |
+| C | nominal | what was actually paid for that month |
+| D | tanggal_bayar | optional — the date the money came in, if known (*Is valid date*) |
+
+No tahun column: the year comes from the tab name. The `D-Pembayaran` formula adds
+it per tab (one `HSTACK(...)` line each), so a row can never land in the wrong
+year.
 
 These rows count as paid months (`'D-Pembayaran'!F = impor`) and in the `D-Riwayat`
 chart, but **never** in `kas_tunai`/`rekening` — that money is already in
 `M-SaldoAwal`. Unlike Form ledgers, these tabs are typed by hand, so a mistake is
 fixed by editing the row directly. A duplicate row is harmless (marked `dobel`).
-Each tab's range is listed in the `D-Pembayaran` formula — adding an older year
-means adding its tab name there once.
+Each tab is listed in the `D-Pembayaran` formula — adding a year means copying one
+`HSTACK(...)` line there and changing both the tab name and the year number;
+removing a year you don't import means deleting its line.
 
 Make sure each house's first `M-RumahRiwayat` row matches the first month you
 import for it: every month from that row on counts as owed until paid.
@@ -370,7 +374,11 @@ A single formula in **A1** (it writes its own header row) that turns `L-Tunai`,
 ```
 A1:
 =ARRAYFORMULA(LET(
-  impor,   VSTACK('M-Impor2023'!A2:E, 'M-Impor2024'!A2:E, 'M-Impor2025'!A2:E, 'M-Impor2026'!A2:E),
+  impor,   VSTACK(
+             HSTACK('M-Impor2023'!A2:A, IF(LEN('M-Impor2023'!A2:A), 2023, ), 'M-Impor2023'!B2:D),
+             HSTACK('M-Impor2024'!A2:A, IF(LEN('M-Impor2024'!A2:A), 2024, ), 'M-Impor2024'!B2:D),
+             HSTACK('M-Impor2025'!A2:A, IF(LEN('M-Impor2025'!A2:A), 2025, ), 'M-Impor2025'!B2:D),
+             HSTACK('M-Impor2026'!A2:A, IF(LEN('M-Impor2026'!A2:A), 2026, ), 'M-Impor2026'!B2:D)),
   ia,      CHOOSECOLS(impor, 1),
   L, VSTACK(
        HSTACK('L-Tunai'!A2:E, IF(LEN('L-Tunai'!A2:A), "tunai", ), IF(LEN('L-Tunai'!A2:A), "", )),
@@ -409,7 +417,8 @@ A1:
 
 How it works: `L` stacks the three sources into one shape (timestamp, alamat,
 rincian, total, petugas, metode, bukti) — an `Impor` row becomes a one-month
-rincian, its `tanggal_bayar` standing in for the timestamp. Each rincian is split on `,`, tagged with its source row number,
+rincian, its `tanggal_bayar` standing in for the timestamp and its year taken
+from the tab it sits in. Each rincian is split on `,`, tagged with its source row number,
 flattened into one list, and split again on `|`/`=` into (row, periode, nominal).
 The latest `L-Keputusan` for that submission is looked up by alamat + `waktu`.
 When you add an `Impor` tab for another year, add its range to the `impor` line.

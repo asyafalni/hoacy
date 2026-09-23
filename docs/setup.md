@@ -48,7 +48,7 @@ Buat tab-tab ini, isi baris 1 dengan header persis seperti di
 | `M-Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
 | `M-Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
 | `M-SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
-| `M-Impor2023` … `M-Impor2026` | Header saja dulu (alamat, tahun, bulan, nominal, tanggal_bayar). Pasang data validation sesuai dokumen. Satu tab per tahun, dari tahun baseline paling awal sampai **tahun go-live** (bulan-bulan sebelum go-live di tahun itu juga masuk sini). Kalau hanya melacak mulai 2026, cukup `M-Impor2026`. |
+| `M-Impor2023` … `M-Impor2026` | Header saja dulu (alamat, bulan, nominal, tanggal_bayar — **tanpa kolom tahun**, tahunnya diambil dari nama tab). Pasang data validation sesuai dokumen. Satu tab per tahun, dari tahun baseline paling awal sampai **tahun go-live** (bulan-bulan sebelum go-live di tahun itu juga masuk sini). Kalau hanya melacak mulai 2026, cukup `M-Impor2026`. |
 
 ---
 
@@ -87,8 +87,9 @@ bendahara sedang login Google di browser yang sama; kalau tidak, ada tombol
 Buat tab-tab ini **setelah** Tahap 1–2 selesai (rumusnya merujuk tab lain), dan
 salin rumus dari `docs/sheets-schema.md`:
 
-1. **`D-Pembayaran`** — rumus satu sel di **A1**. Kalau nama tab Impor Anda berbeda,
-   sesuaikan baris `impor, VSTACK(...)`. Menampilkan `#N/A` selama belum ada data:
+1. **`D-Pembayaran`** — rumus satu sel di **A1**. Bagian `impor, VSTACK(...)` punya
+   satu baris `HSTACK(...)` per tab `M-Impor<tahun>`: hapus baris untuk tahun yang
+   tidak Anda buat, atau salin satu baris dan ganti nama tab + angka tahunnya. Menampilkan `#N/A` selama belum ada data:
    itu normal. Format kolom A sebagai teks biasa (sudah teks dari rumus).
 2. **`D-Iuran2023` … `D-Iuran2035`** — satu tab per tahun, rumus A1 yang sama, hanya
    angka tahunnya diganti. (Tip: buat `D-Iuran2023`, lalu *Duplicate* dan ubah
@@ -159,7 +160,7 @@ tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, 
 | Isi Form B: rincian `202611=275000`, total `999` + upload foto | 1 baris keabsahan `cek` |
 | Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `D-Pending` |
 | Isi Form E: alamat, waktu = kolom A baris transfer tadi (persis), keputusan `sah` | baris itu jadi `sah` |
-| Ketik 1 baris di `M-Impor2025`: `NBlvd-99`, 2025, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `D-Iuran2025` |
+| Ketik 1 baris di `M-Impor2025`: `NBlvd-99`, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `D-Iuran2025` |
 
 Cek juga: `'D-API'!L` untuk rumah uji berisi periode yang sah, dan `'D-API'!B2`
 (kas_tunai) naik sebesar tunai yang sah.
