@@ -5,9 +5,15 @@ header; formulas are written for row 2 — fill down unless noted.
 
 | Group | Tabs | Who writes |
 | --- | --- | --- |
-| **Master** | `Rumah`, `RumahRiwayat`, `TarifVersi`, `Blok`, `Petugas`, `Opex`, `SaldoAwal`, `Impor<tahun>` | admin/komite type directly in the Sheet (no Form) |
-| **Ledger** | `Tunai`, `Transfer`, `Keputusan`, `Setoran`, `Pengeluaran` | Google Forms only, append-only — nobody edits a row after it lands |
-| **Derived** | `Pembayaran`, `Iuran<tahun>`, `Pending`, `KasMasuk`, `Riwayat`, `API` | formulas only, never typed into |
+| **Master** | `M-Rumah`, `M-RumahRiwayat`, `M-TarifVersi`, `M-Blok`, `M-Petugas`, `M-Opex`, `M-SaldoAwal`, `M-Impor<tahun>` | admin/komite type directly in the Sheet (no Form) |
+| **Ledger** | `L-Tunai`, `L-Transfer`, `L-Keputusan`, `L-Setoran`, `L-Pengeluaran` | Google Forms only, append-only — nobody edits a row after it lands |
+| **Derived** | `D-Pembayaran`, `D-Iuran<tahun>`, `D-Pending`, `D-KasMasuk`, `D-Riwayat`, `D-API` | formulas only, never typed into |
+
+Tab names carry their group as a prefix — `M-` master, `L-` ledger, `D-`
+derived — and must match exactly: the app and the formulas address tabs by name.
+Inside a formula a prefixed name is always quoted: `'M-Rumah'!A2`. A `Daftar Isi`
+tab at the far left maps every tab for humans (not read by the app; content in
+`docs/setup.md`).
 
 **Why this split matters:** only master and ledger tabs hold data, and they only
 hold raw facts (who paid, when, for which month, how much). All logic lives in
@@ -29,8 +35,8 @@ Rules that hold across every tab:
   last row it was filled to. Everything computed lives in the derived tabs.
 - **The Sheet stores facts, the app computes.** Status, tunggakan (all years),
   aging and each month's tarif are computed in the app (`src/lib/tagihan.js`,
-  `src/lib/tarifHistoris.js`) from `API`'s lists of paid months plus
-  `RumahRiwayat`/`TarifVersi`. The Sheet only computes what the app can't:
+  `src/lib/tarifHistoris.js`) from `D-API`'s lists of paid months plus
+  `M-RumahRiwayat`/`M-TarifVersi`. The Sheet only computes what the app can't:
   splitting Form answers into months, cash balances, and monthly sums for the
   public page.
 
@@ -41,7 +47,7 @@ tab it fetches (`useSheet.js`, `usePembayaranLedger.js`).
 
 # Master tabs
 
-## `Rumah` — one row per address
+## `M-Rumah` — one row per address
 
 | Col | Header | Type | Notes |
 | --- | --- | --- | --- |
@@ -55,7 +61,7 @@ tab it fetches (`useSheet.js`, `usePembayaranLedger.js`).
 | H | konfirmasi_nonaktif | text | empty = active. See [Menonaktifkan rumah](#menonaktifkan-rumah) |
 | I | dinonaktifkan_oleh | text | pengurus name |
 | J | tanggal_nonaktif | date | |
-| K | aktif | **formula** | read by `API` |
+| K | aktif | **formula** | read by `D-API` |
 | L | peringatan | **formula** | guidance while H:J are being filled |
 
 ```
@@ -65,8 +71,8 @@ K2: =NOT(AND($H2=$A2, $I2<>"", $J2<>""))
 L2: =IF(AND($H2<>"", $K2), "⚠️ nonaktif belum lengkap — isi alamat persis, oleh, dan tanggal", "")
 ```
 
-`Rumah` is identity only. A house's **luas/tipe** live in `RumahRiwayat` and the
-**rates** in `TarifVersi` — both change over time, `Rumah` doesn't.
+`M-Rumah` is identity only. A house's **luas/tipe** live in `M-RumahRiwayat` and the
+**rates** in `M-TarifVersi` — both change over time, `M-Rumah` doesn't.
 
 `G` (pin) starts as a formula but is meant to be overwritten: type a literal value
 into one cell (e.g. a resident asks for a reset) and it replaces the formula for
@@ -80,8 +86,8 @@ cluster total — while all its rows in every other tab stay for audit. Only two
 situations call for it:
 
 - **Merger** — two addresses become one house (with a different tarif). The old
-  address is deactivated; the merged house is a normal new `Rumah` row with its
-  own `RumahRiwayat` baseline. It inherits nothing.
+  address is deactivated; the merged house is a normal new `M-Rumah` row with its
+  own `M-RumahRiwayat` baseline. It inherits nothing.
 - **Uncollectable** — the pengurus have confirmed, through their own checks,
   that nothing more can ever be collected (e.g. an empty kavling whose owner
   has died). Its remaining tunggakan simply stops being counted; the reasons
@@ -90,15 +96,15 @@ situations call for it:
 
 Deactivating is deliberately hard. Set up these three layers once:
 
-1. **Only bendahara/admin can type in `H`.** Select `Rumah!H2:H` → *Data →
+1. **Only bendahara/admin can type in `H`.** Select `'M-Rumah'!H2:H` → *Data →
    Protect sheets and ranges* → *Set permissions* → **Restrict who can edit this
    range** → only the bendahara/admin accounts.
-2. **`H` only accepts the house's own address.** Select `Rumah!H2:H` → *Data →
+2. **`H` only accepts the house's own address.** Select `'M-Rumah'!H2:H` → *Data →
    Data validation* → *Add rule* → criteria **Custom formula is** `=H2=$A2` →
    *Advanced options* → **Reject the input**, help text *"Ketik alamat rumah ini
    persis (mis. N6-07) untuk menonaktifkan."* A typo or any other value is
    refused.
-3. **"Are you sure?" on `I:J`.** Select `Rumah!I2:J` → *Protect range* → **Show
+3. **"Are you sure?" on `I:J`.** Select `'M-Rumah'!I2:J` → *Protect range* → **Show
    a warning when editing this range**. (Google allows either a warning *or*
    restricted editors on one range, not both — that's why they're split across
    H and I:J.) Also give `J` a *Data validation → Is valid date* rule.
@@ -112,11 +118,11 @@ To reactivate, clear `H`.
 
 ---
 
-## `RumahRiwayat` — luas/tipe per house over time (append-only)
+## `M-RumahRiwayat` — luas/tipe per house over time (append-only)
 
 | Col | Header | Type | Notes |
 | --- | --- | --- | --- |
-| A | alamat | text | matches `Rumah!A` |
+| A | alamat | text | matches `'M-Rumah'!A` |
 | B | tahun_berlaku | number | year this luas/tipe took effect |
 | C | bulan_berlaku | number | 1–12 |
 | D | luas | number | m² from that month onward |
@@ -128,7 +134,7 @@ for that `alamat` — so a past month keeps whatever was true then, permanently.
 
 **A house's first row is when billing starts.** Every month from that row to
 today is owed until paid, so when backfilling history make sure the payments for
-that period are in the `Impor<tahun>` tabs too — otherwise those months show as
+that period are in the `M-Impor<tahun>` tabs too — otherwise those months show as
 tunggakan.
 A house with **no row at all** is shown everywhere as *"Tarif belum diatur"*:
 it can't be paid for, isn't in the target, and Kas lists it as a warning. It is
@@ -139,7 +145,7 @@ door and keeps the same address — is just a new row here.
 
 ---
 
-## `TarifVersi` — the RT-wide rate card over time (append-only)
+## `M-TarifVersi` — the RT-wide rate card over time (append-only)
 
 One row per rule, so the number of ISLK tiers is free:
 
@@ -175,7 +181,7 @@ never Rp0.
 
 ---
 
-## `Blok` — one color per block
+## `M-Blok` — one color per block
 
 | Col | Header | Notes |
 | --- | --- | --- |
@@ -197,7 +203,7 @@ numeric `7` next to a text `Blvd` would vanish.
 
 ---
 
-## `Petugas` — who may use Pos or Kas
+## `M-Petugas` — who may use Pos or Kas
 
 | Col | Header | Notes |
 | --- | --- | --- |
@@ -206,12 +212,12 @@ numeric `7` next to a text `Blvd` would vanish.
 
 The Pos/Kas PINs (`VITE_PIN_POS`/`VITE_PIN_KAS`) are shared per role and only gate
 the screen; the app then makes each person pick their own name from here (once per
-device), so `Tunai!petugas`, `Keputusan!oleh` and `Setoran!oleh` record who
+device), so `'L-Tunai'!petugas`, `'L-Keputusan'!oleh` and `'L-Setoran'!oleh` record who
 actually acted.
 
 ---
 
-## `Opex` — fixed minimum monthly cost, itemized
+## `M-Opex` — fixed minimum monthly cost, itemized
 
 | Col | Header | Notes |
 | --- | --- | --- |
@@ -235,7 +241,7 @@ personal data that page exists to avoid.
 
 ---
 
-## `SaldoAwal` — opening balances (one row)
+## `M-SaldoAwal` — opening balances (one row)
 
 | Col | Header | Notes |
 | --- | --- | --- |
@@ -243,33 +249,33 @@ personal data that page exists to avoid.
 | B | kas | cash on hand that day |
 | C | rekening | bank balance that day |
 
-`API!kas_tunai`/`rekening` start from these. Money collected before this date is
+`'D-API'!kas_tunai`/`rekening` start from these. Money collected before this date is
 already inside them — which is why historical payments go into `Impor`, not the
-`Tunai` Form.
+`L-Tunai` Form.
 
 ---
 
-## `Impor<tahun>` — historical payments, one tab per year
+## `M-Impor<tahun>` — historical payments, one tab per year
 
-`Impor2023`, `Impor2024`, `Impor2025`, … — one tab per year so the komite can
+`M-Impor2023`, `M-Impor2024`, `M-Impor2025`, … — one tab per year so the komite can
 split the work and check a year at a time. One row per house per paid month:
 
 | Col | Header | Notes |
 | --- | --- | --- |
-| A | alamat | *Data validation → Dropdown (from a range)* `Rumah!A2:A` |
+| A | alamat | *Data validation → Dropdown (from a range)* `'M-Rumah'!A2:A` |
 | B | tahun | *Data validation → Custom formula* `=B2=2024` (the tab's year) |
 | C | bulan | number 1–12 |
 | D | nominal | what was actually paid for that month |
 | E | tanggal_bayar | optional — the date the money came in, if known (*Is valid date*) |
 
-These rows count as paid months (`Pembayaran!F = impor`) and in the `Riwayat`
+These rows count as paid months (`'D-Pembayaran'!F = impor`) and in the `D-Riwayat`
 chart, but **never** in `kas_tunai`/`rekening` — that money is already in
-`SaldoAwal`. Unlike Form ledgers, these tabs are typed by hand, so a mistake is
+`M-SaldoAwal`. Unlike Form ledgers, these tabs are typed by hand, so a mistake is
 fixed by editing the row directly. A duplicate row is harmless (marked `dobel`).
-Each tab's range is listed in the `Pembayaran` formula — adding an older year
+Each tab's range is listed in the `D-Pembayaran` formula — adding an older year
 means adding its tab name there once.
 
-Make sure each house's first `RumahRiwayat` row matches the first month you
+Make sure each house's first `M-RumahRiwayat` row matches the first month you
 import for it: every month from that row on counts as owed until paid.
 
 ---
@@ -278,7 +284,7 @@ import for it: every month from that row on counts as owed until paid.
 
 Form setup and entry ids: `docs/form-mapping.md`.
 
-## `Tunai` — cash received by the satpam (Form A)
+## `L-Tunai` — cash received by the satpam (Form A)
 
 | Col | Header |
 | --- | --- |
@@ -286,9 +292,9 @@ Form setup and entry ids: `docs/form-mapping.md`.
 | B | alamat |
 | C | rincian — `202607=360000,202609=360000` |
 | D | total |
-| E | petugas — a `Petugas` name (peran `satpam`) |
+| E | petugas — a `M-Petugas` name (peran `satpam`) |
 
-## `Transfer` — transfer confirmed by a resident (Form B)
+## `L-Transfer` — transfer confirmed by a resident (Form B)
 
 | Col | Header |
 | --- | --- |
@@ -300,19 +306,19 @@ Form setup and entry ids: `docs/form-mapping.md`.
 
 **Rincian** is one payment's months: `periode=nominal` pairs, comma-separated,
 where `periode = tahun*100 + bulan` and `nominal` is that month's full tarif. The
-app fills it in; `Pembayaran` splits it back into one row per month.
+app fills it in; `D-Pembayaran` splits it back into one row per month.
 
-## `Keputusan` — the bendahara's verdict on a submission (Form E)
+## `L-Keputusan` — the bendahara's verdict on a submission (Form E)
 
 | Col | Header |
 | --- | --- |
 | A | Timestamp |
 | B | alamat |
-| C | waktu — the submission's timestamp, `yyyy-mm-dd hh:mm:ss` (as `Pembayaran!A` shows it) |
+| C | waktu — the submission's timestamp, `yyyy-mm-dd hh:mm:ss` (as `'D-Pembayaran'!A` shows it) |
 | D | keputusan — `sah` or `tolak` |
-| E | oleh — a `Petugas` name with peran `bendahara` |
+| E | oleh — a `M-Petugas` name with peran `bendahara` |
 
-One row per decision about one `Tunai`/`Transfer` submission (all its months at
+One row per decision about one `L-Tunai`/`L-Transfer` submission (all its months at
 once). A submission is identified by alamat + its Form timestamp — the one thing a
 resident can't edit.
 
@@ -327,7 +333,7 @@ resident can't edit.
 The Kas screen writes these (Verifikasi / Tolak / Batalkan); submitting Form E
 directly does the same.
 
-## `Setoran` — cash moved from kas into the bank (Form C)
+## `L-Setoran` — cash moved from kas into the bank (Form C)
 
 | Col | Header |
 | --- | --- |
@@ -335,10 +341,10 @@ directly does the same.
 | B | nominal (prefilled with the current kas balance) — **negative = withdrawal** from the bank into kas |
 | C | oleh — the bendahara's name |
 
-That's the whole flow: `API!kas_tunai` drops by `nominal`, `API!rekening` rises by
+That's the whole flow: `'D-API'!kas_tunai` drops by `nominal`, `'D-API'!rekening` rises by
 it (a negative nominal moves money the other way).
 
-## `Pengeluaran` — money leaving the cluster (Form D)
+## `L-Pengeluaran` — money leaving the cluster (Form D)
 
 | Col | Header |
 | --- | --- |
@@ -351,21 +357,21 @@ it (a negative nominal moves money the other way).
 
 # Derived tabs (formulas only)
 
-## `Pembayaran` — every paid month, one row per house per month
+## `D-Pembayaran` — every paid month, one row per house per month
 
-A single formula in **A1** (it writes its own header row) that turns `Tunai`,
-`Transfer` and the `Impor<tahun>` tabs into one row per month, and applies
-`Keputusan`:
+A single formula in **A1** (it writes its own header row) that turns `L-Tunai`,
+`L-Transfer` and the `M-Impor<tahun>` tabs into one row per month, and applies
+`L-Keputusan`:
 
 ```
 A1:
 =ARRAYFORMULA(LET(
-  impor,   VSTACK(Impor2023!A2:E, Impor2024!A2:E, Impor2025!A2:E),
+  impor,   VSTACK('M-Impor2023'!A2:E, 'M-Impor2024'!A2:E, 'M-Impor2025'!A2:E),
   ia,      CHOOSECOLS(impor, 1),
   L, VSTACK(
-       HSTACK(Tunai!A2:E, IF(LEN(Tunai!A2:A), "tunai", ), IF(LEN(Tunai!A2:A), "", )),
-       HSTACK(Transfer!A2:D, IF(LEN(Transfer!A2:A), "Warga", ), IF(LEN(Transfer!A2:A), "transfer", ),
-              Transfer!E2:E),
+       HSTACK('L-Tunai'!A2:E, IF(LEN('L-Tunai'!A2:A), "tunai", ), IF(LEN('L-Tunai'!A2:A), "", )),
+       HSTACK('L-Transfer'!A2:D, IF(LEN('L-Transfer'!A2:A), "Warga", ), IF(LEN('L-Transfer'!A2:A), "transfer", ),
+              'L-Transfer'!E2:E),
        HSTACK(CHOOSECOLS(impor, 5), ia,
               IF(LEN(ia), CHOOSECOLS(impor, 2) * 100 + CHOOSECOLS(impor, 3) & "=" & CHOOSECOLS(impor, 4), ),
               CHOOSECOLS(impor, 4), IF(LEN(ia), "", ), IF(LEN(ia), "impor", ), IF(LEN(ia), "", ))),
@@ -382,9 +388,9 @@ A1:
   tahun,   INT(periode / 100),
   bulan,   MOD(periode, 100),
   cocok,   (SUMIF(i, i, nominal) = CHOOSECOLS(R, 4)) * (bulan >= 1) * (bulan <= 12),
-  kepKey,  Keputusan!B2:B & "|" & TEXT(Keputusan!C2:C, "yyyy-mm-dd hh:mm:ss"),
+  kepKey,  'L-Keputusan'!B2:B & "|" & TEXT('L-Keputusan'!C2:C, "yyyy-mm-dd hh:mm:ss"),
   kep,     MAP(alamat, waktu, LAMBDA(a, w,
-             IFNA(XLOOKUP(a & "|" & w, kepKey, Keputusan!D2:D, , 0, -1), ""))),
+             IFNA(XLOOKUP(a & "|" & w, kepKey, 'L-Keputusan'!D2:D, , 0, -1), ""))),
   status,  IF(cocok = 0, "cek", IF(kep = "tolak", "tolak",
              IF(metode = "transfer", IF(kep = "sah", "sah", "pending"), "sah"))),
   kunci,   IF((status = "sah") + (status = "pending"),
@@ -401,7 +407,7 @@ How it works: `L` stacks the three sources into one shape (timestamp, alamat,
 rincian, total, petugas, metode, bukti) — an `Impor` row becomes a one-month
 rincian, its `tanggal_bayar` standing in for the timestamp. Each rincian is split on `,`, tagged with its source row number,
 flattened into one list, and split again on `|`/`=` into (row, periode, nominal).
-The latest `Keputusan` for that submission is looked up by alamat + `waktu`.
+The latest `L-Keputusan` for that submission is looked up by alamat + `waktu`.
 When you add an `Impor` tab for another year, add its range to the `impor` line.
 
 Result columns: A waktu (when the money came in) · B alamat · C bulan · D tahun · E nominal ·
@@ -427,47 +433,47 @@ check is the guard on the amount.
 
 ---
 
-## `Iuran<tahun>` — one tab per dues year (create ten years at once)
+## `D-Iuran<tahun>` — one tab per dues year (create ten years at once)
 
-`Iuran2026`, `Iuran2027`, … `Iuran2035` — create them all now, each holding
-`Pembayaran`'s rows for one **dues year** (the month billed, not the day paid —
-a 2025 arrear paid in 2026 is in `Iuran2025`; its `waktu` says when it came in).
+`D-Iuran2026`, `D-Iuran2027`, … `D-Iuran2035` — create them all now, each holding
+`D-Pembayaran`'s rows for one **dues year** (the month billed, not the day paid —
+a 2025 arrear paid in 2026 is in `D-Iuran2025`; its `waktu` says when it came in).
 One formula in A1, only the year differs:
 
 ```
-Iuran2026!A1:
-=VSTACK(Pembayaran!A1:I1, IFERROR(FILTER(Pembayaran!A2:I, Pembayaran!D2:D = 2026), ))
+'D-Iuran2026'!A1:
+=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!D2:D = 2026), ))
 ```
 
 Empty until that year's data arrives, then fills itself — nothing to do each
 January. For reading and reporting per year; the Kas screen's **Iuran per
 tahun** opens exactly one of these per year picked. Years before 2026 are filled
-from the matching `Impor<tahun>` tab, so create `Iuran2023`…`Iuran2025` too.
+from the matching `M-Impor<tahun>` tab, so create `D-Iuran2023`…`D-Iuran2025` too.
 
 ---
 
-## `Pending` and `KasMasuk` — what the Kas screen loads
+## `D-Pending` and `D-KasMasuk` — what the Kas screen loads
 
 Two small tabs so the Kas screen never downloads the whole history:
 
 ```
-Pending!A1:
-=VSTACK(Pembayaran!A1:I1, IFERROR(FILTER(Pembayaran!A2:I,
-    (Pembayaran!I2:I = "pending") + (Pembayaran!I2:I = "cek")), ))
+'D-Pending'!A1:
+=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I,
+    ('D-Pembayaran'!I2:I = "pending") + ('D-Pembayaran'!I2:I = "cek")), ))
 
-KasMasuk!A1:
-=VSTACK(Pembayaran!A1:I1, IFERROR(FILTER(Pembayaran!A2:I, Pembayaran!F2:F = "tunai",
-    IFERROR(VALUE(LEFT(Pembayaran!A2:A, 4)), 0) >= YEAR(TODAY()) - 1), ))
+'D-KasMasuk'!A1:
+=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!F2:F = "tunai",
+    IFERROR(VALUE(LEFT('D-Pembayaran'!A2:A, 4)), 0) >= YEAR(TODAY()) - 1), ))
 ```
 
-`Pending` = submissions waiting on the bendahara (any dues year). `KasMasuk` =
+`D-Pending` = submissions waiting on the bendahara (any dues year). `D-KasMasuk` =
 cash **received** this year and last year (by `waktu`) — the "Riwayat Kas Masuk"
 audit list, including voided (`tolak`) and `dobel` rows so they show struck
 through.
 
 ---
 
-## `Riwayat` — collected per month, for the public trend chart
+## `D-Riwayat` — collected per month, for the public trend chart
 
 | Col | Header |
 | --- | --- |
@@ -480,17 +486,17 @@ Row 2 is the current month; each row below steps one month back:
 ```
 A2: =YEAR(TODAY())         B2: =MONTH(TODAY())
 A3: =IF(B2=1, A2-1, A2)    B3: =IF(B2=1, 12, B2-1)
-C2: =SUMIFS(Pembayaran!$E:$E, Pembayaran!$C:$C,B2, Pembayaran!$D:$D,A2, Pembayaran!$I:$I,"sah")
+C2: =SUMIFS('D-Pembayaran'!$E:$E, 'D-Pembayaran'!$C:$C,B2, 'D-Pembayaran'!$D:$D,A2, 'D-Pembayaran'!$I:$I,"sah")
 ```
 
 Fill A3:B3 and C2 down for as many months as the dashboard should reach (36 = three
 years). This tab exists so the public `/sum` page can show a trend **without ever
-fetching `Pembayaran`** (see below). The target line next to it is computed by the
-app per month from `RumahRiwayat`/`TarifVersi`.
+fetching `D-Pembayaran`** (see below). The target line next to it is computed by the
+app per month from `M-RumahRiwayat`/`M-TarifVersi`.
 
 ---
 
-## `API` — the one tab shaped for the app
+## `D-API` — the one tab shaped for the app
 
 Two side-by-side blocks on the same rows. **Keep column positions stable.**
 
@@ -499,10 +505,10 @@ stays all-numeric (gviz drops cells whose type differs from their column):
 
 ```
 A1: key          B1: value
-A2: kas_tunai    B2: =SaldoAwal!B2 + SUMIFS(Pembayaran!$E:$E, Pembayaran!$F:$F,"tunai", Pembayaran!$I:$I,"sah")
-                      - SUM(Setoran!$B:$B) - SUMIFS(Pengeluaran!$C:$C, Pengeluaran!$D:$D,"kas")
-A3: rekening     B3: =SaldoAwal!C2 + SUMIFS(Pembayaran!$E:$E, Pembayaran!$F:$F,"transfer", Pembayaran!$I:$I,"sah")
-                      + SUM(Setoran!$B:$B) - SUMIFS(Pengeluaran!$C:$C, Pengeluaran!$D:$D,"bank")
+A2: kas_tunai    B2: ='M-SaldoAwal'!B2 + SUMIFS('D-Pembayaran'!$E:$E, 'D-Pembayaran'!$F:$F,"tunai", 'D-Pembayaran'!$I:$I,"sah")
+                      - SUM('L-Setoran'!$B:$B) - SUMIFS('L-Pengeluaran'!$C:$C, 'L-Pengeluaran'!$D:$D,"kas")
+A3: rekening     B3: ='M-SaldoAwal'!C2 + SUMIFS('D-Pembayaran'!$E:$E, 'D-Pembayaran'!$F:$F,"transfer", 'D-Pembayaran'!$I:$I,"sah")
+                      + SUM('L-Setoran'!$B:$B) - SUMIFS('L-Pengeluaran'!$C:$C, 'L-Pengeluaran'!$D:$D,"bank")
 A4: updated      B4: =VALUE(TEXT(NOW(), "yyyymmddhhmm"))
 ```
 
@@ -510,31 +516,31 @@ Every cluster number — jumlah rumah, target, tunggakan, aging, lunas bulan ini
 terkumpul bulan ini, dibayar di muka, OPEX — is computed by the app (`useSheet.js`)
 from rows it already fetches.
 
-Per-house block (from D), one row per `Rumah` row:
+Per-house block (from D), one row per `M-Rumah` row:
 
 | Col | Header | Formula (row 2) |
 | --- | --- | --- |
-| D | alamat | `=Rumah!A2` |
-| E | nama | `=Rumah!E2` |
-| F | telp | `=TO_TEXT(Rumah!F2)` |
-| G | cluster | `=Rumah!B2` |
-| H | blok | `=TO_TEXT(Rumah!C2)` |
-| I | rumah | `=TO_TEXT(Rumah!D2)` |
-| J | pin | `=TO_TEXT(Rumah!G2)` |
-| K | aktif | `=Rumah!K2` |
+| D | alamat | `='M-Rumah'!A2` |
+| E | nama | `='M-Rumah'!E2` |
+| F | telp | `=TO_TEXT('M-Rumah'!F2)` |
+| G | cluster | `='M-Rumah'!B2` |
+| H | blok | `=TO_TEXT('M-Rumah'!C2)` |
+| I | rumah | `=TO_TEXT('M-Rumah'!D2)` |
+| J | pin | `=TO_TEXT('M-Rumah'!G2)` |
+| K | aktif | `='M-Rumah'!K2` |
 | L | lunas | periodes with a `sah` row, e.g. `202601,202602` |
 | M | pending | periodes with a `pending` row |
 
 ```
-L2: =IFERROR(TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER(Pembayaran!$D$2:$D*100 + Pembayaran!$C$2:$C,
-       Pembayaran!$B$2:$B=$D2, Pembayaran!$I$2:$I="sah")))), "")
+L2: =IFERROR(TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER('D-Pembayaran'!$D$2:$D*100 + 'D-Pembayaran'!$C$2:$C,
+       'D-Pembayaran'!$B$2:$B=$D2, 'D-Pembayaran'!$I$2:$I="sah")))), "")
 M2: same with "pending"
 ```
 
 `TO_TEXT` keeps mixed-looking columns (blok `Blvd` vs `7`, a PIN typed as a
 number) a single type, so gviz never drops a cell. Everything else a screen shows
 about a house — the 12-month card for any year, tunggakan across all years since
-its first `RumahRiwayat` row, oldest unpaid month, months paid in advance — is
+its first `M-RumahRiwayat` row, oldest unpaid month, months paid in advance — is
 derived from L/M by `src/lib/tagihan.js`.
 
 ### What gets published and fetched
@@ -550,8 +556,8 @@ TAB = API, Blok, Petugas, Opex, Riwayat, RumahRiwayat, TarifVersi
 `headers=1` makes row 1 the header explicitly — without it gviz guesses, and can
 swallow a data row.
 
-`Pending`, `KasMasuk` and `Iuran<tahun>` are fetched only by
-`usePembayaranLedger.js`, used only by the PIN-gated Kas screen; `Pembayaran`
+`D-Pending`, `D-KasMasuk` and `D-Iuran<tahun>` are fetched only by
+`usePembayaranLedger.js`, used only by the PIN-gated Kas screen; `D-Pembayaran`
 itself is never fetched. **`/sum` must never fetch any of them** — they hold
 addresses and links to transfer-proof photos. Everything the public page shows is
 an aggregate. gviz can't restrict individual tabs, so this is a convention the
@@ -562,6 +568,6 @@ local pending entry until a re-fetch confirms it (`usePendingSync.js`), and the
 Kas Verifikasi/Tolak/Batalkan buttons stay disabled until the submission's new
 status shows up.
 
-Fetch size stays flat as years pass: public screens read `API` (one row per
-house), and the Kas screen reads `Pending` + `KasMasuk` (≈ two years of cash) plus
-one `Iuran<tahun>` on demand.
+Fetch size stays flat as years pass: public screens read `D-API` (one row per
+house), and the Kas screen reads `D-Pending` + `D-KasMasuk` (≈ two years of cash) plus
+one `D-Iuran<tahun>` on demand.

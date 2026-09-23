@@ -19,6 +19,19 @@ Perkiraan waktu: 2–3 jam untuk struktur + uji coba, di luar input data lama.
      di-paste.
    - **Time zone: (GMT+07:00) Jakarta** — supaya timestamp Form benar.
 
+**Aturan nama tab** — prefix menandai kelompoknya, dan nama harus **persis** seperti
+di panduan ini (huruf besar/kecil dan tanda `-` ikut dihitung), karena app dan
+rumus memanggil tab berdasarkan nama:
+
+| Prefix | Kelompok | Diisi oleh |
+| --- | --- | --- |
+| `M-` | Master | diketik manual oleh admin/komite |
+| `L-` | Ledger | hanya Google Form — jangan diketik |
+| `D-` | Derived | hanya rumus — jangan diketik |
+
+Di dalam rumus, nama tab ber-prefix selalu ditulis dengan tanda kutip satu:
+`'M-Rumah'!A2` (semua rumus di dokumentasi sudah begitu).
+
 ---
 
 ## Tahap 1 — Tab master (diisi manual)
@@ -28,14 +41,14 @@ Buat tab-tab ini, isi baris 1 dengan header persis seperti di
 
 | Tab | Yang dikerjakan |
 | --- | --- |
-| `Rumah` | Format kolom **C, D, F** sebagai *Plain text* (Format → Number → Plain text) **sebelum** mengetik. Isi B–F per rumah. Pasang rumus A2, G2, K2, L2 lalu tarik ke bawah sampai semua rumah + cadangan (mis. 300 baris). H–J dibiarkan kosong. |
-| `RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama** yang ditagih + luas + tipe. Lihat catatan di Tahap 8. |
-| `TarifVersi` | Satu set baris per versi tarif (format baris: komponen, luas_min, nominal). Kalau tarif pernah berubah selama 3 tahun data lama, masukkan **setiap versi** dengan bulan mulai berlakunya. |
-| `Blok` | Format kolom A sebagai *Plain text*, isi 10 blok + warna (contoh ada di dokumen). |
-| `Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
-| `Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
-| `SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
-| `Impor2023`, `Impor2024`, `Impor2025` | Header saja dulu (alamat, tahun, bulan, nominal, tanggal_bayar). Pasang data validation sesuai dokumen. Kalau data lama Anda mulai dari tahun lain, sesuaikan nama tabnya. |
+| `M-Rumah` | Format kolom **C, D, F** sebagai *Plain text* (Format → Number → Plain text) **sebelum** mengetik. Isi B–F per rumah. Pasang rumus A2, G2, K2, L2 lalu tarik ke bawah sampai semua rumah + cadangan (mis. 300 baris). H–J dibiarkan kosong. |
+| `M-RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama** yang ditagih + luas + tipe. Lihat catatan di Tahap 8. |
+| `M-TarifVersi` | Satu set baris per versi tarif (format baris: komponen, luas_min, nominal). Kalau tarif pernah berubah selama 3 tahun data lama, masukkan **setiap versi** dengan bulan mulai berlakunya. |
+| `M-Blok` | Format kolom A sebagai *Plain text*, isi 10 blok + warna (contoh ada di dokumen). |
+| `M-Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
+| `M-Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
+| `M-SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
+| `M-Impor2023`, `M-Impor2024`, `M-Impor2025` | Header saja dulu (alamat, tahun, bulan, nominal, tanggal_bayar). Pasang data validation sesuai dokumen. Kalau data lama Anda mulai dari tahun lain, sesuaikan nama tabnya. |
 
 ---
 
@@ -53,11 +66,11 @@ Untuk **setiap** Form (detail pertanyaan di `docs/form-mapping.md`):
 
 | Form | Nama tab hasil |
 | --- | --- |
-| A. Catat Tunai | `Tunai` |
-| B. Konfirmasi Transfer (upload bukti di pertanyaan **terakhir**) | `Transfer` |
-| C. Setor ke Bank | `Setoran` |
-| D. Pengeluaran | `Pengeluaran` |
-| E. Keputusan | `Keputusan` |
+| A. Catat Tunai | `L-Tunai` |
+| B. Konfirmasi Transfer (upload bukti di pertanyaan **terakhir**) | `L-Transfer` |
+| C. Setor ke Bank | `L-Setoran` |
+| D. Pengeluaran | `L-Pengeluaran` |
+| E. Keputusan | `L-Keputusan` |
 
 Jangan pernah mengetik atau menaruh rumus di kelima tab ini.
 
@@ -74,48 +87,85 @@ bendahara sedang login Google di browser yang sama; kalau tidak, ada tombol
 Buat tab-tab ini **setelah** Tahap 1–2 selesai (rumusnya merujuk tab lain), dan
 salin rumus dari `docs/sheets-schema.md`:
 
-1. **`Pembayaran`** — rumus satu sel di **A1**. Kalau nama tab Impor Anda berbeda,
+1. **`D-Pembayaran`** — rumus satu sel di **A1**. Kalau nama tab Impor Anda berbeda,
    sesuaikan baris `impor, VSTACK(...)`. Menampilkan `#N/A` selama belum ada data:
    itu normal. Format kolom A sebagai teks biasa (sudah teks dari rumus).
-2. **`Iuran2023` … `Iuran2035`** — satu tab per tahun, rumus A1 yang sama, hanya
-   angka tahunnya diganti. (Tip: buat `Iuran2023`, lalu *Duplicate* dan ubah
+2. **`D-Iuran2023` … `D-Iuran2035`** — satu tab per tahun, rumus A1 yang sama, hanya
+   angka tahunnya diganti. (Tip: buat `D-Iuran2023`, lalu *Duplicate* dan ubah
    angkanya.)
-3. **`Pending`** dan **`KasMasuk`** — rumus A1 masing-masing.
-4. **`Riwayat`** — A2:C2 dan A3:B3, tarik ke bawah 36 baris.
-5. **`API`** — A1:B4 (blok saldo), lalu D1:M1 header dan rumus D2:M2, tarik ke
-   bawah sebanyak baris `Rumah` (mis. 300).
+3. **`D-Pending`** dan **`D-KasMasuk`** — rumus A1 masing-masing.
+4. **`D-Riwayat`** — A2:C2 dan A3:B3, tarik ke bawah 36 baris.
+5. **`D-API`** — A1:B4 (blok saldo), lalu D1:M1 header dan rumus D2:M2, tarik ke
+   bawah sebanyak baris `M-Rumah` (mis. 300).
+
+---
+
+## Tahap 3b — Tab `Daftar Isi` (peta semua tab)
+
+Buat tab **`Daftar Isi`** dan seret ke **paling kiri**. Tab ini hanya untuk
+manusia — app tidak membacanya, jadi namanya tanpa prefix dan isinya bebas diubah.
+Paste tabel ini mulai A1 (kolom: Tab, Kelompok, Isi, Diisi oleh):
+
+```
+Tab	Kelompok	Isi	Diisi oleh
+M-Rumah	Master	Satu baris per alamat: nama, telp, PIN, status nonaktif	Admin
+M-RumahRiwayat	Master	Luas/tipe tiap rumah dari waktu ke waktu; baris pertama = mulai ditagih	Admin
+M-TarifVersi	Master	Tarif ISLK & iuran RT per versi (tanggal berlaku)	Admin
+M-Blok	Master	Warna per blok	Admin
+M-Petugas	Master	Nama satpam & bendahara	Admin
+M-Opex	Master	Biaya operasional bulanan per kategori	Bendahara
+M-SaldoAwal	Master	Saldo kas & rekening saat go-live	Bendahara
+M-Impor2023	Master	Data iuran lama 2023, satu baris per rumah per bulan	Komite
+M-Impor2024	Master	Data iuran lama 2024	Komite
+M-Impor2025	Master	Data iuran lama 2025	Komite
+L-Tunai	Ledger	Uang tunai yang diterima satpam (dari Pos)	Form A
+L-Transfer	Ledger	Konfirmasi transfer warga + bukti	Form B
+L-Setoran	Ledger	Setor kas ke bank (negatif = tarik dari bank)	Form C
+L-Pengeluaran	Ledger	Pengeluaran kas/bank	Form D
+L-Keputusan	Ledger	Verifikasi/tolak transfer, batalkan tunai	Form E
+D-Pembayaran	Derived	Semua pembayaran, satu baris per rumah per bulan	Rumus
+D-Iuran2023 … D-Iuran2035	Derived	Pembayaran per tahun iuran	Rumus
+D-Pending	Derived	Transfer yang menunggu keputusan bendahara	Rumus
+D-KasMasuk	Derived	Uang tunai masuk tahun ini & tahun lalu	Rumus
+D-Riwayat	Derived	Total terkumpul per bulan (grafik publik)	Rumus
+D-API	Derived	Data untuk app: saldo + satu baris per rumah	Rumus
+```
+
+Supaya bisa diklik: pilih sel nama tab → **Insert → Link → Sheets in this
+spreadsheet** → pilih tab yang sama namanya. (Untuk baris `D-Iuran…`, beri link
+ke tahun berjalan.)
 
 ---
 
 ## Tahap 4 — Pengaman nonaktif rumah
 
 Ikuti tiga lapis di `docs/sheets-schema.md` → *Menonaktifkan rumah*:
-proteksi `Rumah!H` (hanya akun bendahara/admin), data validation `=H2=$A2`
-(Reject input), dan proteksi *Show a warning* di `Rumah!I:J`.
+proteksi `'M-Rumah'!H` (hanya akun bendahara/admin), data validation `=H2=$A2`
+(Reject input), dan proteksi *Show a warning* di `'M-Rumah'!I:J`.
 
 ---
 
 ## Tahap 5 — Uji coba (wajib sebelum input data lama)
 
-Tambahkan satu rumah uji di `Rumah` (mis. blok `Blvd`, rumah `99`) + baseline di
-`RumahRiwayat` bulan ini, luas `100`, tipe `rumah` (tarifnya jadi Rp275.000 dengan
-tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, dan cek hasil di `Pembayaran`:
+Tambahkan satu rumah uji di `M-Rumah` (mis. blok `Blvd`, rumah `99`) + baseline di
+`M-RumahRiwayat` bulan ini, luas `100`, tipe `rumah` (tarifnya jadi Rp275.000 dengan
+tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, dan cek hasil di `D-Pembayaran`:
 
-| Langkah | Hasil yang diharapkan di `Pembayaran` |
+| Langkah | Hasil yang diharapkan di `D-Pembayaran` |
 | --- | --- |
 | Isi Form A langsung: alamat `NBlvd-99`, rincian `202609=275000,202610=275000`, total `550000`, petugas nama satpam | 2 baris, metode `tunai`, keabsahan `sah` |
 | Kirim Form A yang sama sekali lagi | 2 baris baru dengan keabsahan `dobel` |
 | Isi Form B: rincian `202611=275000`, total `999` + upload foto | 1 baris keabsahan `cek` |
-| Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `Pending` |
+| Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `D-Pending` |
 | Isi Form E: alamat, waktu = kolom A baris transfer tadi (persis), keputusan `sah` | baris itu jadi `sah` |
-| Ketik 1 baris di `Impor2025`: `NBlvd-99`, 2025, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `Iuran2025` |
+| Ketik 1 baris di `M-Impor2025`: `NBlvd-99`, 2025, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `D-Iuran2025` |
 
-Cek juga: `API!L` untuk rumah uji berisi periode yang sah, dan `API!B2`
+Cek juga: `'D-API'!L` untuk rumah uji berisi periode yang sah, dan `'D-API'!B2`
 (kas_tunai) naik sebesar tunai yang sah.
 
 Kalau ada rumus yang error, kirim screenshot + pesan errornya untuk diperbaiki.
-Setelah semua sesuai, **hapus semua baris uji** di `Tunai`, `Transfer`,
-`Keputusan`, `Impor2025`, `RumahRiwayat`, dan baris rumah uji di `Rumah`
+Setelah semua sesuai, **hapus semua baris uji** di `L-Tunai`, `L-Transfer`,
+`L-Keputusan`, `M-Impor2025`, `M-RumahRiwayat`, dan baris rumah uji di `M-Rumah`
 (boleh menghapus baris di tab Form; yang tidak boleh adalah mengedit isinya
 saat sudah dipakai sungguhan).
 
@@ -152,14 +202,14 @@ simpan catatan pribadi (alasan nonaktif, dll.) di sini.
 ## Tahap 8 — Input data lama
 
 1. Tentukan **tanggal go-live** (disarankan tanggal 1 sebuah bulan). Semua
-   pembayaran **sebelum** tanggal itu masuk `Impor<tahun>`; sesudahnya lewat app.
-2. **`RumahRiwayat`**: baseline tiap rumah = bulan pertama yang ditagih (biasanya
+   pembayaran **sebelum** tanggal itu masuk `M-Impor<tahun>`; sesudahnya lewat app.
+2. **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama yang ditagih (biasanya
    bulan pertama data lama Anda). Setiap bulan sejak baseline yang tidak ada
    pembayarannya akan tampil sebagai tunggakan — jadi baseline dan data impor
    harus sejalan.
-3. **`Impor2023/2024/2025`**: satu baris per rumah per bulan yang sudah dibayar.
+3. **`M-Impor2023/2024/2025`**: satu baris per rumah per bulan yang sudah dibayar.
    Komite bisa membagi per tahun. Salah ketik cukup diedit langsung di baris itu.
-4. **`SaldoAwal`**: isi saldo kas tunai dan rekening **pada tanggal go-live**.
+4. **`M-SaldoAwal`**: isi saldo kas tunai dan rekening **pada tanggal go-live**.
 5. Cek hasil: buka `/kas` → *Lihat semua kartu rumah* — rumah dengan tunggakan
    yang mencurigakan biasanya berarti ada bulan yang terlewat di impor atau
    baseline yang terlalu awal.
@@ -178,15 +228,15 @@ Lihat `docs/deploy.md` (workflow, secret `DOTENV`, dan pengaturan Pages).
    PIN-nya. Tiap orang memilih namanya sekali per HP.
 2. **Warga**: dari `/kas` → *Cetak QR per rumah* → cetak dan tempel, atau kirim
    link kartu via WhatsApp dari *Lihat semua kartu rumah*. PIN default = 3 digit
-   terakhir no. HP; bisa diganti per rumah di `Rumah!G`.
+   terakhir no. HP; bisa diganti per rumah di `'M-Rumah'!G`.
 3. **Publik**: link `/#/sum` untuk ringkasan kas cluster (tanpa data per rumah).
 
 ## Perawatan rutin
 
-- Tarif naik → tambah set baris baru di `TarifVersi` (semua komponen, dengan
+- Tarif naik → tambah set baris baru di `M-TarifVersi` (semua komponen, dengan
   bulan mulai berlaku). Jangan edit baris lama.
-- Luas/tipe rumah berubah → tambah baris di `RumahRiwayat`.
-- Rumah baru → baris di `Rumah` + baseline di `RumahRiwayat`.
-- Biaya bulanan berubah → edit `Opex` (dan tanggal diperbarui).
-- Tab `Iuran<tahun>` sudah tersedia sampai 2035 — setelah itu duplikasi lagi.
+- Luas/tipe rumah berubah → tambah baris di `M-RumahRiwayat`.
+- Rumah baru → baris di `M-Rumah` + baseline di `M-RumahRiwayat`.
+- Biaya bulanan berubah → edit `M-Opex` (dan tanggal diperbarui).
+- Tab `D-Iuran<tahun>` sudah tersedia sampai 2035 — setelah itu duplikasi lagi.
 - Salah edit → **File → Version history** untuk memulihkan.

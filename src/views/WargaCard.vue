@@ -13,7 +13,7 @@ import RekeningCard from '../components/RekeningCard.vue';
 const { rumah, blokWarna, rateCardAktif, TAHUN, sekarang } = useSheet();
 
 // No login, but blok+rumah alone is guessable by any resident — so opening a card
-// also needs that house's PIN (Rumah!G in the Sheet, defaults to the last 3 digits
+// also needs that house's PIN ('M-Rumah'!G in the Sheet, defaults to the last 3 digits
 // of the phone number, admin can overwrite it per row). This is a deterrent, same
 // as the Pos/Kas PinGate: the Sheet is public-by-design (docs/deploy.md), so the PIN
 // itself travels in the same gviz response the app already reads — it stops a
@@ -43,7 +43,7 @@ const pinError = ref(false);
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
 // Each block gets its own color (admin-set in the Sheet, Blok tab — see
-// docs/sheets-schema.md `Blok`), applied to the card header here and to the house
+// docs/sheets-schema.md `M-Blok`), applied to the card header here and to the house
 // badge in PosSatpam.vue.
 const warnaKartu = computed(() =>
   (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))

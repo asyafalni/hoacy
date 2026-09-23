@@ -20,15 +20,15 @@ const bank  = computed(() => Number(meta.value.rekening || 0));
 const total = computed(() => totals.value.jumlahRumah);
 const persen = computed(() => (total.value ? Math.round((totals.value.lunasBulanIni / total.value) * 100) : 0));
 
-// Setor ke Bank = one Setoran row; API!kas_tunai/rekening move the amount from
-// kas to bank by formula, nothing to mark on Pembayaran (docs/sheets-schema.md `Setoran`).
+// Setor ke Bank = one Setoran row; 'D-API'!kas_tunai/rekening move the amount from
+// kas to bank by formula, nothing to mark on Pembayaran (docs/sheets-schema.md `L-Setoran`).
 const setorUrl = computed(() =>
   urlSetoran({ nominal: kas.value, oleh: bendaharaNama.value || 'Bendahara' }));
 
 // Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
 // everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
-// `Petugas`), so each person picks their own name once per device before anything shows,
-// and it's what gets recorded on Keputusan!oleh.
+// `M-Petugas`), so each person picks their own name once per device before anything shows,
+// and it's what gets recorded on 'L-Keputusan'!oleh.
 const bendaharaNama = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 function pilihBendahara(nama) {
   bendaharaNama.value = nama;
@@ -40,7 +40,7 @@ function gantiBendahara() {
 }
 
 // Riwayat kas masuk — bottom sheet, bukan dilempar semua ke halaman utama.
-// Lazy-render 10 baris per langkah (bukan lazy-fetch — seluruh tab Pembayaran
+// Lazy-render 10 baris per langkah (bukan lazy-fetch — seluruh tab D-KasMasuk
 // sudah sekali fetch lewat gviz, ini cuma ngerem berapa banyak yang di-render
 // sekaligus) — IntersectionObserver di sentinel bawah list nambah 10 lagi
 // begitu keliatan, sampai habis.
@@ -54,7 +54,7 @@ const buktiTampil = ref(null);   // { alamat, bulan, buktiUrl } atau null
 useScrollLock(buktiTampil);
 const buktiGagal = ref(false);
 function lihatBukti(p) { buktiGagal.value = false; buktiTampil.value = p; }
-// Iuran per tahun — one `Iuran<tahun>` tab per dues year (pre-created for ten
+// Iuran per tahun — one `D-Iuran<tahun>` tab per dues year (pre-created for ten
 // years in the Sheet, docs/sheets-schema.md), fetched only when picked here.
 // Years run from the earliest billing start (RumahRiwayat) to this year.
 const showTahunan = ref(false);
@@ -97,7 +97,7 @@ const bulanList = (g) => g.items.map(label).join(', ');
 const kurang = (g) => g.items.filter((e) => e.nominal < (tarifRumah(e.alamat, e.tahun, e.bulan) || 0));
 
 // One Keputusan row per submission (Form E, docs/sheets-schema.md
-// `Keputusan`): `sah` verifies a transfer, `tolak` rejects it or voids a
+// `L-Keputusan`): `sah` verifies a transfer, `tolak` rejects it or voids a
 // mistaken cash entry — its months go back to "Belum" and can be paid again.
 // A submission stays "terkirim" (buttons disabled) until a reload shows its
 // new status — gviz caches for minutes, so re-enabling on a timer used to
@@ -138,7 +138,7 @@ async function putuskan(g, keputusan) {
       </button>
     </div>
     <p v-if="!bendaharaList.length" class="text-muted" style="font-size:12px">
-      Daftar nama belum diisi admin di Sheet (tab Petugas, peran "bendahara").
+      Daftar nama belum diisi admin di Sheet (tab M-Petugas, peran "bendahara").
     </p>
   </section>
 
@@ -213,13 +213,13 @@ async function putuskan(g, keputusan) {
       </span>
       <span style="font-size:11.5px">
         {{ totals.tarifBelumDiatur.map(h => h.alamat).join(', ') }} — isi baris baseline di tab
-        RumahRiwayat. Sampai itu, rumah ini tidak bisa bayar dan tidak masuk target.
+        M-RumahRiwayat. Sampai itu, rumah ini tidak bisa bayar dan tidak masuk target.
       </span>
     </Card>
 
     <!-- transfer menunggu verifikasi — satu kartu per transfer (satu bukti, bisa
-         beberapa bulan). Verifikasi/Tolak menulis satu baris ke tab Keputusan (append-only, lihat
-         docs/sheets-schema.md `Keputusan`), bukan mengedit baris asalnya -->
+         beberapa bulan). Verifikasi/Tolak menulis satu baris ke tab L-Keputusan (append-only, lihat
+         docs/sheets-schema.md `L-Keputusan`), bukan mengedit baris asalnya -->
     <Card v-if="pending.length" style="gap:2px">
       <span class="kick">Perlu diverifikasi ({{ pending.length }})</span>
       <div v-for="g in pending" :key="g.key" class="col" style="gap:6px;padding:8px 0;
@@ -255,7 +255,7 @@ async function putuskan(g, keputusan) {
     </Card>
 
     <!-- rincian Form transfer tidak cocok dengan totalnya: tidak dihitung sama
-         sekali (Pembayaran!I = "cek") — warga perlu kirim ulang konfirmasi -->
+         sekali ('D-Pembayaran'!I = "cek") — warga perlu kirim ulang konfirmasi -->
     <Card v-if="cek.length" style="gap:2px">
       <span class="kick">Rincian tidak cocok ({{ cek.length }})</span>
       <p class="text-muted" style="font-size:11px;margin:0">
@@ -335,7 +335,7 @@ async function putuskan(g, keputusan) {
       </div>
     </div>
 
-    <!-- iuran per tahun — satu tab Sheet `Iuran<tahun>` per tahun iuran,
+    <!-- iuran per tahun — satu tab Sheet `D-Iuran<tahun>` per tahun iuran,
          diambil hanya saat tahunnya dipilih -->
     <div v-if="showTahunan" class="dialog-backdrop sheet-backdrop" @click.self="showTahunan = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
@@ -357,9 +357,9 @@ async function putuskan(g, keputusan) {
           </button>
         </div>
 
-        <p v-if="!ringkasan" class="text-muted" style="font-size:12px;margin:0">Memuat tab Iuran{{ tahunPilih }}…</p>
+        <p v-if="!ringkasan" class="text-muted" style="font-size:12px;margin:0">Memuat tab D-Iuran{{ tahunPilih }}…</p>
         <p v-else-if="ringkasan.error" class="text-muted" style="font-size:12px;margin:0">
-          Tab <b>Iuran{{ tahunPilih }}</b> belum ada di Sheet — buat dengan rumus yang sama seperti tab
+          Tab <b>D-Iuran{{ tahunPilih }}</b> belum ada di Sheet — buat dengan rumus yang sama seperti tab
           tahun lainnya (docs/sheets-schema.md).
         </p>
         <template v-else>

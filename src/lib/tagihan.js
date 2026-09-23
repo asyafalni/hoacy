@@ -2,13 +2,13 @@ import { periodeOf, tarifPada } from './tarifHistoris.js';
 
 // The one place that turns "which months has this house paid" into status,
 // tunggakan and aging — for every screen and every year. The Sheet only says
-// which periodes are sah/pending per house (API!L/M, docs/sheets-schema.md
-// `API`); everything that needs a tarif is resolved here with tarifPada(), the
+// which periodes are sah/pending per house ('D-API'!L/M, docs/sheets-schema.md
+// `D-API`); everything that needs a tarif is resolved here with tarifPada(), the
 // same lookup the rest of the app uses, so there's no second copy of the rate
 // logic living in a Sheet formula.
 //
 // A month is always paid in full (no partial payments — docs/sheets-schema.md
-// `Pembayaran`), so a month is simply Lunas, Pending, Belum, or '-' (not billed:
+// `D-Pembayaran`), so a month is simply Lunas, Pending, Belum, or '-' (not billed:
 // before the house's first RumahRiwayat row, not due yet, or no rate card).
 
 export const tahunOf = (p) => Math.floor(p / 100);

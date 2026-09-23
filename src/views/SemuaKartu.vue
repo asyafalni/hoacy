@@ -201,7 +201,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
           Kirim link kartu via WhatsApp
         </a>
         <p v-else class="text-muted" style="font-size:11.5px;margin:0">
-          Tidak ada no. HP terdaftar untuk rumah ini (Rumah!F kosong).
+          Tidak ada no. HP terdaftar untuk rumah ini (kolom telp di tab M-Rumah kosong).
         </p>
 
         <div class="months">

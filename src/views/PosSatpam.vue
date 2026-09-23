@@ -24,7 +24,7 @@ const PER_PAGE = 10;
 
 // The Pos PIN is shared by every satpam — it only gates the screen. Each payment
 // still needs to say which one of them actually took the cash (Petugas tab, peran
-// "satpam" — docs/sheets-schema.md `Petugas`), so the app makes them pick their name once
+// "satpam" — docs/sheets-schema.md `M-Petugas`), so the app makes them pick their name once
 // per device and remembers it, instead of hardcoding a single name for everyone.
 const petugasAktif = ref(localStorage.getItem('iuran.petugas.pos') || '');
 function pilihPetugas(nama) {
@@ -83,7 +83,7 @@ function toggle(p) {
 
 // A month is always paid in full at its own tarif (RumahRiwayat/TarifVersi) —
 // a house upgraded mid-year owes its earlier months at the old rate. Partial
-// payments don't exist in the app (docs/sheets-schema.md `Pembayaran`).
+// payments don't exist in the app (docs/sheets-schema.md `D-Pembayaran`).
 const items = computed(() => !sel.value ? [] : bulan.value.map((p) => ({ periode: p, nominal: sel.value.tarifPer(p) })));
 const total = computed(() => items.value.reduce((sum, i) => sum + i.nominal, 0));
 
@@ -134,7 +134,7 @@ async function retryPending(p) {
       </button>
     </div>
     <p v-if="!satpamList.length" class="text-muted" style="font-size:12px">
-      Daftar nama satpam belum diisi admin di Sheet (tab Petugas, peran "satpam").
+      Daftar nama satpam belum diisi admin di Sheet (tab M-Petugas, peran "satpam").
     </p>
   </section>
 

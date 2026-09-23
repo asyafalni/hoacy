@@ -42,7 +42,7 @@ const houses = [
   { alamat: 'N9-09', nama: 'Wawan Kurniadi', telp: '6281234500909', blok: '9', rumah: '09',
     riwayat: [[202301, 200, 'kavling'], [202506, 200, 'rumah']], mulai: 202301, bayarSampai: 202608,
     belum: rentang(202509, 202512) },
-  // Merged into the neighbour Jan 2026 and deactivated (Rumah!K = FALSE) —
+  // Merged into the neighbour Jan 2026 and deactivated ('M-Rumah'!K = FALSE) —
   // stays in every tab for audit but must vanish from Warga/Pos/Kas/totals.
   { alamat: 'N6-07', nama: 'Marto Wijoyo', telp: '6281234500607', blok: '6', rumah: '07',
     luas: 100, tipe: 'rumah', mulai: 202301, bayarSampai: 202512, aktif: false },
@@ -70,12 +70,12 @@ for (let i = 0; i < 34; i++) {
   });
 }
 
-// `RumahRiwayat` tab (docs/sheets-schema.md `RumahRiwayat`) — append-only.
+// `M-RumahRiwayat` tab (docs/sheets-schema.md `M-RumahRiwayat`) — append-only.
 export const MOCK_RUMAHRIWAYAT_ROWS = houses.filter((h) => !h.tanpaBaseline).flatMap((h) =>
   (h.riwayat || [[h.mulai, h.luas, h.tipe]]).map(([p, luas, tipe]) =>
     [h.alamat, tahunOf(p), bulanOf(p), luas, tipe]));
 
-// `TarifVersi` tab (docs/sheets-schema.md `TarifVersi`) — append-only; one rate
+// `M-TarifVersi` tab (docs/sheets-schema.md `M-TarifVersi`) — append-only; one rate
 // card = every row sharing a (tahun, bulan). Three versions:
 // - 2021: older tier-2 ISLK (240rb) + iuran_rt 35rb — ISLK amounts change too.
 // - 2023: tier 2 at today's 250rb, iuran_rt still 40rb.
@@ -98,12 +98,12 @@ export const MOCK_TARIFVERSI_ROWS = [
 const tarif = (alamat, p) =>
   tarifPada(MOCK_RUMAHRIWAYAT_ROWS, MOCK_TARIFVERSI_ROWS, alamat, tahunOf(p), bulanOf(p));
 
-// `Pembayaran` tab (docs/sheets-schema.md `Pembayaran`) — the Sheet's derived
+// `D-Pembayaran` tab (docs/sheets-schema.md `D-Pembayaran`) — the Sheet's derived
 // one-row-per-month view of the Tunai + Transfer + Impor tabs:
 // A waktu · B alamat · C bulan · D tahun · E nominal · F metode ·
 // G petugas · H bukti_url · I keabsahan
 // The app "went live" January 2026 — every month before that was typed into
-// `Impor<tahun>` by the committee (waktu = its tanggal_bayar, no petugas,
+// `M-Impor<tahun>` by the committee (waktu = its tanggal_bayar, no petugas,
 // never touches kas balances).
 const PETUGAS = ['Ujang', 'Dedi', 'Rahmat'];
 const bukti = (seed) => `https://picsum.photos/seed/${seed}/500/700`;
@@ -144,20 +144,20 @@ MOCK_PEMBAYARAN_ROWS.push(
   row('2026-09-05 08:00:10', 'N5-11', 202609, tarif('N5-11', 202609), 'tunai', 'Ujang', '', 'dobel'),
 );
 
-// API!L/M — what the real Sheet's TEXTJOIN(FILTER(...)) would produce.
+// 'D-API'!L/M — what the real Sheet's TEXTJOIN(FILTER(...)) would produce.
 const periodeList = (alamat, keabsahan) => [...new Set(MOCK_PEMBAYARAN_ROWS
   .filter((r) => r[1] === alamat && r[8] === keabsahan)
   .map((r) => r[3] * 100 + r[2]))].sort((a, b) => a - b).join(',');
 
 // Only what the app can't derive itself — every other cluster total is
-// computed client-side in useSheet.js (docs/sheets-schema.md `API`).
+// computed client-side in useSheet.js (docs/sheets-schema.md `D-API`).
 const meta = [
   ['kas_tunai', 1750000],
   ['rekening', 6250000],
   ['updated', 202609220900],
 ];
 
-// API per-house block (docs/sheets-schema.md `API`, cols D..M).
+// API per-house block (docs/sheets-schema.md `D-API`, cols D..M).
 const houseRow = (h) => [
   h.alamat, h.nama, h.telp, 'N', h.blok, h.rumah, h.pin || h.telp.slice(-3), h.aktif !== false,
   periodeList(h.alamat, 'sah'), periodeList(h.alamat, 'pending'),
@@ -168,7 +168,7 @@ export const MOCK_ROWS = Array.from({ length: rowCount }, (_, i) => {
   return [k, v, null, ...(houses[i] ? houseRow(houses[i]) : Array(10).fill(null))];
 });
 
-// `Riwayat` tab (docs/sheets-schema.md `Riwayat`) — sah nominal per month, newest
+// `D-Riwayat` tab (docs/sheets-schema.md `D-Riwayat`) — sah nominal per month, newest
 // first, 36 rows back from the current month (same as the Sheet's SUMIFS).
 export const MOCK_RIWAYAT_ROWS = rentang(geserPeriode(202609, -35), 202609).reverse().map((p) => [
   tahunOf(p), bulanOf(p),
@@ -176,7 +176,7 @@ export const MOCK_RIWAYAT_ROWS = rentang(geserPeriode(202609, -35), 202609).reve
     .reduce((sum, r) => sum + r[4], 0),
 ]);
 
-// `Opex` tab (docs/sheets-schema.md `Opex`) — category totals only.
+// `M-Opex` tab (docs/sheets-schema.md `M-Opex`) — category totals only.
 export const MOCK_OPEX_ROWS = [
   ['Gaji Satpam', '🛡️', 2400000, '2026-08-01'],
   ['Kebersihan', '🧹', 300000, '2026-08-01'],
@@ -184,14 +184,14 @@ export const MOCK_OPEX_ROWS = [
   ['Lain-lain', '📋', 100000, '2026-08-01'],
 ];
 
-// `Blok` tab (docs/sheets-schema.md `Blok`) — Blok 7 deliberately differs from
+// `M-Blok` tab (docs/sheets-schema.md `M-Blok`) — Blok 7 deliberately differs from
 // BLOK_WARNA_DEFAULT, proving the "admin edits the Sheet, app picks it up" path.
 export const MOCK_BLOK_ROWS = [
   ['Blvd', '#2a78d6'], ['1', '#9C4A1A'], ['2', '#eb6834'], ['3', '#1baf7a'], ['5', '#eda100'],
   ['6', '#e87ba4'], ['7', '#7C3AED'], ['8', '#4a3aa7'], ['9', '#e34948'], ['10', '#0F86A3'],
 ];
 
-// `Petugas` tab (docs/sheets-schema.md `Petugas`) — one row per person.
+// `M-Petugas` tab (docs/sheets-schema.md `M-Petugas`) — one row per person.
 export const MOCK_PETUGAS_ROWS = [
   ['Ujang', 'satpam'], ['Dedi', 'satpam'], ['Rahmat', 'satpam'],
   ['Ibu Siti', 'bendahara'], ['Pak Joko', 'bendahara'],

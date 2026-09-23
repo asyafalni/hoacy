@@ -42,7 +42,7 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 
 An address is three parts — **cluster code + block number + house number** — joined as
 the key `N7-09` (cluster `N`, blok `7`, rumah `09`). The parts live in their own
-columns on the `Rumah` tab so you can group and sort by block; `alamat` is a formula
+columns on the `M-Rumah` tab so you can group and sort by block; `alamat` is a formula
 and is what every other tab, the Form prefill, and the per-house QR link reference.
 
 ## Roles

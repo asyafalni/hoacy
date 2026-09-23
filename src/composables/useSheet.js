@@ -9,7 +9,7 @@ const SHEET = import.meta.env.VITE_SHEET_ID;
  *  `headers=1` pins row 1 as the header — without it gviz guesses, and a tab
  *  whose first data row looks header-ish silently loses that row. */
 export const gviz = (tab) =>
-  `https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?tqx=out:json&headers=1&sheet=${tab}`;
+  `https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(tab)}`;
 
 /** gviz wraps its JSON in a JS callback — strip it. Two gviz quirks handled
  *  here so no caller has to: dates/datetimes come back as the string
@@ -44,7 +44,7 @@ async function load() {
   try {
     if (SHEET) {
       const [api, blok, petugas, opex, riwayat, rumahRiwayat, tarifVersi] = await Promise.all(
-        ['API', 'Blok', 'Petugas', 'Opex', 'Riwayat', 'RumahRiwayat', 'TarifVersi']
+        ['D-API', 'M-Blok', 'M-Petugas', 'M-Opex', 'D-Riwayat', 'M-RumahRiwayat', 'M-TarifVersi']
           .map((tab) => fetch(gviz(tab)).then((r) => r.text())));
       rows.value = parse(api);
       blokRows.value = parse(blok);
@@ -91,7 +91,7 @@ export function useSheet() {
   const sekarang = computed(() => periodeOf(TAHUN.value, BULAN_INI.value));
 
   // key/value block (cols A,B) -> { kas_tunai, rekening, updated } — only what
-  // the app can't derive itself (docs/sheets-schema.md `API`).
+  // the app can't derive itself (docs/sheets-schema.md `D-API`).
   const meta = computed(() =>
     Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
   // `updated` is a yyyymmddhhmm number (keeps column B all-numeric for gviz).
@@ -100,7 +100,7 @@ export function useSheet() {
     return s.length === 12 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10)}` : s;
   });
 
-  // per-house block (cols D..M, docs/sheets-schema.md `API`). The Sheet only
+  // per-house block (cols D..M, docs/sheets-schema.md `D-API`). The Sheet only
   // says which periodes are sah (L) / pending (M); status, tunggakan, aging and
   // tarif are all resolved here (src/lib/tagihan.js) from RumahRiwayat/TarifVersi.
   // `aktif` (K) drops decommissioned houses out of every lookup.
@@ -126,7 +126,7 @@ export function useSheet() {
       };
     }));
 
-  // per-block color (its own Blok tab, docs/sheets-schema.md `Blok`), admin-editable
+  // per-block color (its own Blok tab, docs/sheets-schema.md `M-Blok`), admin-editable
   // straight in the Sheet, no code deploy needed — falls back to
   // BLOK_WARNA_DEFAULT for any block not set yet.
   const blokWarna = computed(() => ({
@@ -134,7 +134,7 @@ export function useSheet() {
     ...Object.fromEntries(blokRows.value.filter((r) => r[0]).map((r) => [String(r[0]), r[1]])),
   }));
 
-  // Petugas tab (docs/sheets-schema.md `Petugas`): one row per person, `peran` says which
+  // Petugas tab (docs/sheets-schema.md `M-Petugas`): one row per person, `peran` says which
   // screen they belong to. The shared Pos/Kas PIN gets everyone with that peran
   // into the screen; the app then makes them pick their own name from here (see
   // petugasAktif in PosSatpam.vue, bendaharaNama in Bendahara.vue) so writes say
@@ -144,7 +144,7 @@ export function useSheet() {
   const bendaharaList = computed(() =>
     petugasRows.value.filter((r) => r[1] === 'bendahara').map((r) => String(r[0])));
 
-  // Opex tab (docs/sheets-schema.md `Opex`): itemized fixed monthly cost, category
+  // Opex tab (docs/sheets-schema.md `M-Opex`): itemized fixed monthly cost, category
   // totals only — e.g. "Gaji Satpam" is every satpam's wage summed into one row,
   // never one row per person. Feeds the public /sum "Rincian OPEX" sheet.
   const opexList = computed(() =>
@@ -167,7 +167,7 @@ export function useSheet() {
   const targetPada = (tahun, bulan) =>
     rumah.value.reduce((sum, h) => sum + (tarifRumah(h.alamat, tahun, bulan) || 0), 0);
 
-  // Riwayat tab (docs/sheets-schema.md `Riwayat`): pre-aggregated per month, newest
+  // Riwayat tab (docs/sheets-schema.md `D-Riwayat`): pre-aggregated per month, newest
   // row first (mirrors the Sheet's own fill-down order). Reversed to
   // chronological order here, and any leading (oldest) all-zero months are
   // trimmed so "semua data" doesn't open on a flat run of empty bars from

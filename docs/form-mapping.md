@@ -17,7 +17,7 @@ Settings that apply to **every** Form:
 - Number questions: *Response validation → Number → Is number* (and the ranges
   noted below), so a stray letter can't turn a column into text.
 
-## A. Form "Catat Tunai" → `Tunai`
+## A. Form "Catat Tunai" → `L-Tunai`
 
 | Question | Type | `.env` key |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ local "belum tersinkron" entry until a re-fetch shows its months as paid
 (`usePendingSync.js`). One submission = one payment, however many months it
 covers.
 
-## B. Form "Konfirmasi Transfer" → `Transfer`
+## B. Form "Konfirmasi Transfer" → `L-Transfer`
 
 | Question | Type | `.env` key |
 | --- | --- | --- |
@@ -70,33 +70,33 @@ https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url
 `Rincian` is `periode=nominal` pairs, comma-separated (`202512=300000,202609=300000`,
 `periode = tahun*100 + bulan`). The resident only attaches the bukti and taps
 **Kirim**. If they edit the rincian so it no longer adds up to the total, the
-Sheet marks it `cek` and doesn't count it (`docs/sheets-schema.md` `Pembayaran`).
+Sheet marks it `cek` and doesn't count it (`docs/sheets-schema.md` `D-Pembayaran`).
 
-## C. Form "Setor ke Bank" → `Setoran`
+## C. Form "Setor ke Bank" → `L-Setoran`
 
 | Question | Type | `.env` key |
 | --- | --- | --- |
 | Nominal | short answer, *Number* | `VITE_E_SETOR_NOMINAL` |
-| Oleh | short answer — the bendahara's `Petugas` name | `VITE_E_SETOR_OLEH` |
+| Oleh | short answer — the bendahara's `M-Petugas` name | `VITE_E_SETOR_OLEH` |
 
 Form id: `VITE_FORM_SETORAN`. The Kas screen's "Setor ke Bank" button opens it
 prefilled with the current kas balance and the signed-in bendahara. Submitting is
-the whole deposit — `API!kas_tunai`/`rekening` move the amount by formula.
+the whole deposit — `'D-API'!kas_tunai`/`rekening` move the amount by formula.
 To record a **withdrawal** from the bank into kas, open the Form directly and
 enter a negative nominal (e.g. `-500000`) — keep the Number validation at *Is
 number*, which accepts negatives.
 
-## D. Form "Pengeluaran" → `Pengeluaran`
+## D. Form "Pengeluaran" → `L-Pengeluaran`
 
 `keterangan`, `nominal` (*Number*), `sumber` (multiple choice: kas | bank). No
 prefill, no app screen — bendahara opens it directly.
 
-## E. Form "Keputusan" → `Keputusan`
+## E. Form "Keputusan" → `L-Keputusan`
 
 | Question | Type | `.env` key |
 | --- | --- | --- |
 | Alamat | short answer | `VITE_E_KEP_ALAMAT` |
-| Waktu kiriman | short answer — `yyyy-mm-dd hh:mm:ss`, as `Pembayaran!A` shows it | `VITE_E_KEP_WAKTU` |
+| Waktu kiriman | short answer — `yyyy-mm-dd hh:mm:ss`, as `'D-Pembayaran'!A` shows it | `VITE_E_KEP_WAKTU` |
 | Keputusan | multiple choice: `sah` / `tolak` | `VITE_E_KEP_KEPUTUSAN` |
 | Oleh | short answer | `VITE_E_KEP_OLEH` |
 
@@ -110,4 +110,4 @@ The Kas screen writes it:
 
 One row decides a whole submission (all its months). The latest decision wins.
 If the app is down, submitting this Form directly does the same — copy `waktu`
-and `alamat` from the `Pembayaran` tab.
+and `alamat` from the `D-Pembayaran` tab.

@@ -3,8 +3,8 @@ import { gviz, parse } from './useSheet.js';
 
 // The Kas screen's row-level data, from two small derived tabs
 // (docs/sheets-schema.md) instead of the whole payment history:
-// - `Pending`  — submissions waiting on the bendahara (pending + cek)
-// - `KasMasuk` — cash received this year and last, by date received
+// - `D-Pending`  — submissions waiting on the bendahara (pending + cek)
+// - `D-KasMasuk` — cash received this year and last, by date received
 // Both have Pembayaran's column order. This is the ONLY place that knows it —
 // everything else reads `entries`. **Never used by /sum** (PDP — see
 // RingkasanPublik.vue).
@@ -17,7 +17,7 @@ async function load() {
   loading.value = true;
   try {
     if (import.meta.env.VITE_SHEET_ID) {
-      const tabs = await Promise.all(['Pending', 'KasMasuk']
+      const tabs = await Promise.all(['D-Pending', 'D-KasMasuk']
         .map((tab) => fetch(gviz(tab)).then((r) => r.text()).then(parse)));
       rows.value = tabs.flat();
     } else {
@@ -29,7 +29,7 @@ async function load() {
   }
 }
 
-// One dues year's rows, from its own `Iuran<tahun>` tab (pre-created for ten
+// One dues year's rows, from its own `D-Iuran<tahun>` tab (pre-created for ten
 // years — docs/sheets-schema.md). Fetched only when the bendahara opens that
 // year in "Iuran per tahun"; cached per year for the session.
 const perTahun = ref({});   // tahun -> { rows } | { error }
@@ -38,7 +38,7 @@ async function loadTahun(tahun) {
   try {
     let r;
     if (import.meta.env.VITE_SHEET_ID) {
-      const res = await fetch(gviz(`Iuran${tahun}`));
+      const res = await fetch(gviz(`D-Iuran${tahun}`));
       r = parse(await res.text());
     } else {
       r = (await import('./mockData.js')).MOCK_PEMBAYARAN_ROWS.filter((x) => Number(x[3]) === tahun);

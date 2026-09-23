@@ -6,7 +6,7 @@ import { ref, computed } from 'vue';
 // reconcile() clears a transaction only once the next Sheet refetch shows
 // every month in it as sah for that house. A retry that duplicates a POST
 // which actually did land is harmless — the Sheet marks the second copy
-// `dobel` and counts it once (docs/sheets-schema.md `Pembayaran`).
+// `dobel` and counts it once (docs/sheets-schema.md `D-Pembayaran`).
 const KEY = 'iuran.pending.pos.v2';
 
 function read() {

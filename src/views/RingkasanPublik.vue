@@ -17,11 +17,11 @@ import Card from '../components/ui/Card.vue';
 // pure aggregate figures that can't be traced to an individual sit outside the
 // law's definition of "data pribadi" — that's the line every number on this page
 // is checked against. See the Q&A in project history for the full reasoning.
-// This is also why this page uses `useSheet()`'s `riwayat` (Riwayat tab, `Riwayat` —
+// This is also why this page uses `useSheet()`'s `riwayat` (Riwayat tab, `D-Riwayat` —
 // a pre-aggregated SUMIFS per month) instead of `usePembayaranLedger`: that
 // composable fetches the raw Pembayaran ledger (alamat, petugas, bukti_url —
 // a photo of someone's transfer proof), fine for the PIN-gated Kas screen but
-// not for a zero-barrier public page. See docs/sheets-schema.md `API/Riwayat`.
+// not for a zero-barrier public page. See docs/sheets-schema.md `D-API/Riwayat`.
 // Data is loaded once by App.vue — no load() here (it used to fetch twice).
 const { meta, rumah, totals, opexList, riwayat, targetPada, TAHUN, sekarang } = useSheet();
 
@@ -38,7 +38,7 @@ const opex = computed(() => totals.value.opex);
 const opexDiperbarui = computed(() => totals.value.opexDiperbarui);
 const opexBelumDiisi = computed(() => !opex.value);
 
-// Riwayat terkumpul vs target, per bulan — dari Riwayat tab (`Riwayat`), pre-agregat
+// Riwayat terkumpul vs target, per bulan — dari Riwayat tab (`D-Riwayat`), pre-agregat
 // di Sheet lewat SUMIFS, bukan dihitung di sini dari Pembayaran mentah (lihat
 // catatan PDP di atas). Target tiap bulan = tarif yang BERLAKU bulan itu
 // (RumahRiwayat/TarifVersi) dijumlah untuk semua rumah aktif — jadi kenaikan
@@ -64,7 +64,7 @@ const { wrapEl: riwayatWrapEl, tip: riwayatTip, show: showRiwayatTip, hide: hide
 
 // Warga yang bayar setahun sekaligus bikin sebagian kas "sudah dititipkan" buat
 // bulan-bulan depan — itu kewajiban (jasa yang masih harus RT berikan), bukan
-// surplus bebas pakai: setiap bulan yang sudah sah (API!L) tapi belum jatuh
+// surplus bebas pakai: setiap bulan yang sudah sah ('D-API'!L) tapi belum jatuh
 // tempo, dinilai dengan tarif yang berlaku di bulan itu. Cuma agregat yang
 // tampil di sini — hitungan per-rumah tetap tidak pernah dirender.
 const dibayarDimukaDetail = computed(() => {
@@ -413,7 +413,7 @@ useScrollLock(showDibayarDimuka);
         </div>
 
         <p v-if="!opexList.length" class="text-muted" style="text-align:center;font-size:12.5px">
-          Bendahara belum mengisi rincian OPEX di Sheet (tab Opex).
+          Bendahara belum mengisi rincian OPEX di Sheet (tab M-Opex).
         </p>
 
         <div v-else class="spread" style="background:var(--color-neutral-900);color:var(--color-neutral-100);
