@@ -15,13 +15,16 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 ## How it works
 
 1. **Read** — the site fetches a handful of published tabs over Google's gviz
-   endpoint (`/gviz/tq?tqx=out:json&sheet=<TAB>`). The Sheet computes per-house
-   status/arrears and the kas/rekening balances; the app computes anything it can
-   derive from rows it already has (cluster totals, a house's tarif for any month).
+   endpoint (`/gviz/tq?tqx=out:json&headers=1&sheet=<TAB>`). The Sheet splits
+   Form answers into one row per paid month and computes the kas/rekening
+   balances; the app computes everything else — each house's status and
+   tunggakan across all years, aging, cluster totals, a house's tarif for any
+   month (`src/lib/tagihan.js`).
 2. **Write** — every action submits a **prefilled Google Form**:
-   satpam records cash, warga submits a transfer, bendahara verifies or deposits.
+   satpam records cash, warga confirms a transfer, bendahara verifies/rejects or deposits.
    Form responses are an append-only ledger — nothing is ever edited; a change
-   (a verification, a bigger house, a new rate) is always a new row.
+   (a verification, a bigger house, a new rate) is always a new row. A month is
+   always paid in full — there are no partial payments in the system.
 3. **Money location** — `tunai` counts as **Kas Tunai** and `transfer` as
    **Rekening** (once verified); a "Setor ke Bank" row moves its amount from kas to
    rekening.
@@ -29,7 +32,7 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 ## Setup order
 
 1. Create the spreadsheet exactly as in `docs/sheets-schema.md`.
-2. Create the four Forms in `docs/form-mapping.md`, point each to the right tab.
+2. Create the five Forms in `docs/form-mapping.md`, point each to the right tab.
 3. Publish the sheet (File → Share → Publish to web) so gviz is readable.
 4. Copy `.env.example` → `.env`, fill the sheet + form ids.
 5. `npm install && npm run dev`.
@@ -45,9 +48,9 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 
 | Route | Who | Does |
 | --- | --- | --- |
-| `/` | Warga | enter blok + house no (no login), see the 12-month card, confirm a transfer with proof |
-| `/pos` | Satpam | search house, pick months, full or partial, record cash |
-| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify transfers, print QR (`/kas/qr`), browse every house's card (`/kas/rumah`) |
+| `/` | Warga | enter blok + house no (no login), see the 12-month card for any year, confirm one transfer for any months with proof |
+| `/pos` | Satpam | search house, pick owed months (any year), record cash |
+| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify/reject transfers, void mistaken cash entries, print QR (`/kas/qr`), browse every house's card (`/kas/rumah`) |
 | `/sum` | Public — anyone | cluster-wide aggregates only: collected vs target this month, surplus/deficit vs OPEX. No PIN, no per-house or per-block numbers — see the PDP note in `RingkasanPublik.vue` |
 
 `/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public

@@ -13,6 +13,9 @@ import PinGate from '../components/PinGate.vue';
 const PIN = import.meta.env.VITE_PIN_KAS || '';
 const { rumah } = useSheet();
 
+// `window` isn't reachable from a template expression — call it from here.
+const cetak = () => window.print();
+
 const qrSvg = ref({});   // alamat -> inline <svg> markup
 watch(rumah, async (list) => {
   for (const h of list) {
@@ -32,7 +35,7 @@ watch(rumah, async (list) => {
           {{ rumah.length }} rumah · tempel di pintu/kotak surat masing-masing
         </div>
       </div>
-      <button class="btn btn-primary" @click="window.print()" title="Cetak"
+      <button class="btn btn-primary" @click="cetak" title="Cetak"
               style="flex:none;padding:10px;border-radius:999px">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

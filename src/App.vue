@@ -1,10 +1,20 @@
 <script setup vapor>
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { useSheet } from './composables/useSheet';
+import { usePembayaranLedger } from './composables/usePembayaranLedger';
 import cypressLogo from './assets/logos/the-cypress.png';
 
-const { load, error } = useSheet();
-onMounted(load);
+// The single place data gets loaded — views never call load() on mount
+// themselves (that used to fetch everything twice on /sum). Coming back to
+// the tab refreshes it too, so a phone left on Pos/Kas overnight doesn't keep
+// showing yesterday's status, or yesterday's "bulan ini".
+const { load, refresh, error } = useSheet();
+const { refresh: refreshLedger } = usePembayaranLedger();
+function onVisible() {
+  if (document.visibilityState === 'visible') { refresh(); refreshLedger(); }
+}
+onMounted(() => { load(); document.addEventListener('visibilitychange', onVisible); });
+onUnmounted(() => document.removeEventListener('visibilitychange', onVisible));
 </script>
 
 <template>

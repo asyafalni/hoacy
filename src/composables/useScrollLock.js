@@ -1,4 +1,4 @@
-import { watch } from 'vue';
+import { watch, onScopeDispose } from 'vue';
 
 // `.dialog-backdrop` is `position:fixed; inset:0`, which only LOOKS like it
 // blocks the page underneath — the body itself is still a normal scrollable
@@ -8,18 +8,21 @@ import { watch } from 'vue';
 // actually move (see the Bendahara "Riwayat Kas Masuk" bug this fixed).
 // Counter-based so nested/sequential dialogs don't unlock each other early.
 let lockCount = 0;
-function lock() {
-  lockCount += 1;
-  if (lockCount === 1) document.body.style.overflow = 'hidden';
-}
-function unlock() {
-  lockCount = Math.max(0, lockCount - 1);
-  if (lockCount === 0) document.body.style.overflow = '';
-}
+function apply() { document.body.style.overflow = lockCount > 0 ? 'hidden' : ''; }
 
 /** Call with the ref/computed that controls a dialog or bottom-sheet's
  *  visibility (`showX`, or a `v-if="sel"` selection ref) — locks page scroll
- *  for as long as it's truthy. */
+ *  for as long as it's truthy. Each caller holds at most one lock (a truthy →
+ *  truthy change, e.g. picking another house, doesn't stack a second one),
+ *  and releases it when its component unmounts even if the sheet was open. */
 export function useScrollLock(isOpenRef) {
-  watch(isOpenRef, (open) => { open ? lock() : unlock(); }, { immediate: true });
+  let held = false;
+  const set = (want) => {
+    if (want === held) return;
+    held = want;
+    lockCount += want ? 1 : -1;
+    apply();
+  };
+  watch(isOpenRef, (open) => set(!!open), { immediate: true });
+  onScopeDispose(() => set(false));
 }

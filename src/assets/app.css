@@ -12,7 +12,6 @@
 .months { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 .month { border-radius: var(--radius-md); padding: 9px var(--space-3); border: 1px solid; }
 .month.lunas    { background: var(--color-accent-2-200); border-color: var(--color-accent-2-300); color: var(--color-accent-2-900); }
-.month.sebagian { background: var(--color-accent-200);   border-color: var(--color-accent-300);   color: var(--color-accent-900); }
 .month.pending  { background: var(--color-neutral-200);  border-color: var(--color-neutral-400); border-style: dashed; color: var(--color-neutral-900); }
 .month.belum    { background: var(--color-bg);           border-color: var(--color-accent);       color: var(--color-accent-700); }
 .month.kosong   { background: var(--color-bg);           border-color: var(--color-neutral-300);  color: var(--color-neutral-700); }

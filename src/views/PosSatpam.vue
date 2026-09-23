@@ -4,15 +4,16 @@ import { useSheet } from '../composables/useSheet';
 import { usePendingSync } from '../composables/usePendingSync';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { submitPembayaran } from '../lib/forms';
+import { submitTunai } from '../lib/forms';
+import { labelBulan } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { rumah, blokWarna, satpamList, tarifRumah, TAHUN, load } = useSheet();
+const { rumah, blokWarna, satpamList, TAHUN, load } = useSheet();
 const { pending, add: addPending, reconcile } = usePendingSync();
-watch(rumah, (list) => { if (list.length) reconcile(list); });
+watch(rumah, (list) => { if (list.length) reconcile(list); }, { immediate: true });
 // light tint of the block's color behind the house number — dark text stays legible
 const badgeStyle = (h) => {
   const hex = blokWarna.value[String(h.blok)] || BLOK_WARNA_DEFAULT[String(h.blok)] || '#c0b6a5';
@@ -36,7 +37,7 @@ function gantiPetugas() {
 }
 const STATUS_LIST = [
   { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
-  { value: 'lunas', label: 'Lunas', test: (h) => h.tunggakan <= 0 },
+  { value: 'lunas', label: 'Lunas', test: (h) => h.tarifDiatur && h.tunggakan <= 0 },
 ];
 
 const q = ref('');
@@ -47,11 +48,9 @@ const chipStyle = (active) => active ? 'min-height:40px'
   : 'min-height:40px;background:var(--color-surface);box-shadow:var(--shadow-sm)';
 const page = ref(1);
 const sel = ref(null);        // selected house
-const bulan = ref([]);        // month indices being paid
+const bulan = ref([]);        // periodes being paid
 useScrollLock(showFilter);
 useScrollLock(sel);
-const custom = ref(false);    // free-form nominal instead of the full tarif
-const customNominal = ref(null);
 const toast = ref('');
 
 // arrears first — the whole point of the post screen is speed
@@ -68,53 +67,42 @@ watch([q, blokFilter, statusFilter], () => { page.value = 1; });
 const totalPages = computed(() => Math.max(1, Math.ceil(daftar.value.length / PER_PAGE)));
 const halaman = computed(() => daftar.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 
-const belum = (h) => h.status
-  .map((s, i) => ({ s, i }))
-  .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
-  .map((x) => x.i);
+const label = (p) => labelBulan(p, TAHUN.value, BULAN);
+const ringkasBelum = (h) => h.tunggakanList.map((t) => label(t.periode)).join(', ');
 
+// Every owed month across years, oldest first; the two oldest are preselected.
 function pilih(h) {
-  sel.value = h; bulan.value = belum(h).slice(0, 2);
-  custom.value = false; customNominal.value = null;
+  if (!h.tarifDiatur) return;
+  sel.value = h;
+  bulan.value = h.tunggakanList.slice(0, 2).map((t) => t.periode);
 }
-function toggle(i) {
+function toggle(p) {
   const a = bulan.value;
-  bulan.value = a.includes(i) ? a.filter((x) => x !== i) : [...a, i].sort((x, y) => x - y);
+  bulan.value = a.includes(p) ? a.filter((x) => x !== p) : [...a, p].sort((x, y) => x - y);
 }
 
-// Partial payment is rare and never a clean 50% in practice — a free-form amount
-// beats a rigid halfway toggle. Whatever's entered still splits evenly across
-// however many months are selected, same as "Penuh" does.
-// Each month at its own tarif (RumahRiwayat/TarifVersi) — a house upgraded
-// mid-year owes its earlier months at the old, lower rate.
-const tarifBulanIni = (i) => tarifRumah(sel.value.alamat, TAHUN, i + 1) || sel.value.tarif;
-const total = computed(() => {
-  if (!sel.value) return 0;
-  if (custom.value) return Math.max(0, Math.round(Number(customNominal.value) || 0));
-  return bulan.value.reduce((sum, i) => sum + tarifBulanIni(i), 0);
-});
-const totalValid = computed(() => !custom.value || (Number(customNominal.value) > 0));
+// A month is always paid in full at its own tarif (RumahRiwayat/TarifVersi) —
+// a house upgraded mid-year owes its earlier months at the old rate. Partial
+// payments don't exist in the app (docs/sheets-schema.md `Pembayaran`).
+const items = computed(() => !sel.value ? [] : bulan.value.map((p) => ({ periode: p, nominal: sel.value.tarifPer(p) })));
+const total = computed(() => items.value.reduce((sum, i) => sum + i.nominal, 0));
 
 const submitting = ref(false);   // disables the button — stops a double-tap from firing two rows
 
+// One silent POST per transaction (all its months in one "rincian" answer).
 // Deliberately no "open the Google Form directly" fallback anywhere on this
-// screen: only Kas (bendahara/admin/komite) is meant to ever touch Sheet/Form
-// URLs. If a submission is stuck, "Coba lagi" retries the same silent POST —
-// see usePendingSync.js and the pending banner below.
+// screen: only Kas is meant to touch Sheet/Form URLs. If a submission is stuck,
+// "Coba lagi" retries the same POST — see usePendingSync.js.
 async function catat() {
-  if (!sel.value || !bulan.value.length || !totalValid.value || submitting.value) return;
+  if (!sel.value || !items.value.length || submitting.value) return;
   submitting.value = true;
   try {
-    const per = Math.round(total.value / bulan.value.length);
-    for (const i of bulan.value) {
-      const rec = { noRumah: sel.value.alamat, bulan: i + 1, nominal: custom.value ? per : tarifBulanIni(i),
-                    metode: 'tunai', petugas: petugasAktif.value };
-      addPending(rec);                 // survives a reload/crash — see usePendingSync
-      await submitPembayaran(rec);     // opaque; the pending entry is what the satpam sees
-    }
-    toast.value = `${sel.value.nama} · ${bulan.value.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
+    const rec = { alamat: sel.value.alamat, items: items.value, petugas: petugasAktif.value };
+    addPending(rec);           // survives a reload/crash — see usePendingSync
+    await submitTunai(rec);    // opaque; the pending entry is what the satpam sees
+    toast.value = `${sel.value.nama} · ${rec.items.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
     sel.value = null; bulan.value = [];
-    setTimeout(async () => { await load(); }, 4000);   // sheet cache settles, then reconcile (see watch(rumah))
+    setTimeout(load, 4000);    // sheet cache settles, then reconcile (see watch(rumah))
     setTimeout(() => (toast.value = ''), 4000);
   } finally {
     submitting.value = false;
@@ -122,7 +110,7 @@ async function catat() {
 }
 
 async function retryPending(p) {
-  await submitPembayaran(p);
+  await submitTunai(p);
   await load();
 }
 </script>
@@ -184,8 +172,8 @@ async function retryPending(p) {
     </div>
 
     <!-- submissions the sheet hasn't confirmed yet — no-cors POST means we never
-         actually know if these landed, so keep them visible until reconcile() (in
-         useSheet's watch above) sees the house/month move off "Belum" -->
+         actually know if these landed, so keep them visible until reconcile()
+         (watch(rumah) above) sees every month in it as lunas -->
     <Card v-if="pending.length" style="background:var(--color-accent-100);gap:6px">
       <div class="spread">
         <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
@@ -193,7 +181,8 @@ async function retryPending(p) {
         </span>
       </div>
       <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
-        <span>{{ p.noRumah }} · {{ BULAN[p.bulan - 1] }} · {{ rupiahPendek(p.nominal) }}</span>
+        <span>{{ p.alamat }} · {{ p.items.map(i => label(i.periode)).join(', ') }} ·
+          {{ rupiahPendek(p.items.reduce((s, i) => s + i.nominal, 0)) }}</span>
         <button class="btn btn-ghost" style="font-size:11px;padding-inline:6px" @click="retryPending(p)">
           Coba lagi
         </button>
@@ -207,7 +196,8 @@ async function retryPending(p) {
 
     <div class="col">
       <Card v-for="h in halaman" :key="h.alamat" style="flex-direction:row;align-items:center;
-            gap:var(--space-3);cursor:pointer" @click="pilih(h)">
+            gap:var(--space-3)" :style="{ cursor: h.tarifDiatur ? 'pointer' : 'default',
+            opacity: h.tarifDiatur ? 1 : .6 }" @click="pilih(h)">
         <div class="num" :style="badgeStyle(h)" style="width:46px;height:46px;flex:none;border-radius:50%;
              display:flex;align-items:center;justify-content:center;font-family:var(--font-heading)">
           {{ h.rumah }}
@@ -216,12 +206,14 @@ async function retryPending(p) {
           <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
           <div class="text-muted" style="font-size:11.5px">
-            {{ h.tunggakan ? 'Belum: ' + belum(h).map(i => BULAN[i].slice(0,3)).join(', ') : 'Lunas' }}
+            {{ !h.tarifDiatur ? 'Tarif belum diatur — hubungi bendahara'
+               : h.tunggakan ? 'Belum: ' + ringkasBelum(h) : 'Lunas' }}
           </div>
         </div>
         <div class="col" style="align-items:flex-end;gap:5px">
-          <Tag :status="h.tunggakan ? 'Belum' : 'Lunas'">
-            {{ h.tunggakan ? belum(h).length + ' bln' : 'Lunas' }}
+          <Tag v-if="!h.tarifDiatur" status="neutral">Tarif?</Tag>
+          <Tag v-else :status="h.tunggakan ? 'Belum' : 'Lunas'">
+            {{ h.tunggakan ? h.tunggakanList.length + ' bln' : 'Lunas' }}
           </Tag>
           <span class="num text-muted" style="font-size:11.5px">
             {{ h.tunggakan ? rupiahPendek(h.tunggakan) : '—' }}
@@ -279,7 +271,7 @@ async function retryPending(p) {
       </div>
     </div>
 
-    <!-- sheet: pilih bulan, penuh / sebagian, catat -->
+    <!-- sheet: pilih bulan (selalu penuh per bulan), catat -->
     <div v-if="sel" class="dialog-backdrop" @click.self="sel = null">
       <div class="dialog">
         <div class="spread">
@@ -292,19 +284,15 @@ async function retryPending(p) {
         </div>
 
         <div class="kick">Bulan yang dibayar</div>
-        <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
-          <button v-for="i in belum(sel)" :key="i" class="btn"
-                  :class="bulan.includes(i) ? 'btn-primary' : 'btn-secondary'"
-                  @click="toggle(i)">{{ BULAN[i] }}</button>
+        <div v-if="sel.tunggakanList.length" class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+          <button v-for="t in sel.tunggakanList" :key="t.periode" class="btn"
+                  :class="bulan.includes(t.periode) ? 'btn-primary' : 'btn-secondary'"
+                  @click="toggle(t.periode)">{{ label(t.periode) }}</button>
         </div>
-
-        <div class="kick">Nominal diterima</div>
-        <div class="row">
-          <Button class="grow" :variant="!custom ? 'primary' : 'secondary'" @click="custom = false">Penuh</Button>
-          <Button class="grow" :variant="custom ? 'primary' : 'secondary'" @click="custom = true">Jumlah lain</Button>
-        </div>
-        <input v-if="custom" class="input" type="number" inputmode="numeric" min="1"
-               v-model.number="customNominal" placeholder="Nominal diterima, mis. 150000">
+        <p v-else class="text-muted" style="font-size:12px;margin:0">Tidak ada tunggakan.</p>
+        <p class="text-muted" style="font-size:11px;margin:0">
+          Iuran dibayar penuh per bulan. Pembayaran sebagian tidak dicatat di sini — arahkan ke bendahara.
+        </p>
 
         <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
              padding:var(--space-3) var(--space-4)">
@@ -314,7 +302,7 @@ async function retryPending(p) {
           </span>
         </div>
 
-        <Button block :disabled="submitting || !totalValid" @click="catat">
+        <Button block :disabled="submitting || !items.length" @click="catat">
           {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
         </Button>
       </div>

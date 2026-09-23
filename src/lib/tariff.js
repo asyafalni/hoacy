@@ -1,30 +1,5 @@
-// Day-one default rate card — mirrors TarifVersi's first seeded row
-// (docs/sheets-schema.md `TarifVersi`). The Sheet is authoritative for anything beyond
-// "right now, before the next fetch lands": once TarifVersi has more than one
-// row, `islk()/tarifBulanan()` should be called with a rate card looked up
-// from it (see src/lib/tarifHistoris.js), not this constant — this exists so
-// mockData.js and a first prefill have *something* to compute with, and so
-// there's a single place the tier logic itself lives (both the "current"
-// and "as of some past month" paths reuse the same function, just with a
-// different rate card).
-export const TARIF_DEFAULT = {
-  tier: [[120, 225000], [150, 250000], [260, 310000], [400, 375000]],
-  tarifMax: 400000,   // 5th tier, no upper bound (luas >= 400)
-  kavlingPerM2: 400,
-  iuranRt: 50000,
-};
-export const IURAN_RT = TARIF_DEFAULT.iuranRt;
-
 // Single source for the destination account shown on Kartu/Pos/Kas — change it here.
 export const REKENING = { bank: 'BRI', nomor: '038401002159562', nama: 'Cluster The Cypress' };
-
-export function islk({ luas, tipe }, rateCard = TARIF_DEFAULT) {
-  if (tipe === 'kavling') return rateCard.kavlingPerM2 * luas;
-  for (const [maks, tarif] of rateCard.tier) if (luas < maks) return tarif;
-  return rateCard.tarifMax;
-}
-
-export const tarifBulanan = (h, rateCard = TARIF_DEFAULT) => islk(h, rateCard) + rateCard.iuranRt;
 
 export const rupiah = (n) =>
   'Rp ' + Math.round(n || 0).toLocaleString('id-ID');

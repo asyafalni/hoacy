@@ -4,13 +4,14 @@ import { useSheet } from '../composables/useSheet';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN, REKENING } from '../lib/tariff';
-import { urlSetoran, submitVerifikasi, driveImageUrl } from '../lib/forms';
+import { urlSetoran, submitKeputusan, driveImageUrl } from '../lib/forms';
+import { labelBulan } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { meta, totals, bendaharaList } = useSheet();
-const { pending, tunai, load: loadLedger } = usePembayaranLedger();
+const { meta, diperbarui, rumah, totals, bendaharaList, tarifRumah, TAHUN } = useSheet();
+const { pending, cek, tunai, load: loadLedger, loadTahun, ringkasanTahun } = usePembayaranLedger();
 onMounted(loadLedger);
 const PIN = import.meta.env.VITE_PIN_KAS || '';
 
@@ -27,7 +28,7 @@ const setorUrl = computed(() =>
 // Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
 // everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
 // `Petugas`), so each person picks their own name once per device before anything shows,
-// and it's what gets recorded on Verifikasi!oleh.
+// and it's what gets recorded on Keputusan!oleh.
 const bendaharaNama = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 function pilihBendahara(nama) {
   bendaharaNama.value = nama;
@@ -53,6 +54,22 @@ const buktiTampil = ref(null);   // { alamat, bulan, buktiUrl } atau null
 useScrollLock(buktiTampil);
 const buktiGagal = ref(false);
 function lihatBukti(p) { buktiGagal.value = false; buktiTampil.value = p; }
+// Iuran per tahun — one `Iuran<tahun>` tab per dues year (pre-created for ten
+// years in the Sheet, docs/sheets-schema.md), fetched only when picked here.
+// Years run from the earliest billing start (RumahRiwayat) to this year.
+const showTahunan = ref(false);
+useScrollLock(showTahunan);
+const tahunList = computed(() => {
+  const mulai = rumah.value.map((h) => h.mulai).filter(Boolean);
+  const dari = mulai.length ? Math.floor(Math.min(...mulai) / 100) : TAHUN.value;
+  return Array.from({ length: TAHUN.value - dari + 1 }, (_, i) => TAHUN.value - i);
+});
+const tahunPilih = ref(0);
+const ringkasan = computed(() => ringkasanTahun(tahunPilih.value));
+function pilihTahun(y) { tahunPilih.value = y; loadTahun(y); }
+function bukaTahunan() { showTahunan.value = true; pilihTahun(tahunPilih.value || TAHUN.value); }
+const METODE_LABEL = { tunai: 'Tunai', transfer: 'Transfer', impor: 'Data lama (impor)' };
+
 const riwayatVisibleN = ref(10);
 const riwayatTampil = computed(() => tunai.value.slice(0, riwayatVisibleN.value));
 const riwayatScrollEl = ref(null);   // the sheet's own scrolling element — must be
@@ -73,19 +90,32 @@ watch(showRiwayatKas, async (open) => {
   if (riwayatSentinel.value) riwayatObserver.observe(riwayatSentinel.value);
 });
 
-const keyOf = (p) => `${p.alamat}-${p.bulan}-${p.tahun}`;
-const verifying = ref([]);
-async function verifikasi(p) {
-  const k = keyOf(p);
-  if (verifying.value.includes(k)) return;
-  verifying.value = [...verifying.value, k];
-  try {
-    await submitVerifikasi({ alamat: p.alamat, bulan: p.bulan, tahun: p.tahun,
-                              oleh: bendaharaNama.value || 'Bendahara' });
-    setTimeout(loadLedger, 3000);   // sheet cache settles, then the row drops off `pending`
-  } finally {
-    setTimeout(() => { verifying.value = verifying.value.filter((x) => x !== k); }, 3500);
-  }
+const label = (e) => labelBulan(e.tahun * 100 + e.bulan, TAHUN.value, BULAN);
+const bulanList = (g) => g.items.map(label).join(', ');
+// Warga fills the Form's rincian themselves (prefilled, but editable) — flag
+// any month claimed at less than that month's tarif before it gets verified.
+const kurang = (g) => g.items.filter((e) => e.nominal < (tarifRumah(e.alamat, e.tahun, e.bulan) || 0));
+
+// One Keputusan row per submission (Form E, docs/sheets-schema.md
+// `Keputusan`): `sah` verifies a transfer, `tolak` rejects it or voids a
+// mistaken cash entry — its months go back to "Belum" and can be paid again.
+// A submission stays "terkirim" (buttons disabled) until a reload shows its
+// new status — gviz caches for minutes, so re-enabling on a timer used to
+// invite a second, duplicate verdict.
+const terkirim = ref(new Map());   // group key -> 'sah' | 'tolak'
+watch([pending, tunai], ([p, t]) => {
+  const masih = new Set([...p.map((g) => g.key), ...t.filter((g) => !g.tolak).map((g) => g.key)]);
+  terkirim.value = new Map([...terkirim.value].filter(([k]) => masih.has(k)));
+});
+async function putuskan(g, keputusan) {
+  if (terkirim.value.has(g.key)) return;
+  if (keputusan === 'tolak' && !confirm(g.items[0].metode === 'tunai'
+    ? `Batalkan catatan tunai ${g.alamat} · ${bulanList(g)} (${rupiah(g.total)})?\nBulan-bulan ini kembali "Belum". Uangnya tidak dihitung di Kas Tunai.`
+    : `Tolak transfer ${g.alamat} · ${bulanList(g)} (${rupiah(g.total)})?\nBulan-bulan ini kembali "Belum" dan warga perlu mengirim ulang.`)) return;
+  terkirim.value = new Map([...terkirim.value, [g.key, keputusan]]);
+  await submitKeputusan({ alamat: g.alamat, waktu: g.waktu, keputusan,
+                          oleh: bendaharaNama.value || 'Bendahara' });
+  setTimeout(loadLedger, 4000);   // sheet cache settles, then the group's status updates
 }
 </script>
 
@@ -117,7 +147,7 @@ async function verifikasi(p) {
       <div>
         <h4 style="margin:0">Kas RT 03/14</h4>
         <div class="text-muted" style="font-size:11.5px">
-          {{ total }} rumah · sinkron {{ meta.updated || '—' }}
+          {{ total }} rumah · sinkron {{ diperbarui || '—' }}
         </div>
       </div>
       <div class="row" style="gap:4px;flex:none">
@@ -175,20 +205,36 @@ async function verifikasi(p) {
       </div>
     </Card>
 
-    <!-- transfer menunggu verifikasi — bukti (Pembayaran!I, Drive) bisa dibuka
-         sebelum tap Verifikasi, yang menulis ke tab Verifikasi (append-only, lihat
-         docs/sheets-schema.md `Verifikasi`), bukan mengedit baris asalnya -->
+    <!-- rumah tanpa baris RumahRiwayat: tidak ditagih sama sekali sampai admin
+         mengisinya — jangan sampai diam-diam jadi "Rp0" -->
+    <Card v-if="totals.tarifBelumDiatur.length" style="background:var(--color-accent-100);gap:4px">
+      <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
+        ⚠ {{ totals.tarifBelumDiatur.length }} rumah belum punya tarif
+      </span>
+      <span style="font-size:11.5px">
+        {{ totals.tarifBelumDiatur.map(h => h.alamat).join(', ') }} — isi baris baseline di tab
+        RumahRiwayat. Sampai itu, rumah ini tidak bisa bayar dan tidak masuk target.
+      </span>
+    </Card>
+
+    <!-- transfer menunggu verifikasi — satu kartu per transfer (satu bukti, bisa
+         beberapa bulan). Verifikasi/Tolak menulis satu baris ke tab Keputusan (append-only, lihat
+         docs/sheets-schema.md `Keputusan`), bukan mengedit baris asalnya -->
     <Card v-if="pending.length" style="gap:2px">
       <span class="kick">Perlu diverifikasi ({{ pending.length }})</span>
-      <div v-for="p in pending" :key="keyOf(p)" class="col" style="gap:6px;padding:8px 0;
+      <div v-for="g in pending" :key="g.key" class="col" style="gap:6px;padding:8px 0;
            border-top:1px solid var(--color-divider)">
         <div class="spread">
-          <span style="font-weight:700;font-size:13px">{{ p.alamat }} · {{ BULAN[p.bulan - 1] }}</span>
-          <span class="num" style="font-weight:700">{{ rupiah(p.nominal) }}</span>
+          <span style="font-weight:700;font-size:13px">{{ g.alamat }} · {{ bulanList(g) }}</span>
+          <span class="num" style="font-weight:700">{{ rupiah(g.total) }}</span>
         </div>
-        <div v-if="p.catatan" class="text-muted" style="font-size:11px">{{ p.catatan }}</div>
+        <div class="text-muted" style="font-size:11px">{{ g.waktu }}</div>
+        <div v-if="kurang(g).length" style="font-size:11px;color:var(--color-accent-700)">
+          ⚠ Nominal di bawah tarif untuk {{ kurang(g).map(label).join(', ') }} — cocokkan dengan bukti.
+          Bulan itu tetap "Belum" walau diverifikasi.
+        </div>
         <div class="row" style="gap:6px">
-          <button v-if="p.buktiUrl" type="button" class="btn btn-secondary" @click="lihatBukti(p)"
+          <button v-if="g.buktiUrl" type="button" class="btn btn-secondary" @click="lihatBukti(g)"
              style="flex:1;justify-content:center;font-size:12px;padding:6px 10px;
                     background:var(--color-surface);box-shadow:var(--shadow-sm)">
             Lihat bukti
@@ -196,14 +242,37 @@ async function verifikasi(p) {
           <span v-else class="text-muted" style="flex:1;font-size:11px;align-self:center">
             (tanpa bukti — cek Sheet)
           </span>
+          <button class="btn btn-ghost" style="flex:none;font-size:12px;padding:6px 10px"
+                  :disabled="terkirim.has(g.key)" @click="putuskan(g, 'tolak')">
+            {{ terkirim.get(g.key) === 'tolak' ? 'Ditolak ✓' : 'Tolak' }}
+          </button>
           <button class="btn btn-primary" style="flex:1;font-size:12px;padding:6px 10px"
-                  :disabled="verifying.includes(keyOf(p))" @click="verifikasi(p)">
-            {{ verifying.includes(keyOf(p)) ? 'Mengirim…' : 'Verifikasi' }}
+                  :disabled="terkirim.has(g.key)" @click="putuskan(g, 'sah')">
+            {{ terkirim.get(g.key) === 'sah' ? 'Terkirim ✓' : 'Verifikasi' }}
           </button>
         </div>
       </div>
     </Card>
 
+    <!-- rincian Form transfer tidak cocok dengan totalnya: tidak dihitung sama
+         sekali (Pembayaran!I = "cek") — warga perlu kirim ulang konfirmasi -->
+    <Card v-if="cek.length" style="gap:2px">
+      <span class="kick">Rincian tidak cocok ({{ cek.length }})</span>
+      <p class="text-muted" style="font-size:11px;margin:0">
+        Tidak dihitung. Minta warga kirim ulang konfirmasi transfer dari aplikasi.
+      </p>
+      <div v-for="g in cek" :key="g.key" class="spread" style="padding:8px 0;
+           border-top:1px solid var(--color-divider);font-size:12.5px">
+        <span><b>{{ g.alamat }}</b> · {{ bulanList(g) }}</span>
+        <button v-if="g.buktiUrl" type="button" class="btn btn-ghost" style="font-size:11.5px;padding:4px 6px"
+                @click="lihatBukti(g)">Lihat bukti</button>
+      </div>
+    </Card>
+
+    <button type="button" class="btn btn-secondary" @click="bukaTahunan"
+            style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+      Iuran per tahun
+    </button>
     <a class="btn btn-secondary" href="#/kas/rumah"
        style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
       Lihat semua kartu rumah
@@ -223,7 +292,9 @@ async function verifikasi(p) {
         <div class="spread">
           <div>
             <div class="dialog-title">Riwayat Kas Masuk</div>
-            <div class="text-muted" style="font-size:12px">Tunai · audit trail buat cross-check laporan satpam</div>
+            <div class="text-muted" style="font-size:12px">
+              Tunai · cross-check dengan laporan satpam. Salah input? "Batalkan", lalu catat ulang di Pos.
+            </div>
           </div>
           <button class="btn btn-ghost" @click="showRiwayatKas = false">×</button>
         </div>
@@ -232,15 +303,25 @@ async function verifikasi(p) {
           Belum ada kas masuk tunai.
         </div>
         <div v-else class="col" style="gap:2px">
-          <div v-for="t in riwayatTampil" :key="t.timestamp + t.alamat + t.bulan" class="spread"
-               style="padding:8px 0;border-top:1px solid var(--color-divider)">
-            <div>
-              <div style="font-size:12.5px;font-weight:600">{{ t.alamat }} · {{ BULAN[t.bulan - 1] }}</div>
+          <div v-for="g in riwayatTampil" :key="g.key" class="spread"
+               style="padding:8px 0;border-top:1px solid var(--color-divider);gap:var(--space-2)">
+            <div :style="g.tolak || g.dobel ? 'opacity:.55' : ''">
+              <div style="font-size:12.5px;font-weight:600">{{ g.alamat }} · {{ bulanList(g) }}</div>
               <div class="text-muted" style="font-size:11px">
-                {{ t.petugas }} · {{ t.timestamp }}{{ t.catatan ? ' · ' + t.catatan : '' }}
+                {{ g.petugas }} · {{ g.waktu }}{{ g.tolak ? ' · dibatalkan' : g.dobel ? ' · dobel, tidak dihitung' : '' }}
               </div>
             </div>
-            <span class="num" style="font-weight:700;font-size:12.5px">{{ rupiahPendek(t.nominal) }}</span>
+            <div class="col" style="align-items:flex-end;gap:2px;flex:none">
+              <span class="num" style="font-weight:700;font-size:12.5px"
+                    :style="g.tolak || g.dobel ? 'text-decoration:line-through;opacity:.5' : ''">
+                {{ rupiahPendek(g.total) }}
+              </span>
+              <button v-if="!g.tolak && !g.dobel" class="btn btn-ghost"
+                      style="font-size:11px;padding:2px 4px;min-height:0"
+                      :disabled="terkirim.has(g.key)" @click="putuskan(g, 'tolak')">
+                {{ terkirim.has(g.key) ? 'Dibatalkan ✓' : 'Batalkan' }}
+              </button>
+            </div>
           </div>
           <div ref="riwayatSentinel" style="height:1px"></div>
           <p v-if="riwayatVisibleN < tunai.length" class="text-muted" style="text-align:center;font-size:11px">
@@ -250,6 +331,60 @@ async function verifikasi(p) {
             — {{ tunai.length }} dari {{ tunai.length }} —
           </p>
         </div>
+       </div>
+      </div>
+    </div>
+
+    <!-- iuran per tahun — satu tab Sheet `Iuran<tahun>` per tahun iuran,
+         diambil hanya saat tahunnya dipilih -->
+    <div v-if="showTahunan" class="dialog-backdrop sheet-backdrop" @click.self="showTahunan = false">
+      <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+           max-height:85dvh">
+       <div class="sheet-scroll">
+        <div class="spread">
+          <div>
+            <div class="dialog-title">Iuran per Tahun</div>
+            <div class="text-muted" style="font-size:12px">Menurut bulan tagihan · hanya yang sah</div>
+          </div>
+          <button class="btn btn-ghost" @click="showTahunan = false">×</button>
+        </div>
+
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button v-for="y in tahunList" :key="y" type="button" class="btn"
+                  :class="tahunPilih === y ? 'btn-primary' : 'btn-secondary'"
+                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="pilihTahun(y)">
+            {{ y }}
+          </button>
+        </div>
+
+        <p v-if="!ringkasan" class="text-muted" style="font-size:12px;margin:0">Memuat tab Iuran{{ tahunPilih }}…</p>
+        <p v-else-if="ringkasan.error" class="text-muted" style="font-size:12px;margin:0">
+          Tab <b>Iuran{{ tahunPilih }}</b> belum ada di Sheet — buat dengan rumus yang sama seperti tab
+          tahun lainnya (docs/sheets-schema.md).
+        </p>
+        <template v-else>
+          <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
+               padding:var(--space-3) var(--space-4)">
+            <span style="font-size:13.5px;font-weight:700">Terkumpul {{ tahunPilih }}</span>
+            <span class="num" style="font-family:var(--font-heading);font-size:21px;color:var(--color-accent-700)">
+              {{ rupiah(ringkasan.total) }}
+            </span>
+          </div>
+          <div class="col" style="gap:2px">
+            <div v-for="(n, m) in ringkasan.perMetode" :key="m" class="spread" style="font-size:12px">
+              <span class="text-muted">{{ METODE_LABEL[m] || m }}</span>
+              <span class="num">{{ rupiah(n) }}</span>
+            </div>
+          </div>
+          <div class="col" style="gap:0">
+            <div v-for="b in ringkasan.bulan" :key="b.bulan" class="spread"
+                 style="padding:7px 0;border-top:1px solid var(--color-divider);font-size:12.5px">
+              <span>{{ BULAN[b.bulan - 1] }}</span>
+              <span class="text-muted" style="font-size:11.5px">{{ b.rumah }} rumah</span>
+              <span class="num" style="font-weight:700;min-width:84px;text-align:right">{{ rupiahPendek(b.total) }}</span>
+            </div>
+          </div>
+        </template>
        </div>
       </div>
     </div>
@@ -264,7 +399,7 @@ async function verifikasi(p) {
           <div>
             <div class="dialog-title">Bukti Transfer</div>
             <div class="text-muted" style="font-size:12px">
-              {{ buktiTampil.alamat }} · {{ BULAN[buktiTampil.bulan - 1] }}
+              {{ buktiTampil.alamat }} · {{ bulanList(buktiTampil) }} · {{ rupiah(buktiTampil.total) }}
             </div>
           </div>
           <button class="btn btn-ghost" @click="buktiTampil = null">×</button>

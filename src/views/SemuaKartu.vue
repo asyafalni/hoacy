@@ -4,6 +4,7 @@ import { useSheet } from '../composables/useSheet';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlWhatsapp } from '../lib/forms';
+import { labelBulan } from '../lib/tagihan';
 import PinGate from '../components/PinGate.vue';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -12,7 +13,7 @@ import Tag from '../components/ui/Tag.vue';
 // bendahara is here to LOOK, not collect cash, so tapping a house opens its
 // 12-month card (same grid WargaCard.vue shows the resident) instead of a
 // payment dialog. Shares the Kas PIN/storage-key with Bendahara.vue and CetakQR.vue.
-const { rumah, blokWarna } = useSheet();
+const { rumah, blokWarna, TAHUN } = useSheet();
 const PIN = import.meta.env.VITE_PIN_KAS || '';
 const PER_PAGE = 10;
 
@@ -23,7 +24,8 @@ const badgeStyle = (h) => {
 
 const STATUS_LIST = [
   { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
-  { value: 'lunas', label: 'Lunas', test: (h) => h.tunggakan <= 0 },
+  { value: 'lunas', label: 'Lunas', test: (h) => h.tarifDiatur && h.tunggakan <= 0 },
+  { value: 'tarif', label: 'Tanpa tarif', test: (h) => !h.tarifDiatur },
 ];
 
 const q = ref('');
@@ -50,12 +52,9 @@ watch([q, blokFilter, statusFilter], () => { page.value = 1; });
 const totalPages = computed(() => Math.max(1, Math.ceil(daftar.value.length / PER_PAGE)));
 const halaman = computed(() => daftar.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 
-const belum = (h) => h.status
-  .map((s, i) => ({ s, i }))
-  .filter((x) => x.s === 'Belum' || x.s === 'Sebagian')
-  .map((x) => x.i);
+const ringkasBelum = (h) => h.tunggakanList.map((t) => labelBulan(t.periode, TAHUN.value, BULAN)).join(', ');
 
-const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
+const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
 </script>
 
 <template>
@@ -107,12 +106,14 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
           <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
           <div class="text-muted" style="font-size:11.5px">
-            {{ h.tunggakan ? 'Belum: ' + belum(h).map(i => BULAN[i].slice(0,3)).join(', ') : 'Lunas' }}
+            {{ !h.tarifDiatur ? 'Tarif belum diatur (RumahRiwayat kosong)'
+               : h.tunggakan ? 'Belum: ' + ringkasBelum(h) : 'Lunas' }}
           </div>
         </div>
         <div class="col" style="align-items:flex-end;gap:5px">
-          <Tag :status="h.tunggakan ? 'Belum' : 'Lunas'">
-            {{ h.tunggakan ? belum(h).length + ' bln' : 'Lunas' }}
+          <Tag v-if="!h.tarifDiatur" status="neutral">Tarif?</Tag>
+          <Tag v-else :status="h.tunggakan ? 'Belum' : 'Lunas'">
+            {{ h.tunggakan ? h.tunggakanList.length + ' bln' : 'Lunas' }}
           </Tag>
           <span class="num text-muted" style="font-size:11.5px">
             {{ h.tunggakan ? rupiahPendek(h.tunggakan) : '—' }}
@@ -179,7 +180,7 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
           <div>
             <div class="dialog-title">{{ sel.alamat }} · {{ sel.nama }}</div>
             <div class="text-muted" style="font-size:12px">
-              {{ sel.luas }} m² · tarif {{ rupiah(sel.tarif) }}/bulan
+              {{ sel.tarifDiatur ? `${sel.luas} m² · tarif ${rupiah(sel.tarif)}/bulan` : 'Tarif belum diatur' }}
             </div>
           </div>
           <button class="btn btn-ghost" @click="sel = null">×</button>
@@ -187,7 +188,9 @@ const cls = (s) => ({ Lunas: 'lunas', Sebagian: 'sebagian', Pending: 'pending', 
 
         <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
              padding:var(--space-3) var(--space-4)">
-          <span style="font-size:13.5px;font-weight:700">Tunggakan</span>
+          <span style="font-size:13.5px;font-weight:700">Tunggakan
+            <span v-if="sel.tunggakanList.length" class="text-muted" style="font-weight:400;font-size:11.5px">
+              · {{ ringkasBelum(sel) }}</span></span>
           <span class="num" style="font-family:var(--font-heading);font-size:21px;color:var(--color-accent-700)">
             {{ rupiah(sel.tunggakan) }}
           </span>

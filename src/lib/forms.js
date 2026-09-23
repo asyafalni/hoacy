@@ -10,36 +10,54 @@ function formUrl(formId, fields) {
 }
 
 /** Fire-and-forget silent submit. The response is opaque (no-cors), so callers
- *  treat it as optimistic and confirm on the next fetch (see usePendingSync). */
+ *  treat it as optimistic and confirm on the next fetch (see usePendingSync).
+ *  Only works on Forms without a file-upload question (those force sign-in). */
 function submit(viewformUrl) {
   return fetch(viewformUrl.replace('/viewform?', '/formResponse?'), { method: 'POST', mode: 'no-cors' });
 }
 
-/** Form A "Catat Pembayaran" → Pembayaran — one call per month being paid. */
-export function urlPembayaran({ noRumah, bulan, tahun = new Date().getFullYear(),
-                                 nominal, metode, petugas, catatan }) {
-  return formUrl(E.VITE_FORM_PEMBAYARAN, {
-    [E.VITE_E_RUMAH]: noRumah, [E.VITE_E_BULAN]: bulan, [E.VITE_E_TAHUN]: tahun,
-    [E.VITE_E_NOMINAL]: nominal, [E.VITE_E_METODE]: metode, [E.VITE_E_PETUGAS]: petugas,
-    [E.VITE_E_CATATAN]: catatan,
+/** One payment covering several months, as the Form's "rincian" answer:
+ *  `202607=360000,202609=360000` — periode (tahun*100+bulan) = that month's
+ *  tarif. The Sheet splits it back into one Pembayaran row per month and
+ *  checks it adds up to `total` (docs/sheets-schema.md `Pembayaran`). */
+export const rincianOf = (items) => items.map((i) => `${i.periode}=${i.nominal}`).join(',');
+const totalOf = (items) => items.reduce((sum, i) => sum + i.nominal, 0);
+
+/** Form A "Catat Tunai" → Tunai — satpam, silent submit, one per transaction. */
+export function urlTunai({ alamat, items, petugas }) {
+  return formUrl(E.VITE_FORM_TUNAI, {
+    [E.VITE_E_TUNAI_ALAMAT]: alamat, [E.VITE_E_TUNAI_RINCIAN]: rincianOf(items),
+    [E.VITE_E_TUNAI_TOTAL]: totalOf(items), [E.VITE_E_TUNAI_PETUGAS]: petugas,
   });
 }
-export const submitPembayaran = (rec) => submit(urlPembayaran(rec));
+export const submitTunai = (rec) => submit(urlTunai(rec));
 
-/** Form B "Setor ke Bank" → Setoran — moving cash from kas into the bank. */
+/** Form B "Konfirmasi Transfer" → Transfer — warga, opened (not silent): its
+ *  last question is the bukti upload, which needs a Google sign-in. */
+export function urlTransfer({ alamat, items }) {
+  return formUrl(E.VITE_FORM_TRANSFER, {
+    [E.VITE_E_TRANSFER_ALAMAT]: alamat, [E.VITE_E_TRANSFER_RINCIAN]: rincianOf(items),
+    [E.VITE_E_TRANSFER_TOTAL]: totalOf(items),
+  });
+}
+
+/** Form C "Setor ke Bank" → Setoran — moving cash from kas into the bank. */
 export function urlSetoran({ nominal, oleh }) {
   return formUrl(E.VITE_FORM_SETORAN, { [E.VITE_E_SETOR_NOMINAL]: nominal, [E.VITE_E_SETOR_OLEH]: oleh });
 }
 
-/** Form D "Verifikasi Transfer" → Verifikasi — flips one house/month's transfer
- *  from pending to sah via an append-only row, never by editing Pembayaran. */
-export function urlVerifikasi({ alamat, bulan, tahun = new Date().getFullYear(), oleh }) {
-  return formUrl(E.VITE_FORM_VERIFIKASI, {
-    [E.VITE_E_VERIF_ALAMAT]: alamat, [E.VITE_E_VERIF_BULAN]: bulan,
-    [E.VITE_E_VERIF_TAHUN]: tahun, [E.VITE_E_VERIF_OLEH]: oleh,
+/** Form E "Keputusan" → Keputusan — bendahara's verdict on one submission
+ *  (a Tunai or Transfer response), identified by its alamat + `waktu` (the
+ *  Form timestamp as `yyyy-mm-dd hh:mm:ss`, exactly as Pembayaran!A shows it —
+ *  the one id a resident can't edit). `sah` verifies a transfer; `tolak`
+ *  rejects a transfer or voids a mistaken cash entry. Latest verdict wins. */
+export function urlKeputusan({ alamat, waktu, keputusan, oleh }) {
+  return formUrl(E.VITE_FORM_KEPUTUSAN, {
+    [E.VITE_E_KEP_ALAMAT]: alamat, [E.VITE_E_KEP_WAKTU]: waktu,
+    [E.VITE_E_KEP_KEPUTUSAN]: keputusan, [E.VITE_E_KEP_OLEH]: oleh,
   });
 }
-export const submitVerifikasi = (rec) => submit(urlVerifikasi(rec));
+export const submitKeputusan = (rec) => submit(urlKeputusan(rec));
 
 /** A resident's own card, deep-linked — used by CetakQR's QR codes and the
  *  "kirim via WhatsApp" button in SemuaKartu.vue. `?alamat` must sit before the
@@ -59,12 +77,12 @@ export function urlWhatsapp({ nama, telp, alamat }) {
   return `https://wa.me/${telp}?text=${encodeURIComponent(pesan)}`;
 }
 
-/** `Pembayaran!I` (bukti_url) is a Google Drive **share** link
- *  ("/file/d/<id>/view..."), not a direct image URL — an <img> can't render
- *  it as-is. Rewrite known Drive share shapes to Drive's thumbnail endpoint,
- *  which does serve the actual bytes; anything that doesn't match (e.g. the
- *  plain image URLs mockData.js uses for local dev) passes through untouched,
- *  so the same <img :src> works in both dev and production. */
+/** `Pembayaran!H` (bukti_url) is a Google Drive **share** link
+ *  ("/file/d/<id>/view..." or "open?id=<id>"), not a direct image URL — an
+ *  <img> can't render it as-is. Rewrite known Drive share shapes to Drive's
+ *  thumbnail endpoint, which does serve the actual bytes; anything that
+ *  doesn't match (e.g. the plain image URLs mockData.js uses for local dev)
+ *  passes through untouched. */
 export function driveImageUrl(url) {
   if (!url) return url;
   const id = url.match(/\/file\/d\/([^/]+)/)?.[1] || url.match(/[?&]id=([^&]+)/)?.[1];
