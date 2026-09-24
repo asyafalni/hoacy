@@ -105,6 +105,14 @@ bendahara sedang login Google di browser yang sama; kalau tidak, ada tombol
 Buat tab-tab ini **setelah** Tahap 1–2 selesai (rumusnya merujuk tab lain), dan
 salin rumus dari `docs/sheets-schema.md`:
 
+> **Kalau muncul `#N/A` dengan pesan *"Argument must be a range"*** di rumus yang
+> memakai `SUMIFS`/`SUMIF`: hampir pasti ada tab yang dirujuk **belum dibuat**
+> (Sheets tidak menampilkan `#REF!` dalam kasus ini). Buat Form-nya dan link ke
+> spreadsheet — **jangan** membuat tab kosong sementara dengan nama itu: saat tab
+> sementara dihapus nanti, rumus yang merujuknya berubah permanen jadi `#REF!`
+> dan harus di-paste ulang.
+
+
 1. **`D-Pembayaran`** — rumus satu sel di **A1**. Bagian `impor, VSTACK(...)` punya
    satu baris `HSTACK(...)` per tab `M-Impor<tahun>`: hapus baris untuk tahun yang
    tidak Anda buat, atau salin satu baris dan ganti nama tab + angka tahunnya. Menampilkan `#N/A` selama belum ada data:
@@ -113,7 +121,8 @@ salin rumus dari `docs/sheets-schema.md`:
    angka tahunnya diganti. (Tip: buat `D-Iuran2023`, lalu *Duplicate* dan ubah
    angkanya.)
 3. **`D-Pending`** dan **`D-KasMasuk`** — rumus A1 masing-masing.
-4. **`D-Riwayat`** — A2:C2 dan A3:B3, tarik ke bawah 36 baris.
+4. **`D-Riwayat`** — A2:C2 dan A3:B3, tarik ke bawah sampai **baris 121** (120 bulan =
+   10 tahun). Baris 2 selalu bulan berjalan dan bergeser sendiri tiap bulan.
 5. **`D-API`** — A1:B4 (blok saldo), lalu D1:M1 header dan rumus D2:M2, tarik ke
    bawah sebanyak baris `M-Rumah` (mis. 300).
 

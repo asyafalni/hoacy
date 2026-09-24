@@ -547,8 +547,11 @@ A3: =IF(B2=1, A2-1, A2)    B3: =IF(B2=1, 12, B2-1)
 C2: =SUMIFS('D-Pembayaran'!$E:$E, 'D-Pembayaran'!$C:$C,B2, 'D-Pembayaran'!$D:$D,A2, 'D-Pembayaran'!$I:$I,"sah")
 ```
 
-Fill A3:B3 and C2 down for as many months as the dashboard should reach (36 = three
-years). This tab exists so the public `/sum` page can show a trend **without ever
+Fill A3:B3 and C2 down to **row 121 (120 months = ten years)** — enough to reach
+back to the first imported month for years to come. Months before any data just
+show `0`, and the app trims leading zero months off the chart. Each month the
+window slides by itself: row 2 becomes the new month and the oldest row drops off
+the bottom; add rows later if you ever want to see further back. This tab exists so the public `/sum` page can show a trend **without ever
 fetching `D-Pembayaran`** (see below). The target line next to it is computed by the
 app per month from `M-RumahRiwayat`/`M-TarifVersi`.
 
