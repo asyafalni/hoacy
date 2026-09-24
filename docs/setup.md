@@ -128,44 +128,6 @@ salin rumus dari `docs/sheets-schema.md`:
 
 ---
 
-## Tahap 3b — Tab `Daftar Isi` (peta semua tab)
-
-Buat tab **`Daftar Isi`** dan seret ke **paling kiri**. Tab ini hanya untuk
-manusia — app tidak membacanya, jadi namanya tanpa prefix dan isinya bebas diubah.
-Paste tabel ini mulai A1 (kolom: Tab, Kelompok, Isi, Diisi oleh):
-
-```
-Tab	Kelompok	Isi	Diisi oleh
-M-Rumah	Master	Satu baris per alamat: nama, telp, PIN, status nonaktif	Admin
-M-RumahRiwayat	Master	Luas/tipe tiap rumah dari waktu ke waktu; baris pertama = mulai ditagih	Admin
-M-TarifVersi	Master	Tarif ISLK & iuran RT per versi (tanggal berlaku)	Admin
-M-Blok	Master	Warna per blok	Admin
-M-Petugas	Master	Nama satpam & bendahara	Admin
-M-Opex	Master	Biaya operasional bulanan per kategori	Bendahara
-M-SaldoAwal	Master	Saldo kas & rekening saat go-live	Bendahara
-M-Impor2023	Master	Data iuran lama 2023, satu baris per rumah per bulan	Komite
-M-Impor2024	Master	Data iuran lama 2024	Komite
-M-Impor2025	Master	Data iuran lama 2025	Komite
-M-Impor2026	Master	Data iuran 2026 sebelum go-live	Komite
-L-Tunai	Ledger	Uang tunai yang diterima satpam (dari Pos)	Form A
-L-Transfer	Ledger	Konfirmasi transfer warga + bukti	Form B
-L-Setoran	Ledger	Setor kas ke bank (negatif = tarik dari bank)	Form C
-L-Pengeluaran	Ledger	Pengeluaran kas/bank	Form D
-L-Keputusan	Ledger	Verifikasi/tolak transfer, batalkan tunai	Form E
-D-Pembayaran	Derived	Semua pembayaran, satu baris per rumah per bulan	Rumus
-D-Iuran2023 … D-Iuran2035	Derived	Pembayaran per tahun iuran	Rumus
-D-Pending	Derived	Transfer yang menunggu keputusan bendahara	Rumus
-D-KasMasuk	Derived	Uang tunai masuk tahun ini & tahun lalu	Rumus
-D-Riwayat	Derived	Total terkumpul per bulan (grafik publik)	Rumus
-D-API	Derived	Data untuk app: saldo + satu baris per rumah	Rumus
-```
-
-Supaya bisa diklik: pilih sel nama tab → **Insert → Link → Sheets in this
-spreadsheet** → pilih tab yang sama namanya. (Untuk baris `D-Iuran…`, beri link
-ke tahun berjalan.)
-
----
-
 ## Tahap 4 — Pengaman nonaktif rumah
 
 Ikuti tiga lapis di `docs/sheets-schema.md` → *Menonaktifkan rumah*:

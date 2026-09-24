@@ -11,9 +11,7 @@ header; formulas are written for row 2 — fill down unless noted.
 
 Tab names carry their group as a prefix — `M-` master, `L-` ledger, `D-`
 derived — and must match exactly: the app and the formulas address tabs by name.
-Inside a formula a prefixed name is always quoted: `'M-Rumah'!A2`. A `Daftar Isi`
-tab at the far left maps every tab for humans (not read by the app; content in
-`docs/setup.md`).
+Inside a formula a prefixed name is always quoted: `'M-Rumah'!A2`.
 
 **Why this split matters:** only master and ledger tabs hold data, and they only
 hold raw facts (who paid, when, for which month, how much). All logic lives in
