@@ -96,7 +96,7 @@ prefill, no app screen — bendahara opens it directly.
 | Question | Type | `.env` key |
 | --- | --- | --- |
 | Alamat | short answer | `VITE_E_KEP_ALAMAT` |
-| Waktu kiriman | short answer — `yyyy-mm-dd hh:mm:ss`, as `'D-Pembayaran'!A` shows it | `VITE_E_KEP_WAKTU` |
+| Waktu kiriman | short answer — `yyyy-mm-dd hh:mm:ss` (24-hour, with seconds), exactly as `'D-Pembayaran'!A` shows it, e.g. `2026-09-16 07:55:00` | `VITE_E_KEP_WAKTU` |
 | Keputusan | multiple choice: `sah` / `tolak` | `VITE_E_KEP_KEPUTUSAN` |
 | Oleh | short answer | `VITE_E_KEP_OLEH` |
 

@@ -32,6 +32,24 @@ rumus memanggil tab berdasarkan nama:
 Di dalam rumus, nama tab ber-prefix selalu ditulis dengan tanda kutip satu:
 `'M-Rumah'!A2` (semua rumus di dokumentasi sudah begitu).
 
+**Aturan tanggal & waktu** — daftar lengkap tiap kolom ada di
+`docs/sheets-schema.md` → *Dates, times and periods*. Yang perlu diingat saat
+mengetik:
+
+| Jenis | Cara menulis | Contoh | Dipakai di |
+| --- | --- | --- | --- |
+| Tanggal | `yyyy-mm-dd` (tahun-bulan-tanggal) | `2026-10-01` | `M-Rumah` tanggal_nonaktif, `M-Opex` diperbarui, `M-SaldoAwal` tanggal, `M-Impor` tanggal_bayar |
+| Tanggal + jam (opsional di Impor) | `yyyy-mm-dd hh:mm` (24 jam) | `2025-03-05 14:30` | `M-Impor` tanggal_bayar |
+| Tahun | angka 4 digit | `2025` | `M-RumahRiwayat`, `M-TarifVersi` |
+| Bulan | angka `1`–`12` (bukan nama bulan) | `6` (Juni) | `M-RumahRiwayat`, `M-TarifVersi`, `M-Impor` |
+| Periode | `tahun × 100 + bulan` → `yyyymm` | `202609` (Sep 2026) | rincian Form (diisi app), uji coba Tahap 5 |
+| Waktu kiriman | `yyyy-mm-dd hh:mm:ss`, **persis** seperti kolom A `D-Pembayaran`, termasuk detik | `2026-09-16 07:55:00` | Form Keputusan (diisi app) |
+
+Setiap kolom tanggal: blok kolomnya → *Format → Number → Custom date and time* →
+ketik `yyyy-mm-dd` → Apply. Wajib untuk `M-Opex` kolom D (app mengurutkan tanggal
+itu sebagai teks). Jangan menulis `1/10/2026` atau `01-10-2026` — dengan locale
+United States, `1/10/2026` dibaca **10 Januari**, bukan 1 Oktober.
+
 ---
 
 ## Tahap 1 — Tab master (diisi manual)
@@ -159,7 +177,7 @@ tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, 
 | Kirim Form A yang sama sekali lagi | 2 baris baru dengan keabsahan `dobel` |
 | Isi Form B: rincian `202611=275000`, total `999` + upload foto | 1 baris keabsahan `cek` |
 | Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `D-Pending` |
-| Isi Form E: alamat, waktu = kolom A baris transfer tadi (persis), keputusan `sah` | baris itu jadi `sah` |
+| Isi Form E: alamat, waktu = kolom A baris transfer tadi, persis termasuk detik (mis. `2026-09-24 10:15:42`), keputusan `sah` | baris itu jadi `sah` |
 | Ketik 1 baris di `M-Impor2025`: `NBlvd-99`, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `D-Iuran2025` |
 
 Cek juga: `'D-API'!L` untuk rumah uji berisi periode yang sah, dan `'D-API'!B2`

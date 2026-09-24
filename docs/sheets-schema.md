@@ -43,6 +43,39 @@ Rules that hold across every tab:
 The app reads by column **position**, so column order is load-bearing on every
 tab it fetches (`useSheet.js`, `usePembayaranLedger.js`).
 
+## Dates, times and periods — one reference
+
+The spreadsheet's locale is **United States** and time zone **Asia/Jakarta**
+(`docs/setup.md`, Tahap 0). Type dates as `yyyy-mm-dd` (ISO) — Sheets reads that
+unambiguously in any locale — and give every date column the display format
+*Format → Number → Custom date and time* → `yyyy-mm-dd`.
+
+| Where | Kind | Format | Example | Who writes it |
+| --- | --- | --- | --- | --- |
+| `M-Rumah!J` tanggal_nonaktif | date | `yyyy-mm-dd` | `2026-11-15` | bendahara/admin |
+| `M-RumahRiwayat!B:C` tahun_berlaku, bulan_berlaku | two **numbers** (not a date) | `yyyy`, `1`–`12` | `2025`, `6` | admin |
+| `M-TarifVersi!A:B` tahun_berlaku, bulan_berlaku | two **numbers** | `yyyy`, `1`–`12` | `2027`, `1` | admin |
+| `M-Opex!D` diperbarui | date — **must** display as `yyyy-mm-dd` (the app sorts its text) | `yyyy-mm-dd` | `2026-09-05` | bendahara |
+| `M-SaldoAwal!A` tanggal | date | `yyyy-mm-dd` | `2026-10-01` | bendahara |
+| `M-Impor<tahun>!B` bulan | **number** | `1`–`12` | `3` | komite |
+| `M-Impor<tahun>!D` tanggal_bayar | date, optional | `yyyy-mm-dd` (a time is allowed: `yyyy-mm-dd hh:mm`) | `2025-03-05` | komite |
+| `L-*!A` Timestamp | date-time, set by Google Forms | any display format | shown as `9/16/2026 7:55:00` in US locale | Google |
+| `L-Tunai!C`, `L-Transfer!C` rincian | text; periode = **tahun × 100 + bulan** (`yyyymm`) | `yyyymm=nominal,…` | `202512=300000,202609=300000` | the app |
+| `L-Keputusan!C` waktu | text, **exactly** `'D-Pembayaran'!A` of the submission, seconds included | `yyyy-mm-dd hh:mm:ss` (24-hour) | `2026-09-16 07:55:00` | the app (Kas screen) |
+| `D-Pembayaran!A` waktu | text built by the formula — a Form timestamp, an Impor `tanggal_bayar` (time `00:00:00`), or empty for an Impor row without one | `yyyy-mm-dd hh:mm:ss` | `2026-09-16 07:55:00`, `2025-03-05 00:00:00` | formula |
+| `D-Pembayaran!C:D` bulan, tahun | numbers (the **dues** month, not the day paid) | `1`–`12`, `yyyy` | `12`, `2025` | formula |
+| `D-Riwayat!A:B` tahun, bulan | numbers | `yyyy`, `1`–`12` | `2026`, `9` | formula |
+| `D-API!B4` updated | **number** (keeps column B all-numeric for gviz) | `yyyymmddhhmm` | `202609221430` → shown as `2026-09-22 14:30` | formula |
+
+Why `waktu` is text, not a date: it is the id a `L-Keputusan` row points back to,
+and text compares exactly — a date cell would round-trip through gviz and the
+Form in locale-dependent shapes. The formula formats both sides with the same
+`TEXT(…, "yyyy-mm-dd hh:mm:ss")`, so it matches whether Sheets stored the
+Keputusan answer as text or converted it to a date-time.
+
+A **periode** (`yyyymm`, e.g. `202609`) is the one way a month is written
+wherever a single number must name it: in rincian, `D-API!L:M`, and the app.
+
 ---
 
 # Master tabs
