@@ -125,25 +125,22 @@ situations call for it:
   are recorded **outside** this Sheet — never in it, because every tab is
   readable through the public gviz feed.
 
-Deactivating is deliberately hard. Set up these three layers once:
+Deactivating is deliberately not a single click — the guard is the `K` formula
+itself, no Sheet settings needed: `K` flips to `FALSE` only when **all three** of
+H (the house's exact alamat, typed by hand), I (who) and J (date) are filled. A
+typo or a missing field leaves the house active, and `L` says what's missing.
+Before starting, open the house in the app (Kas → Lihat semua kartu rumah) and
+check its tunggakan with the pengurus.
 
-1. **Only bendahara/admin can type in `H`.** Select `'M-Rumah'!H2:H` → *Data →
-   Protect sheets and ranges* → *Set permissions* → **Restrict who can edit this
-   range** → only the bendahara/admin accounts.
-2. **`H` only accepts the house's own address.** Select `'M-Rumah'!H2:H` → *Data →
-   Data validation* → *Add rule* → criteria **Custom formula is** `=H2=$A2` →
-   *Advanced options* → **Reject the input**, help text *"Ketik alamat rumah ini
-   persis (mis. N6-07) untuk menonaktifkan."* A typo or any other value is
-   refused.
-3. **"Are you sure?" on `I:J`.** Select `'M-Rumah'!I2:J` → *Protect range* → **Show
-   a warning when editing this range**. (Google allows either a warning *or*
-   restricted editors on one range, not both — that's why they're split across
-   H and I:J.) Also give `J` a *Data validation → Is valid date* rule.
+Optional extras, if you want them:
 
-`K` flips to `FALSE` only when all three of H (exact alamat), I and J are
-filled; until then `L` says what's missing. Before starting, open the house in
-the app (Kas → Lihat semua kartu rumah) and check its tunggakan with the
-pengurus.
+- **Reject typos immediately** — `'M-Rumah'!H2:H` → *Data → Data validation* →
+  **Custom formula is** `=H2=$A2` → **Reject the input**.
+- **"Are you sure?" dialog** — `'M-Rumah'!I2:J` → *Data → Protect sheets and
+  ranges* → **Show a warning when editing this range**.
+- **Who can edit at all** — rather than protecting single columns, give people
+  who only need to read (e.g. the komite once `M-Impor` is done) **Viewer**
+  access to the spreadsheet.
 
 To reactivate, clear `H`.
 

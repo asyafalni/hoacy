@@ -128,11 +128,21 @@ salin rumus dari `docs/sheets-schema.md`:
 
 ---
 
-## Tahap 4 — Pengaman nonaktif rumah
+## Tahap 4 — Nonaktif rumah (cukup dicek, tanpa pengaturan tambahan)
 
-Ikuti tiga lapis di `docs/sheets-schema.md` → *Menonaktifkan rumah*:
-proteksi `'M-Rumah'!H` (hanya akun bendahara/admin), data validation `=H2=$A2`
-(Reject input), dan proteksi *Show a warning* di `'M-Rumah'!I:J`.
+Pengamannya ada di rumus `'M-Rumah'!K`: rumah baru nonaktif kalau kolom H berisi
+alamatnya **persis**, dan kolom I (oleh) + J (tanggal) terisi. Tidak ada
+validasi atau proteksi yang wajib dipasang. Cek sekali di baris rumah mana pun:
+
+| # | Lakukan | Yang harus terjadi |
+| --- | --- | --- |
+| 1 | Ketik alamat yang salah di H (mis. `N7-9`) | K tetap `TRUE`, L: *"⚠️ nonaktif belum lengkap…"* |
+| 2 | Ganti H dengan alamat yang benar, isi I dan J | K jadi `FALSE`, L kosong, `D-API` K juga `FALSE` |
+| 3 | **Kembalikan**: hapus isi H, I, J | K kembali `TRUE` |
+
+Pengaman tambahan (validasi, dialog peringatan) opsional — lihat
+`docs/sheets-schema.md` → *Menonaktifkan rumah*. Yang lebih berguna: setelah
+input data lama selesai, ubah akses komite ke spreadsheet jadi **Viewer**.
 
 ---
 
