@@ -421,6 +421,8 @@ A1:
               IF(LEN(ia), CHOOSECOLS(impor, 2) * 100 + CHOOSECOLS(impor, 3) & "=" & CHOOSECOLS(impor, 4), ),
               CHOOSECOLS(impor, 4), IF(LEN(ia), "", ), IF(LEN(ia), "impor", ), IF(LEN(ia), "", ))),
   potong,  IFERROR(SPLIT(CHOOSECOLS(L, 3), ","), ),
+  jumlah,  BYROW(potong, LAMBDA(r,
+             SUM(ARRAYFORMULA(IFERROR(VALUE(REGEXEXTRACT(r & "", "=(\d+)$")), 0))))),
   baris,   MAKEARRAY(ROWS(potong), COLUMNS(potong), LAMBDA(r, c, r)),
   p,       SPLIT(TOCOL(IF(LEN(potong), baris & "|" & potong, ), 3), "|="),
   i,       CHOOSECOLS(p, 1),
@@ -432,7 +434,7 @@ A1:
   waktu,   IF(LEN(CHOOSECOLS(R, 1)), TEXT(CHOOSECOLS(R, 1), "yyyy-mm-dd hh:mm:ss"), ""),
   tahun,   INT(periode / 100),
   bulan,   MOD(periode, 100),
-  cocok,   (SUMIF(i, i, nominal) = CHOOSECOLS(R, 4)) * (bulan >= 1) * (bulan <= 12),
+  cocok,   (CHOOSEROWS(jumlah, i) = CHOOSECOLS(R, 4)) * (bulan >= 1) * (bulan <= 12),
   kepKey,  'L-Keputusan'!B2:B & "|" & TEXT('L-Keputusan'!C2:C, "yyyy-mm-dd hh:mm:ss"),
   kep,     MAP(alamat, waktu, LAMBDA(a, w,
              IFNA(XLOOKUP(a & "|" & w, kepKey, 'L-Keputusan'!D2:D, , 0, -1), ""))),
@@ -453,6 +455,11 @@ rincian, total, petugas, metode, bukti) — an `Impor` row becomes a one-month
 rincian, its `tanggal_bayar` standing in for the timestamp and its year taken
 from the tab it sits in. Each rincian is split on `,`, tagged with its source row number,
 flattened into one list, and split again on `|`/`=` into (row, periode, nominal).
+`jumlah` adds up each submission's rincian **before** it is split, so `cocok` can
+compare it with the Form's total. (It can't be a `SUMIF` over the split list:
+Sheets only lets the `*IF` family — `SUMIF`, `COUNTIF`, `SUMIFS`, … — read real
+cell ranges, not arrays built inside a formula; that fails with *"Argument must be
+a range"*. Every `*IF` elsewhere in this document reads plain ranges.)
 The latest `L-Keputusan` for that submission is looked up by alamat + `waktu`.
 When you add an `Impor` tab for another year, add its range to the `impor` line.
 
