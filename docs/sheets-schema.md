@@ -408,10 +408,13 @@ A1:
              HSTACK('M-Impor2025'!A2:A, IF(LEN('M-Impor2025'!A2:A), 2025, ), 'M-Impor2025'!B2:D),
              HSTACK('M-Impor2026'!A2:A, IF(LEN('M-Impor2026'!A2:A), 2026, ), 'M-Impor2026'!B2:D)),
   ia,      CHOOSECOLS(impor, 1),
+  tn,      IFERROR(CHOOSECOLS(L_Tunai, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
+  tf,      IFERROR(CHOOSECOLS(L_Transfer, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
+  kp,      IFERROR(CHOOSECOLS(L_Keputusan, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
   L, VSTACK(
-       HSTACK('L-Tunai'!A2:E, IF(LEN('L-Tunai'!A2:A), "tunai", ), IF(LEN('L-Tunai'!A2:A), "", )),
-       HSTACK('L-Transfer'!A2:D, IF(LEN('L-Transfer'!A2:A), "Warga", ), IF(LEN('L-Transfer'!A2:A), "transfer", ),
-              'L-Transfer'!E2:E),
+       HSTACK(tn, IF(LEN(CHOOSECOLS(tn, 1)), "tunai", ), IF(LEN(CHOOSECOLS(tn, 1)), "", )),
+       HSTACK(CHOOSECOLS(tf, 1, 2, 3, 4), IF(LEN(CHOOSECOLS(tf, 1)), "Warga", ),
+              IF(LEN(CHOOSECOLS(tf, 1)), "transfer", ), CHOOSECOLS(tf, 5)),
        HSTACK(CHOOSECOLS(impor, 5), ia,
               IF(LEN(ia), CHOOSECOLS(impor, 2) * 100 + CHOOSECOLS(impor, 3) & "=" & CHOOSECOLS(impor, 4), ),
               CHOOSECOLS(impor, 4), IF(LEN(ia), "", ), IF(LEN(ia), "impor", ), IF(LEN(ia), "", ))),
@@ -430,9 +433,9 @@ A1:
   tahun,   INT(periode / 100),
   bulan,   MOD(periode, 100),
   cocok,   (CHOOSEROWS(jumlah, i) = CHOOSECOLS(R, 4)) * (bulan >= 1) * (bulan <= 12),
-  kepKey,  'L-Keputusan'!B2:B & "|" & TEXT('L-Keputusan'!C2:C, "yyyy-mm-dd hh:mm:ss"),
+  kepKey,  CHOOSECOLS(kp, 2) & "|" & TEXT(CHOOSECOLS(kp, 3), "yyyy-mm-dd hh:mm:ss"),
   kep,     MAP(alamat, waktu, LAMBDA(a, w,
-             IFNA(XLOOKUP(a & "|" & w, kepKey, 'L-Keputusan'!D2:D, , 0, -1), ""))),
+             IFNA(XLOOKUP(a & "|" & w, kepKey, CHOOSECOLS(kp, 4), , 0, -1), ""))),
   status,  IF(cocok = 0, "cek", IF(kep = "tolak", "tolak",
              IF(metode = "transfer", IF(kep = "sah", "sah", "pending"), "sah"))),
   kunci,   IF((status = "sah") + (status = "pending"),
@@ -444,6 +447,20 @@ A1:
            IF(dobel, "dobel", status)))
 ))
 ```
+
+**Form tabs are read through their table names, never cell addresses.** Google
+Forms writes each response tab as a *Table*; rename each table (the purple label
+above the header — table names can't contain `-`) to `L_Tunai`, `L_Transfer` and
+`L_Keputusan`. A reference like `'L-Tunai'!A2:E` breaks silently: when a response
+arrives, Forms inserts a row and Sheets shifts that reference to `A3:E`, skipping
+the first response. A table reference always means "every data row", and
+`CHOOSECOLS(…, n)` picks columns by position, so question titles don't matter.
+An **empty** table comes back as a single blank cell, so `CHOOSECOLS(…, 2)` fails
+(*"parameter 2 value is 2. Valid values are between -1 and 1"*); the `IFERROR`
+swaps in one blank 5-column row, which drops out because its rincian is empty.
+The flip side: a misspelled table name is silently treated as empty too — the
+names must be exactly `L_Tunai`, `L_Transfer`, `L_Keputusan`.
+(Whole-column references like `'L-Setoran'!$B:$B` in `D-API` don't shift either.)
 
 How it works: `L` stacks the three sources into one shape (timestamp, alamat,
 rincian, total, petugas, metode, bukti) — an `Impor` row becomes a one-month

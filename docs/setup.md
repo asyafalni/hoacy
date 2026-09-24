@@ -90,6 +90,21 @@ Untuk **setiap** Form (detail pertanyaan di `docs/form-mapping.md`):
 | D. Pengeluaran | `L-Pengeluaran` |
 | E. Keputusan | `L-Keputusan` |
 
+**Rename tabel di tab Form.** Google membuat respons Form sebagai *Table* (label
+ungu di atas header, awalnya bernama `Form_Responses`). Klik label itu → ganti
+namanya — pakai **underscore**, karena nama tabel tidak boleh berisi `-`:
+
+| Tab | Nama tabel |
+| --- | --- |
+| `L-Tunai` | `L_Tunai` |
+| `L-Transfer` | `L_Transfer` |
+| `L-Keputusan` | `L_Keputusan` |
+
+Rumus `D-Pembayaran` membaca ketiganya lewat nama tabel. Rujukan sel biasa
+(`'L-Tunai'!A2:E`) tidak bisa dipakai: saat respons masuk, Google menyisipkan
+baris dan Sheets menggeser rujukan itu jadi `A3:E`, sehingga respons pertama
+terlewat. `L-Setoran` dan `L-Pengeluaran` tidak perlu di-rename.
+
 Jangan pernah mengetik atau menaruh rumus di kelima tab ini.
 
 **Folder bukti transfer:** setelah Form B dibuat, Drive otomatis membuat folder
