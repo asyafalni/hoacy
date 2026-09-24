@@ -59,7 +59,10 @@ const refresh = () => (used ? load() : undefined);
 // (sah | pending | cek | dobel | tolak). `waktu` is when the money came in
 // (the Form timestamp, or Impor's tanggal_bayar) as `yyyy-mm-dd hh:mm:ss` —
 // also a submission's id for a Keputusan (see forms.js).
-const toEntries = (list) => list.filter((r) => r[1]).map((r) => ({
+// A Sheet error cell (`#N/A`, `#REF!`…) comes through gviz as its text — never
+// treat such a row as a payment.
+const isData = (r) => r[1] && !String(r[1]).startsWith('#');
+const toEntries = (list) => list.filter(isData).map((r) => ({
   waktu: r[0] != null ? String(r[0]) : '', alamat: String(r[1]),
   bulan: Number(r[2]), tahun: Number(r[3]), nominal: Number(r[4]) || 0,
   metode: r[5], petugas: r[6], buktiUrl: r[7], keabsahan: r[8],

@@ -495,7 +495,7 @@ One formula in A1, only the year differs:
 
 ```
 'D-Iuran2026'!A1:
-=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!D2:D = 2026), ))
+=IFNA(VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!D2:D = 2026), )), "")
 ```
 
 Empty until that year's data arrives, then fills itself — nothing to do each
@@ -512,13 +512,17 @@ Two small tabs so the Kas screen never downloads the whole history:
 
 ```
 'D-Pending'!A1:
-=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I,
-    ('D-Pembayaran'!I2:I = "pending") + ('D-Pembayaran'!I2:I = "cek")), ))
+=IFNA(VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I,
+    ('D-Pembayaran'!I2:I = "pending") + ('D-Pembayaran'!I2:I = "cek")), )), "")
 
 'D-KasMasuk'!A1:
-=VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!F2:F = "tunai",
-    IFERROR(VALUE(LEFT('D-Pembayaran'!A2:A, 4)), 0) >= YEAR(TODAY()) - 1), ))
+=IFNA(VSTACK('D-Pembayaran'!A1:I1, IFERROR(FILTER('D-Pembayaran'!A2:I, 'D-Pembayaran'!F2:F = "tunai",
+    IFERROR(VALUE(LEFT('D-Pembayaran'!A2:A, 4)), 0) >= YEAR(TODAY()) - 1), )), "")
 ```
+
+The outer `IFNA(…, "")` matters: with no matching rows, `IFERROR(FILTER(…), )`
+gives a single empty cell, `VSTACK` pads it to the header's 9 columns with `#N/A`,
+and the app would read that padding as a row. (Same wrapper on `D-Iuran<tahun>`.)
 
 `D-Pending` = submissions waiting on the bendahara (any dues year). `D-KasMasuk` =
 cash **received** this year and last year (by `waktu`) — the "Riwayat Kas Masuk"
