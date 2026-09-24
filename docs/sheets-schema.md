@@ -595,7 +595,8 @@ Per-house block (from D), one row per `M-Rumah` row:
 ```
 L2: =IFERROR(TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER('D-Pembayaran'!$D$2:$D*100 + 'D-Pembayaran'!$C$2:$C,
        'D-Pembayaran'!$B$2:$B=$D2, 'D-Pembayaran'!$I$2:$I="sah")))), "")
-M2: same with "pending"
+M2: =IFERROR(TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER('D-Pembayaran'!$D$2:$D*100 + 'D-Pembayaran'!$C$2:$C,
+       'D-Pembayaran'!$B$2:$B=$D2, 'D-Pembayaran'!$I$2:$I="pending")))), "")
 ```
 
 `TO_TEXT` keeps mixed-looking columns (blok `Blvd` vs `7`, a PIN typed as a
