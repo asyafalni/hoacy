@@ -408,9 +408,12 @@ A1:
              HSTACK('M-Impor2025'!A2:A, IF(LEN('M-Impor2025'!A2:A), 2025, ), 'M-Impor2025'!B2:D),
              HSTACK('M-Impor2026'!A2:A, IF(LEN('M-Impor2026'!A2:A), 2026, ), 'M-Impor2026'!B2:D)),
   ia,      CHOOSECOLS(impor, 1),
-  tn,      IFERROR(CHOOSECOLS(L_Tunai, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
-  tf,      IFERROR(CHOOSECOLS(L_Transfer, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
-  kp,      IFERROR(CHOOSECOLS(L_Keputusan, 1, 2, 3, 4, 5), {"", "", "", "", ""}),
+  tn,      IFERROR(CHOOSECOLS(L_Tunai, 1, 2, 3, 4, 5),
+             IF(COLUMNS(L_Tunai) = 1, {"", "", "", "", ""}, NA())),
+  tf,      IFERROR(CHOOSECOLS(L_Transfer, 1, 2, 3, 4, 5),
+             IF(COLUMNS(L_Transfer) = 1, {"", "", "", "", ""}, NA())),
+  kp,      IFERROR(CHOOSECOLS(L_Keputusan, 1, 2, 3, 4, 5),
+             IF(COLUMNS(L_Keputusan) = 1, {"", "", "", "", ""}, NA())),
   L, VSTACK(
        HSTACK(tn, IF(LEN(CHOOSECOLS(tn, 1)), "tunai", ), IF(LEN(CHOOSECOLS(tn, 1)), "", )),
        HSTACK(CHOOSECOLS(tf, 1, 2, 3, 4), IF(LEN(CHOOSECOLS(tf, 1)), "Warga", ),
@@ -458,8 +461,12 @@ the first response. A table reference always means "every data row", and
 An **empty** table comes back as a single blank cell, so `CHOOSECOLS(…, 2)` fails
 (*"parameter 2 value is 2. Valid values are between -1 and 1"*); the `IFERROR`
 swaps in one blank 5-column row, which drops out because its rincian is empty.
-The flip side: a misspelled table name is silently treated as empty too — the
-names must be exactly `L_Tunai`, `L_Transfer`, `L_Keputusan`.
+The fallback applies **only** to an empty table (`COLUMNS(...) = 1`): a broken
+reference (`#REF!`) or a misspelled table name makes `COLUMNS` fail too, so the
+whole tab shows an error you can see, instead of a Form tab silently counted as
+empty. (A plain `IFERROR(…, blank row)` hid exactly that: a `#REF!` in the
+formula made the first transfers vanish without any error.) Names must be exactly
+`L_Tunai`, `L_Transfer`, `L_Keputusan`.
 (Whole-column references like `'L-Setoran'!$B:$B` in `D-API` don't shift either.)
 
 How it works: `L` stacks the three sources into one shape (timestamp, alamat,
