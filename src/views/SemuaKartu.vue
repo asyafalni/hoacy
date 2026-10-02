@@ -1,6 +1,7 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { useAuth } from '../composables/useAuth';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlWhatsapp } from '../lib/forms';
@@ -13,8 +14,9 @@ import Tag from '../components/ui/Tag.vue';
 // bendahara is here to LOOK, not collect cash, so tapping a house opens its
 // 12-month card (same grid WargaCard.vue shows the resident) instead of a
 // payment dialog. Shares the Kas PIN/storage-key with Bendahara.vue and CetakQR.vue.
-const { rumah, blokWarna, TAHUN } = useSheet();
-const PIN = import.meta.env.VITE_PIN_KAS || '';
+const { rumah, blokWarna, TAHUN, pastikan, loading } = useSheet();
+const { pins } = useAuth();
+watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
 const PER_PAGE = 10;
 
 const badgeStyle = (h) => {
@@ -58,7 +60,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
 </script>
 
 <template>
- <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
+ <PinGate role="kas" title="Kas Bendahara">
   <section class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
@@ -121,7 +123,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
         </div>
       </Card>
       <p v-if="!daftar.length" class="text-muted" style="text-align:center;font-size:12.5px">
-        Tidak ada rumah yang cocok.
+        {{ loading ? 'Memuat…' : 'Tidak ada rumah yang cocok.' }}
       </p>
     </div>
 

@@ -9,18 +9,22 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
     docs/setup.md           Step-by-step setup guide (Bahasa Indonesia) — start here
     docs/sheets-schema.md   Tabs, columns and every formula (build this first)
     docs/form-mapping.md    Form fields, prefill URLs, silent-submit option
-    docs/deploy.md          Build + GitHub Pages
+    docs/deploy.md          Build + GitHub Pages, what is public and what isn't
+    apps-script/Code.gs     The read gateway to paste into Apps Script (generated)
+    scripts/                build-apps-script.mjs, test-server.mjs
     src/                    Vue Vapor app
     package.json vite.config.js index.html
 
 ## How it works
 
-1. **Read** — the site fetches a handful of published tabs over Google's gviz
-   endpoint (`/gviz/tq?tqx=out:json&headers=1&sheet=<TAB>`). The Sheet splits
+1. **Read** — the Sheet is private. The site calls one **Apps Script web app**
+   (`apps-script/Code.gs`) that checks the PIN and returns each role only its own
+   slice: a resident gets their own house, Pos the houses without phone numbers,
+   Kas everything, and the public `/sum` page only aggregates. The Sheet splits
    Form answers into one row per paid month and computes the kas/rekening
    balances; the app computes everything else — each house's status and
-   tunggakan across all years, aging, cluster totals, a house's tarif for any
-   month (`src/lib/tagihan.js`).
+   tunggakan across all years, aging, a house's tarif for any month
+   (`src/lib/tagihan.js`, shared with the server).
 2. **Write** — every action submits a **prefilled Google Form**:
    satpam records cash, warga confirms a transfer, bendahara verifies/rejects or deposits.
    Form responses are an append-only ledger — nothing is ever edited; a change
@@ -34,9 +38,10 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 
 1. Create the spreadsheet exactly as in `docs/sheets-schema.md`.
 2. Create the five Forms in `docs/form-mapping.md`, point each to the right tab.
-3. Publish the sheet (File → Share → Publish to web) so gviz is readable.
-4. Copy `.env.example` → `.env`, fill the sheet + form ids.
-5. `npm install && npm run dev`.
+3. Deploy the Apps Script gateway (`npm run build:script`, then `docs/setup.md`
+   Tahap 6) — the Sheet stays private.
+4. Copy `.env.example` → `.env`, fill the web-app URL + form ids.
+5. `npm install && npm run dev` (with `VITE_API_URL` blank it runs on mock data).
 
 ## Address model
 
@@ -56,10 +61,10 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 
 `/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public
 nav — only `/` is. Petugas (satpam, bendahara, admin, the relevant komite) open
-`/pos` or `/kas` from a bookmarked link and unlock it with a PIN
-(`VITE_PIN_POS` / `VITE_PIN_KAS`, remembered per device after the first entry).
-This is a deterrent, not real security — the PIN ships in the public JS bundle
-like everything else in this no-server app — but it stops warga from wandering
+`/pos` or `/kas` from a bookmarked link and unlock it with a PIN (Script Properties
+`POS_PIN` / `KAS_PIN`, remembered per device after the first entry). The server
+checks the PIN and only then sends the data, so — unlike a client-side gate — it is
+real access control (rate-limited against guessing); it also keeps warga from wandering
 into a cash-recording screen by accident. See `PinGate.vue`.
 
 Design reference: the `Iuran Warga - Cluster N v2` design component in this project.

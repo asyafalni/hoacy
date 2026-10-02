@@ -51,8 +51,21 @@ jobs:
 After a change to any id or PIN, update the `DOTENV` secret and re-run the
 workflow (Actions → pages → Run workflow, or push again).
 
-The sheet id and form ids are **public by design** (the sheet is published, the form
-accepts anonymous responses). Do not put anything private in that spreadsheet.
+## What is and isn't public
+
+- **The spreadsheet is private** — shared with the pengurus only, never published.
+  Names, phone numbers, PINs, per-house payment status and proof links never leave
+  it except through the Apps Script gateway, which checks the PIN first and returns
+  each role only its own slice (`docs/sheets-schema.md`, *How the app reads the
+  Sheet*). PINs live in Script Properties, not in the bundle.
+- **Public by design:** the web-app URL (`VITE_API_URL`) and the Form ids/entry ids
+  — they ship in the site's JavaScript. The URL alone returns only aggregates (the
+  `/sum` numbers); anything per-house needs the PIN, and guesses are rate-limited.
+- **Known limit — Forms still accept anonymous writes.** Anyone who reads the
+  bundle can submit a forged cash row or a Keputusan to the Forms, which the Sheet
+  would count. The Kas screen's per-submission view and the bendahara's checks
+  against the bukti are the guard; closing it fully would mean routing writes through
+  the gateway too (a later change, not needed for reading).
 
 ## Recovery — the Sheet *is* the database
 

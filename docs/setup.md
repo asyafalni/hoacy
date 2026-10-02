@@ -60,7 +60,7 @@ Buat tab-tab ini, isi baris 1 dengan header persis seperti di
 | Tab | Yang dikerjakan |
 | --- | --- |
 | `M-Rumah` | Format kolom **C, D, F** sebagai *Plain text* (Format → Number → Plain text) **sebelum** mengetik. Isi B–F per rumah. Pasang rumus A2, G2, K2, L2 lalu tarik ke bawah sampai semua rumah + cadangan (mis. 300 baris). H–J dibiarkan kosong. |
-| `M-RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama** yang ditagih + luas + tipe. Lihat catatan di Tahap 8. |
+| `M-RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama yang dilacak di sistem ini** (bukan tahun dibangun) + luas + tipe. Lihat catatan di Tahap 8. |
 | `M-TarifVersi` | Satu set baris per versi tarif (format baris: komponen, luas_min, nominal). Kalau tarif pernah berubah selama 3 tahun data lama, masukkan **setiap versi** dengan bulan mulai berlakunya. |
 | `M-Blok` | Format kolom A sebagai *Plain text*, isi 10 blok + warna (contoh ada di dokumen). |
 | `M-Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
@@ -187,20 +187,78 @@ saat sudah dipakai sungguhan).
 
 ---
 
-## Tahap 6 — Buka akses baca untuk app
+## Tahap 6 — Apps Script: pintu baca yang terkunci PIN
 
-1. **Share** → General access: **Anyone with the link → Viewer**.
-2. **File → Share → Publish to web** → *Entire document* → Publish.
+Spreadsheet **tetap privat**. App membacanya lewat satu Web App Apps Script yang
+menjalankan pemeriksaan PIN di server dan hanya mengirim data sesuai peran (warga:
+rumahnya saja; Pos: semua rumah tanpa nomor HP; Kas: semuanya; publik `/sum`: angka
+agregat saja). Detailnya di `docs/sheets-schema.md` → *How the app reads the Sheet*.
 
-Ingat: semua isi spreadsheet ini bisa dibaca siapa pun yang tahu ID-nya — jangan
-simpan catatan pribadi (alasan nonaktif, dll.) di sini.
+1. **Pastikan spreadsheet tidak publik.** *Share* → General access: **Restricted**
+   (hanya akun pengurus). Kalau pernah di-*Publish to web*:
+   *File → Share → Publish to web* → **Stop publishing**.
+2. Di komputer, jalankan `npm run build:script` (hasilnya `apps-script/Code.gs`;
+   file ini juga sudah ada di repo).
+3. Di spreadsheet: **Extensions → Apps Script**. Hapus isi `Code.gs` bawaan,
+   **paste seluruh isi `apps-script/Code.gs`**, lalu **Save** (Ctrl+S).
+4. **Project Settings (ikon ⚙) → Script Properties → Add script property**, dua kali:
+
+   | Property | Isi |
+   | --- | --- |
+   | `POS_PIN` | PIN layar Pos (dibagikan ke satpam) |
+   | `KAS_PIN` | PIN layar Kas (dibagikan ke bendahara/komite) |
+
+   PIN rumah tetap di `'M-Rumah'!G`. Jangan tulis PIN di `.env` atau di kode.
+5. **Deploy → New deployment** → ikon ⚙ di sebelah *Select type* → **Web app**:
+   - *Description*: `v1`
+   - *Execute as*: **Me** (akun pemilik spreadsheet)
+   - *Who has access*: **Anyone** (ini hanya membuka *pintunya*; data tetap
+     dikunci PIN)
+
+   Klik **Deploy** → **Authorize access** → pilih akun pemilik. Google akan
+   bilang *"Google hasn't verified this app"*: **Advanced → Go to … (unsafe) →
+   Allow** (aplikasinya milik Anda sendiri). Salin **Web app URL**
+   (`https://script.google.com/macros/s/…/exec`).
+6. **Uji dari terminal** (ganti `<URL>`; jangan pakai `-X POST`, curl harus
+   mengikuti redirect Google):
+
+   ```
+   curl -sL "<URL>"
+   curl -sL -d '{"action":"publik"}' "<URL>"
+   curl -sL -d '{"action":"login","role":"pos","pin":"salah"}' "<URL>"
+   curl -sL -d '{"action":"warga","alamat":"N7-09","pin":"<PIN rumah>"}' "<URL>"
+   ```
+
+   Yang diharapkan: `{"ok":true,"pesan":"Iuran API aktif"}` · angka agregat
+   (`"ok":true,"jumlahRumah":…`) · `{"ok":false,"kode":"pin"…}` · data satu rumah.
+   Kalau yang kedua mengembalikan `"kode":"server"` dengan pesan *Tab tidak
+   ditemukan*, ada tab yang belum dibuat atau namanya beda (nama persis, dengan
+   prefix `M-`/`L-`/`D-`).
+7. **Setiap kali kode app berubah** (mis. setelah update dari repo): jalankan
+   `npm run build:script`, paste ulang `Code.gs`, lalu
+   **Deploy → Manage deployments → ✏ (Edit) → Version: New version → Deploy**.
+   URL-nya **tidak berubah**. (Jangan pilih *New deployment* — itu membuat URL baru.)
+   Mengganti PIN cukup lewat Script Properties, tanpa deploy ulang.
+
+Catatan:
+- **Kecepatan:** panggilan pertama setelah lama tidak dipakai bisa 1–3 detik
+  (Apps Script "bangun" dulu). Ringkasan `/sum` di-cache 60 detik; layar lain selalu
+  membaca Sheet langsung.
+- **Kuota:** Google membatasi Apps Script per hari. Untuk sekitar 200 rumah
+  biasanya cukup, tapi belum diukur — kalau suatu saat muncul error kuota, kabari.
+- **CORS:** app memanggil dengan POST `text/plain` supaya tidak butuh preflight. Kalau
+  di browser muncul *"Gagal memuat data dari server"* padahal `curl` berhasil, buka
+  DevTools → Network dan kirim pesan error-nya.
+- **Terkunci:** 5 PIN rumah yang salah mengunci rumah itu 15 menit; 10 PIN petugas
+  yang salah mengunci layar petugas itu 15 menit (untuk semua orang).
 
 ---
 
 ## Tahap 7 — Isi `.env` dan coba di komputer
 
 1. Salin `.env.example` → `.env`.
-2. `VITE_SHEET_ID` = bagian URL spreadsheet di antara `/d/` dan `/edit`.
+2. `VITE_API_URL` = Web app URL dari Tahap 6. (Dikosongkan, app jalan di data
+   mockup bawaan dengan PIN Pos `1234` dan Kas `5678` — hanya untuk mencoba tampilan.)
 3. Untuk tiap Form: buka **Send → link (🔗)** → URL berbentuk
    `https://docs.google.com/forms/d/e/<ID>/viewform` → `<ID>` itu yang diisi ke
    `VITE_FORM_…`.
@@ -208,10 +266,10 @@ simpan catatan pribadi (alasan nonaktif, dll.) di sini.
    dengan sembarang nilai, **Get link → Copy**. URL-nya berisi
    `entry.123456789=…` untuk tiap pertanyaan, berurutan → isi ke `VITE_E_…`
    sesuai urutan pertanyaan.
-5. `VITE_PIN_POS` dan `VITE_PIN_KAS`: PIN layar Pos dan Kas.
-6. `npm install && npm run dev`, buka http://localhost:5173 dan coba: buka kartu
-   warga, catat tunai di `/pos`, lihat `/kas`. Pastikan baris masuk ke Sheet
-   (tunggu 1–5 menit untuk cache gviz).
+5. `npm install && npm run dev`, buka http://localhost:5173 dan coba: kartu warga
+   (alamat + PIN rumah), catat tunai di `/#/pos` (PIN dari `POS_PIN`), lihat
+   `/#/kas` (PIN dari `KAS_PIN`) dan `/#/sum`. Setelah mencatat tunai, barisnya
+   masuk ke tab `L-Tunai`; status di app menyusul beberapa detik kemudian.
 
 ---
 
@@ -219,10 +277,12 @@ simpan catatan pribadi (alasan nonaktif, dll.) di sini.
 
 1. Tentukan **tanggal go-live** (disarankan tanggal 1 sebuah bulan). Semua
    pembayaran **sebelum** tanggal itu masuk `M-Impor<tahun>`; sesudahnya lewat app.
-2. **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama yang ditagih (biasanya
-   bulan pertama data lama Anda). Setiap bulan sejak baseline yang tidak ada
-   pembayarannya akan tampil sebagai tunggakan — jadi baseline dan data impor
-   harus sejalan.
+2. **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama yang **dilacak di sistem
+   ini** — bukan tahun rumah dibangun atau dibeli. Samakan dengan bulan pertama
+   data `M-Impor` rumah itu. Setiap bulan sejak baseline yang tidak ada
+   pembayarannya akan tampil sebagai tunggakan, jadi baseline dan data impor harus
+   sejalan. (Contoh: baseline 2007, tarif pertama 2020, impor mulai 2023 → 36 bulan
+   2020–2022 tampil sebagai tunggakan.)
 3. **`M-Impor2023` … `M-Impor2026`**: satu baris per rumah per bulan yang sudah dibayar
    **sebelum go-live** — termasuk bulan-bulan awal tahun go-live.
    Komite bisa membagi per tahun. Salah ketik cukup diedit langsung di baris itu.

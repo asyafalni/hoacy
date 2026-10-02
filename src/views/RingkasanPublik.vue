@@ -1,10 +1,9 @@
 <script setup vapor>
-import { ref, computed } from 'vue';
-import { useSheet } from '../composables/useSheet';
+import { ref, computed, onMounted } from 'vue';
+import { usePublik } from '../composables/usePublik';
 import { useChartTooltip } from '../composables/useChartTooltip';
 import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN } from '../lib/tariff';
-import { tahunOf, selisihBulan } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 
 // Public, no PIN, on purpose — this is the one screen in the app anyone can open
@@ -17,34 +16,31 @@ import Card from '../components/ui/Card.vue';
 // pure aggregate figures that can't be traced to an individual sit outside the
 // law's definition of "data pribadi" — that's the line every number on this page
 // is checked against. See the Q&A in project history for the full reasoning.
-// This is also why this page uses `useSheet()`'s `riwayat` (Riwayat tab, `D-Riwayat` —
-// a pre-aggregated SUMIFS per month) instead of `usePembayaranLedger`: that
-// composable fetches the raw Pembayaran ledger (alamat, petugas, bukti_url —
-// a photo of someone's transfer proof), fine for the PIN-gated Kas screen but
-// not for a zero-barrier public page. See docs/sheets-schema.md `D-API/Riwayat`.
-// Data is loaded once by App.vue — no load() here (it used to fetch twice).
-const { meta, rumah, totals, opexList, riwayat, targetPada, TAHUN, sekarang } = useSheet();
+// It is enforced by construction: the numbers below are computed by the server
+// (src/lib/ringkasan.js, run in Apps Script) and the Sheet itself is private, so
+// no per-house row, name, address or proof link ever reaches this page.
+const { data: p, muat } = usePublik();
+onMounted(muat);
 
-const kas = computed(() => Number(meta.value.kas_tunai || 0));
-const bank = computed(() => Number(meta.value.rekening || 0));
-const tunggakan = computed(() => totals.value.tunggakan);
-const jumlahRumah = computed(() => totals.value.jumlahRumah);
+const kas = computed(() => (p.value ? p.value.kas : 0));
+const bank = computed(() => (p.value ? p.value.rekening : 0));
+const tunggakan = computed(() => (p.value ? p.value.tunggakan : 0));
+const jumlahRumah = computed(() => (p.value ? p.value.jumlahRumah : 0));
 
-const terkumpul = computed(() => totals.value.terkumpulBulanIni);
-const target = computed(() => totals.value.target);
+const terkumpul = computed(() => (p.value ? p.value.terkumpulBulanIni : 0));
+const target = computed(() => (p.value ? p.value.target : 0));
 const persenTarget = computed(() => (target.value ? Math.min(100, Math.round((terkumpul.value / target.value) * 100)) : 0));
 
-const opex = computed(() => totals.value.opex);
-const opexDiperbarui = computed(() => totals.value.opexDiperbarui);
+const opex = computed(() => (p.value ? p.value.opex : 0));
+const opexDiperbarui = computed(() => (p.value ? p.value.opexDiperbarui : ''));
+const opexList = computed(() => (p.value ? p.value.opexList : []));
 const opexBelumDiisi = computed(() => !opex.value);
 
-// Riwayat terkumpul vs target, per bulan — dari Riwayat tab (`D-Riwayat`), pre-agregat
-// di Sheet lewat SUMIFS, bukan dihitung di sini dari Pembayaran mentah (lihat
-// catatan PDP di atas). Target tiap bulan = tarif yang BERLAKU bulan itu
-// (RumahRiwayat/TarifVersi) dijumlah untuk semua rumah aktif — jadi kenaikan
-// tarif atau rumah yang baru mulai ditagih kelihatan di garisnya.
-const riwayatBulanan = computed(() => riwayat.value.map((b) => ({
-  ...b, key: `${b.tahun}-${b.bulan}`, target: targetPada(b.tahun, b.bulan),
+// Riwayat terkumpul vs target, per bulan. Target tiap bulan = tarif yang BERLAKU
+// bulan itu (RumahRiwayat/TarifVersi) dijumlah untuk semua rumah aktif — jadi
+// kenaikan tarif atau rumah yang baru mulai ditagih kelihatan di garisnya.
+const riwayatBulanan = computed(() => (p.value ? p.value.riwayat : []).map((b) => ({
+  ...b, key: `${b.tahun}-${b.bulan}`,
 })));
 
 const DURASI_OPT = [
@@ -64,22 +60,14 @@ const { wrapEl: riwayatWrapEl, tip: riwayatTip, show: showRiwayatTip, hide: hide
 
 // Warga yang bayar setahun sekaligus bikin sebagian kas "sudah dititipkan" buat
 // bulan-bulan depan — itu kewajiban (jasa yang masih harus RT berikan), bukan
-// surplus bebas pakai: setiap bulan yang sudah sah ('D-API'!L) tapi belum jatuh
-// tempo, dinilai dengan tarif yang berlaku di bulan itu. Cuma agregat yang
-// tampil di sini — hitungan per-rumah tetap tidak pernah dirender.
+// surplus bebas pakai: setiap bulan yang sudah sah tapi belum jatuh tempo,
+// dinilai dengan tarif yang berlaku di bulan itu (dihitung server).
 const dibayarDimukaDetail = computed(() => {
-  let rumahCount = 0, bulanTahunIni = 0, nominalTahunIni = 0, bulanTahunDepan = 0, nominalTahunDepan = 0;
-  for (const h of rumah.value) {
-    const muka = [...h.lunas].filter((p) => p > sekarang.value);
-    if (muka.length) rumahCount += 1;
-    for (const p of muka) {
-      const nominal = h.tarifPer(p) || 0;
-      if (tahunOf(p) === TAHUN.value) { bulanTahunIni += 1; nominalTahunIni += nominal; }
-      else { bulanTahunDepan += 1; nominalTahunDepan += nominal; }
-    }
-  }
-  return { rumahCount, bulanTahunIni, nominalTahunIni, bulanTahunDepan, nominalTahunDepan,
-           total: nominalTahunIni + nominalTahunDepan };
+  const d = p.value ? p.value.dibayarDimuka : {};
+  return {
+    rumahCount: d.rumah || 0, bulanTahunIni: d.bulanTahunIni || 0, nominalTahunIni: d.nominalTahunIni || 0,
+    bulanTahunDepan: d.bulanTahunDepan || 0, nominalTahunDepan: d.nominalTahunDepan || 0, total: d.total || 0,
+  };
 });
 const dibayarDimuka = computed(() => dibayarDimukaDetail.value.total);
 
@@ -92,53 +80,17 @@ const kasBersih = computed(() => kas.value + bank.value - dibayarDimuka.value);
 const runwayBulan = computed(() => (opex.value ? kasBersih.value / opex.value : 0));
 const runwayAman = computed(() => runwayBulan.value >= 3);
 
-// Aging piutang: umur dihitung dari bulan tertunggak paling lama sampai bulan
-// berjalan. Tunggakan di bawah 3 bulan itu wajar (telat bayar biasa, belum
-// perlu ditindaklanjuti) — baru masuk hitungan "aging" begitu sudah 3 bulan
-// atau lebih tidak dibayar, itu sinyal buat bendahara mulai follow up personal.
-// Cuma agregat (jumlah rumah, rata-rata umur, total nominal) yang tampil, sama
-// seperti angka lain di halaman ini — tidak ada rumah mana yang disebut.
+// Aging piutang: umur dihitung server dari bulan tertunggak paling lama (lintas
+// tahun) sampai bulan berjalan. Tunggakan di bawah 3 bulan itu wajar (telat bayar
+// biasa) — baru masuk hitungan "aging" begitu sudah 3 bulan atau lebih, sinyal
+// buat bendahara mulai follow up personal. Cuma agregat yang tampil, tidak ada
+// rumah mana yang disebut. Warna makin tua/gelap makin lama umurnya.
+const WARNA_UMUR = ['var(--color-accent-300)', 'var(--color-accent-500)',
+                    'var(--color-accent-700)', 'var(--color-accent-900)'];
 const tunggakanAging = computed(() => {
-  // Lintas tahun: umur dihitung dari bulan tertunggak paling lama (h.tertua,
-  // src/lib/tagihan.js) — bukan cuma tahun berjalan.
-  const rumahNunggak = rumah.value.filter((h) => h.tertua).map((h) => ({
-    umur: selisihBulan(h.tertua, sekarang.value) + 1,
-    nominal: h.tunggakan,
-  }));
-
-  const aging = rumahNunggak.filter((h) => h.umur >= 3);
-
-  // Distribusi umur lebih kepake buat bendahara daripada satu angka rata-rata
-  // (rata-rata gampang ketutup satu rumah nunggak ekstrem lama).
-  // warna makin tua/gelap makin lama umurnya — sinyal visual sekilas, tanpa
-  // perlu baca angka dulu
-  const BUCKET = [
-    { label: '3–6 bulan', test: (u) => u < 6, warna: 'var(--color-accent-300)' },
-    { label: '6–12 bulan', test: (u) => u >= 6 && u < 12, warna: 'var(--color-accent-500)' },
-    { label: '1–3 tahun', test: (u) => u >= 12 && u < 36, warna: 'var(--color-accent-700)' },
-    { label: '> 3 tahun', test: (u) => u >= 36, warna: 'var(--color-accent-900)' },
-  ];
-  const nominalAgingTotal = aging.reduce((sum, h) => sum + h.nominal, 0);
-  const distribusi = BUCKET.map((b) => {
-    const di = aging.filter((h) => b.test(h.umur));
-    const nominal = di.reduce((sum, h) => sum + h.nominal, 0);
-    return {
-      label: b.label,
-      jumlah: di.length,
-      nominal,
-      persenRumah: aging.length ? Math.round((di.length / aging.length) * 100) : 0,
-      persenNominal: nominalAgingTotal ? Math.round((nominal / nominalAgingTotal) * 100) : 0,
-      warna: b.warna,
-    };
-  });
-
-  return {
-    jumlahRumah: rumahNunggak.length,
-    belumDianggap: rumahNunggak.length - aging.length,
-    jumlahAging: aging.length,
-    nominalAging: nominalAgingTotal,
-    distribusi,
-  };
+  const a = p.value ? p.value.aging
+    : { jumlahRumah: 0, belumDianggap: 0, jumlahAging: 0, nominalAging: 0, distribusi: [] };
+  return { ...a, distribusi: a.distribusi.map((d, i) => ({ ...d, warna: WARNA_UMUR[i] })) };
 });
 
 // Dua pie chart per permintaan bendahara: kiri = distribusi jumlah rumah,
@@ -185,6 +137,9 @@ useScrollLock(showDibayarDimuka);
       </div>
       <a href="#/" class="btn btn-ghost" style="font-size:12px;flex:none">← Beranda</a>
     </div>
+
+    <p v-if="!p" class="text-muted" style="font-size:12.5px;text-align:center">Memuat ringkasan…</p>
+    <template v-if="p">
 
     <!-- Hero: runway, bukan angka bulan-ini — penagihan iuran itu kerjaan yang
          tidak pasti, jadi yang paling penting ditampilkan duluan adalah berapa
@@ -542,5 +497,6 @@ useScrollLock(showDibayarDimuka);
        </div>
       </div>
     </div>
+    </template>
   </section>
 </template>

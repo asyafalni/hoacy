@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import QRCode from 'qrcode';
 import { useSheet } from '../composables/useSheet';
+import { useAuth } from '../composables/useAuth';
 import { urlKartu } from '../lib/forms';
 import PinGate from '../components/PinGate.vue';
 
@@ -10,8 +11,9 @@ import PinGate from '../components/PinGate.vue';
 // pre-fills the address (?alamat=N7-09) — it still goes through the PIN screen,
 // same as typing it in by hand, so a printed sticker being seen by a neighbour
 // doesn't grant them anything.
-const PIN = import.meta.env.VITE_PIN_KAS || '';
-const { rumah } = useSheet();
+const { rumah, pastikan } = useSheet();
+const { pins } = useAuth();
+watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
 
 // `window` isn't reachable from a template expression — call it from here.
 const cetak = () => window.print();
@@ -26,7 +28,7 @@ watch(rumah, async (list) => {
 </script>
 
 <template>
- <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
+ <PinGate role="kas" title="Kas Bendahara">
   <section class="scr col" style="gap:var(--space-3)">
     <div class="row no-print" style="align-items:flex-start;gap:var(--space-3)">
       <div class="grow">

@@ -39,7 +39,12 @@ Rules that hold across every tab:
   public page.
 
 The app reads by column **position**, so column order is load-bearing on every
-tab it fetches (`useSheet.js`, `usePembayaranLedger.js`).
+tab the server reads (`src/server/core.js`, `src/lib/*.js`).
+
+**The spreadsheet is private.** It is shared with the pengurus only and never
+published; the app reaches it through an Apps Script web app that checks PINs and
+returns each role just its own slice (see *How the app reads the Sheet* at the end,
+and `docs/setup.md`, Tahap 6).
 
 ## Dates, times and periods — one reference
 
@@ -107,8 +112,8 @@ L2: =IF(AND($H2<>"", $K2), "⚠️ nonaktif belum lengkap — isi alamat persis,
 
 `G` (pin) starts as a formula but is meant to be overwritten: type a literal value
 into one cell (e.g. a resident asks for a reset) and it replaces the formula for
-that row only. It's a deterrent, not access control — it travels in the same
-public gviz feed as everything else (`docs/deploy.md`).
+that row only. The server checks it (and locks a house for 15 minutes after 5
+wrong guesses); it is never sent to the browser.
 
 ### Menonaktifkan rumah
 
@@ -122,8 +127,8 @@ situations call for it:
 - **Uncollectable** — the pengurus have confirmed, through their own checks,
   that nothing more can ever be collected (e.g. an empty kavling whose owner
   has died). Its remaining tunggakan simply stops being counted; the reasons
-  are recorded **outside** this Sheet — never in it, because every tab is
-  readable through the public gviz feed.
+  are recorded **outside** this Sheet — the system deliberately holds no reason,
+  only the fact that the house is inactive.
 
 Deactivating is deliberately not a single click — the guard is the `K` formula
 itself, no Sheet settings needed: `K` flips to `FALSE` only when **all three** of
@@ -160,10 +165,14 @@ A house's physical spec changing means **adding a row**, never editing one.
 "The luas in month X" is always the row with the latest (tahun, bulan) not after X
 for that `alamat` — so a past month keeps whatever was true then, permanently.
 
-**A house's first row is when billing starts.** Every month from that row to
-today is owed until paid, so when backfilling history make sure the payments for
-that period are in the `M-Impor<tahun>` tabs too — otherwise those months show as
-tunggakan.
+**A house's first row is when billing starts in this system — not when the house
+was built or bought.** Every month from that row to today is owed until paid, so
+the baseline must be the first month you actually track (the first month of your
+`M-Impor` data), and the payments from there on must be in the `M-Impor<tahun>`
+tabs — otherwise those months show as tunggakan. (Months before the first
+`M-TarifVersi` row have no rate and are never billed: a 2007 baseline with the
+first rate card in 2020 and imports from 2023 shows 2020–2022 — 36 months — as
+arrears.)
 A house with **no row at all** is shown everywhere as *"Tarif belum diatur"*:
 it can't be paid for, isn't in the target, and Kas lists it as a warning. It is
 never billed as Rp0.
@@ -225,9 +234,8 @@ A6: 5     B6: #eda100     A11: 10 B11: #0F86A3
 ```
 
 Colors the Warga card header and the Pos/Semua Kartu house badges. A missing row
-falls back to `BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`. Column A must be plain
-text: gviz drops cells whose type differs from the rest of their column, so a
-numeric `7` next to a text `Blvd` would vanish.
+falls back to `BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`. Format column A as plain
+text so `7` and `Blvd` are read the same way.
 
 ---
 
@@ -238,8 +246,9 @@ numeric `7` next to a text `Blvd` would vanish.
 | A | nama | e.g. `Ujang` |
 | B | peran | `satpam` or `bendahara` |
 
-The Pos/Kas PINs (`VITE_PIN_POS`/`VITE_PIN_KAS`) are shared per role and only gate
-the screen; the app then makes each person pick their own name from here (once per
+The Pos/Kas PINs (Script Properties `POS_PIN` / `KAS_PIN`, `docs/setup.md` Tahap 6)
+are shared per role and only open the screen; the app then makes each person pick
+their own name from here (once per
 device), so `'L-Tunai'!petugas`, `'L-Keputusan'!oleh` and `'L-Setoran'!oleh` record who
 actually acted.
 
@@ -581,7 +590,7 @@ app per month from `M-RumahRiwayat`/`M-TarifVersi`.
 Two side-by-side blocks on the same rows. **Keep column positions stable.**
 
 Balances (A/B, key-value) — only what the app can't compute itself. Column B
-stays all-numeric (gviz drops cells whose type differs from their column):
+stays all-numeric:
 
 ```
 A1: key          B1: value
@@ -593,8 +602,8 @@ A4: updated      B4: =VALUE(TEXT(NOW(), "yyyymmddhhmm"))
 ```
 
 Every cluster number — jumlah rumah, target, tunggakan, aging, lunas bulan ini,
-terkumpul bulan ini, dibayar di muka, OPEX — is computed by the app (`useSheet.js`)
-from rows it already fetches.
+terkumpul bulan ini, dibayar di muka, OPEX — is computed from rows like these by
+`src/lib/` (in the browser for the signed-in screens, by the server for `/sum`).
 
 Per-house block (from D), one row per `M-Rumah` row:
 
@@ -618,37 +627,40 @@ M2: =IFERROR(TEXTJOIN(",", TRUE, SORT(UNIQUE(FILTER('D-Pembayaran'!$D$2:$D*100 +
        'D-Pembayaran'!$B$2:$B=$D2, 'D-Pembayaran'!$I$2:$I="pending")))), "")
 ```
 
-`TO_TEXT` keeps mixed-looking columns (blok `Blvd` vs `7`, a PIN typed as a
-number) a single type, so gviz never drops a cell. Everything else a screen shows
+`TO_TEXT` keeps blok (`Blvd` vs `7`), rumah (`09`) and a PIN typed as a number
+reading as text. Everything else a screen shows
 about a house — the 12-month card for any year, tunggakan across all years since
 its first `M-RumahRiwayat` row, oldest unpaid month, months paid in advance — is
 derived from L/M by `src/lib/tagihan.js`.
 
-### What gets published and fetched
+### How the app reads the Sheet
 
-Publish the whole spreadsheet to the web. `useSheet.js` (every screen, including the
-public `/sum`) fetches seven tabs:
+The spreadsheet is **never shared or published**. The app talks to one Apps
+Script web app (`apps-script/Code.gs`, generated from `src/lib/*` and
+`src/server/core.js`; `docs/setup.md` Tahap 6), which runs as the Sheet's owner,
+reads these tabs, and answers per role:
 
-```
-https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:json&headers=1&sheet=<TAB>
-TAB = API, Blok, Petugas, Opex, Riwayat, RumahRiwayat, TarifVersi
-```
+| Request | Needs | Returns |
+| --- | --- | --- |
+| `publik` (`/sum`) | nothing | aggregates only — computed server-side, no house row, name, phone or proof link |
+| `warga` | alamat + that house's PIN | that one house's `D-API` row and `M-RumahRiwayat` rows, plus `M-TarifVersi`, `M-Blok` |
+| `pos` | `POS_PIN` | every active house (no phone, no PIN), `M-RumahRiwayat`, `M-TarifVersi`, `M-Blok`, the satpam names |
+| `kas` | `KAS_PIN` | the same plus phone numbers, `D-API`'s balances, `D-Pending`, `D-KasMasuk`, the bendahara names |
+| `kasTahun` | `KAS_PIN` | one dues year's summary, from that year's `D-Iuran<tahun>` |
 
-`headers=1` makes row 1 the header explicitly — without it gviz guesses, and can
-swallow a data row.
+Unknown house, deactivated house and wrong PIN all answer the same, so addresses
+can't be enumerated; 5 wrong PINs lock a house (and 10 a petugas role) for 15
+minutes. PINs are Script Properties, so none ship in the site's JavaScript. The
+server returns raw tab rows and the app derives status/tunggakan itself with the
+same `src/lib/` code the server uses for `/sum`, so the two always agree.
 
-`D-Pending`, `D-KasMasuk` and `D-Iuran<tahun>` are fetched only by
-`usePembayaranLedger.js`, used only by the PIN-gated Kas screen; `D-Pembayaran`
-itself is never fetched. **`/sum` must never fetch any of them** — they hold
-addresses and links to transfer-proof photos. Everything the public page shows is
-an aggregate. gviz can't restrict individual tabs, so this is a convention the
-code keeps, not something the Sheet enforces (`docs/deploy.md`).
+The server reads values the way a human sees them (`getValues`): numbers stay
+numbers, dates become `yyyy-MM-dd` text, empty cells become `null`. Public
+aggregates are cached for 60 seconds; every other call reads the Sheet live. After
+a cash payment the Pos screen keeps a local pending entry until a re-fetch confirms
+it (`usePendingSync.js`), and the Kas Verifikasi/Tolak/Batalkan buttons stay disabled
+until the submission's new status shows up.
 
-Sheet-side caching is ~1–5 minutes; after a cash payment the Pos screen keeps a
-local pending entry until a re-fetch confirms it (`usePendingSync.js`), and the
-Kas Verifikasi/Tolak/Batalkan buttons stay disabled until the submission's new
-status shows up.
-
-Fetch size stays flat as years pass: public screens read `D-API` (one row per
-house), and the Kas screen reads `D-Pending` + `D-KasMasuk` (≈ two years of cash) plus
-one `D-Iuran<tahun>` on demand.
+Fetch size stays flat as years pass: the public page gets a few KB of aggregates,
+a resident one house, and Kas the active houses plus `D-Pending` + `D-KasMasuk`
+(≈ two years of cash) and one year's summary on demand.

@@ -1,6 +1,10 @@
 // Shared "what was true as of month X" lookup — the one place that walks
 // RumahRiwayat/TarifVersi (docs/sheets-schema.md). Both are append-only: the
 // latest row(s) whose periode <= target win — never edited, only added to.
+//
+// This file (with tagihan.js, rumah.js, ringkasan.js and server/core.js) also
+// runs inside Google Apps Script — scripts/build-apps-script.mjs concatenates
+// them into apps-script/Code.gs. So: no browser/Vue imports, no `?.`/`??`.
 export const periodeOf = (tahun, bulan) => Number(tahun) * 100 + Number(bulan);
 
 /** RumahRiwayat row: [alamat, tahun_berlaku, bulan_berlaku, luas, tipe] */
@@ -40,7 +44,7 @@ export function rateCardPada(tarifVersiRows, tahun, bulan) {
     rumah: rows.filter((r) => r[2] === 'islk_rumah')
       .map((r) => [Number(r[3]) || 0, Number(r[4])]).sort((a, b) => a[0] - b[0]),
     kavlingPerM2: nominal('islk_kavling'),
-    iuranRt: nominal('iuran_rt') ?? 0,
+    iuranRt: nominal('iuran_rt') == null ? 0 : nominal('iuran_rt'),
   };
 }
 

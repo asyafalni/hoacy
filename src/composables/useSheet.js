@@ -1,160 +1,111 @@
 import { ref, computed } from 'vue';
 import { BLOK_WARNA_DEFAULT } from '../lib/tariff.js';
-import { periodeOf, rateCardPada, luasTipePada, tarifPada } from '../lib/tarifHistoris.js';
-import { hitungTagihan } from '../lib/tagihan.js';
+import { rateCardPada, tarifPada } from '../lib/tarifHistoris.js';
+import { bangunRumah } from '../lib/rumah.js';
+import { api, ApiError } from '../lib/api.js';
+import { useAuth } from './useAuth.js';
 
-const SHEET = import.meta.env.VITE_SHEET_ID;
-/** Exported so other tabs (e.g. usePembayaranLedger's raw Pembayaran fetch) can
- *  reuse the same gviz URL + response parsing instead of duplicating it.
- *  `headers=1` pins row 1 as the header — without it gviz guesses, and a tab
- *  whose first data row looks header-ish silently loses that row. */
-export const gviz = (tab) =>
-  `https://docs.google.com/spreadsheets/d/${SHEET}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(tab)}`;
+// The signed-in screens' data (Warga card, Pos, Kas). It comes from the Apps
+// Script gateway already trimmed to what that role may see (src/server/core.js):
+// raw tab rows, which the app turns into houses/status/tunggakan itself
+// (src/lib/rumah.js + tagihan.js — the same code the server uses). The public
+// /sum page has its own store, usePublik.js, and never sees a house row.
+const rows = ref([]);              // D-API — key/value block (Kas only) + per-house block
+const blokRows = ref([]);          // M-Blok
+const petugasRows = ref([]);       // M-Petugas — the role's own names only
+const rumahRiwayatRows = ref([]);  // M-RumahRiwayat — this house's only, for a resident
+const tarifVersiRows = ref([]);    // M-TarifVersi
+/** Kas only: D-Pending + D-KasMasuk rows, read by usePembayaranLedger. */
+export const ledgerRows = ref({ pending: [], kasMasuk: [] });
+const loading = ref(false);
 
-/** gviz wraps its JSON in a JS callback — strip it. Two gviz quirks handled
- *  here so no caller has to: dates/datetimes come back as the string
- *  "Date(2026,8,5)" (0-based month) — use the Sheet's own formatted text
- *  (`f`) instead; and a cell whose type differs from its column's majority
- *  comes back with `v: null` but still carries `f`. */
-export function parse(text) {
-  const json = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
-  return json.table.rows.map((r) => (r.c || []).map((c) => {
-    if (!c) return null;
-    if (typeof c.v === 'string' && c.v.startsWith('Date(')) return c.f ?? c.v;
-    return c.v ?? c.f ?? null;
-  }));
-}
+// "Today" comes from the server, in the Sheet's time zone — the same day its
+// TODAY() formulas use — so a wrong phone clock can't shift "this month".
+// Until the first response it falls back to the device date.
+const sekarangDevice = new Date();
+const hari = ref({ tahun: sekarangDevice.getFullYear(), bulan: sekarangDevice.getMonth() + 1 });
+let terakhir = null;       // [role, creds] of the last load, for refresh()
+let waktuMuat = 0;
 
-const rows = ref([]);        // API tab — key/value block + per-house block
-const blokRows = ref([]);    // Blok tab — one row per block
-const petugasRows = ref([]); // Petugas tab — one row per satpam/bendahara
-const opexRows = ref([]);    // Opex tab — one row per cost category
-const riwayatRows = ref([]); // Riwayat tab — one row per month, newest first
-const rumahRiwayatRows = ref([]); // RumahRiwayat tab — one row per house per luas/tipe change
-const tarifVersiRows = ref([]);   // TarifVersi tab — one row per rate-card change
-const loading = ref(true);
-const error = ref(null);
-// "Today" per the device, refreshed on every load — a tab left open across
-// midnight or a month boundary catches up on its next (visibility) reload.
-const today = ref(new Date());
-let lastLoad = 0;
-
-async function load() {
+/** Load a role's data. Resolves to null on success, else the failure kode
+ *  ('pin', 'terkunci', 'server', 'jaringan' …) — never throws. A petugas PIN the
+ *  server refuses is forgotten here, which sends Pos/Kas back to the PIN screen. */
+async function muat(role, creds = {}) {
+  const auth = useAuth();
+  terakhir = [role, creds];
   loading.value = true;
   try {
-    if (SHEET) {
-      const [api, blok, petugas, opex, riwayat, rumahRiwayat, tarifVersi] = await Promise.all(
-        ['D-API', 'M-Blok', 'M-Petugas', 'M-Opex', 'D-Riwayat', 'M-RumahRiwayat', 'M-TarifVersi']
-          .map((tab) => fetch(gviz(tab)).then((r) => r.text())));
-      rows.value = parse(api);
-      blokRows.value = parse(blok);
-      petugasRows.value = parse(petugas);
-      opexRows.value = parse(opex);
-      riwayatRows.value = parse(riwayat);
-      rumahRiwayatRows.value = parse(rumahRiwayat);
-      tarifVersiRows.value = parse(tarifVersi);
-    } else {
-      // Local dev only — no real Sheet configured, use the fixtures instead
-      // of hitting gviz with an undefined id. See src/composables/mockData.js.
-      const mock = await import('./mockData.js');
-      rows.value = mock.MOCK_ROWS;
-      blokRows.value = mock.MOCK_BLOK_ROWS;
-      petugasRows.value = mock.MOCK_PETUGAS_ROWS;
-      opexRows.value = mock.MOCK_OPEX_ROWS;
-      riwayatRows.value = mock.MOCK_RIWAYAT_ROWS;
-      rumahRiwayatRows.value = mock.MOCK_RUMAHRIWAYAT_ROWS;
-      tarifVersiRows.value = mock.MOCK_TARIFVERSI_ROWS;
-      console.warn('[useSheet] VITE_SHEET_ID kosong — memakai data mockup lokal.');
-    }
-    today.value = new Date();
-    lastLoad = Date.now();
-    error.value = null;
+    const res = await api(role, role === 'warga' ? creds : { pin: auth.pins.value[role] });
+    rows.value = res.api;
+    blokRows.value = res.blok || [];
+    petugasRows.value = res.petugas || [];
+    rumahRiwayatRows.value = res.rumahRiwayat || [];
+    tarifVersiRows.value = res.tarifVersi || [];
+    ledgerRows.value = { pending: res.pending || [], kasMasuk: res.kasMasuk || [] };
+    hari.value = res.hari;
+    waktuMuat = Date.now();
+    return null;
   } catch (e) {
-    error.value = e;
+    if (e instanceof ApiError) {
+      if (e.kode === 'pin' && role !== 'warga') auth.clearPin(role, true);
+      return e.kode;
+    }
+    return 'jaringan';   // api() already put it in apiError (the banner)
   } finally {
     loading.value = false;
   }
 }
 
-/** Reload only if the data is older than `maxAgeMs` — used when the tab
- *  becomes visible again (App.vue), so switching apps back and forth doesn't
- *  hammer gviz but a phone left on the Pos screen overnight isn't stale. */
-function refresh(maxAgeMs = 60_000) {
-  if (Date.now() - lastLoad > maxAgeMs) return load();
+/** Load unless this role's data is already fresh (moving between Kas pages). */
+function pastikan(role, maksUmurMs = 30_000) {
+  if (terakhir && terakhir[0] === role && Date.now() - waktuMuat < maksUmurMs) return Promise.resolve(null);
+  return muat(role);
 }
 
-const periodeSet = (v) => new Set(v ? String(v).split(',').map(Number).filter(Boolean) : []);
+/** Reload the same data if it's older than `maksUmurMs` — called when the tab
+ *  becomes visible again (App.vue), so a phone left open overnight catches up. */
+function refresh(maksUmurMs = 60_000) {
+  if (terakhir && Date.now() - waktuMuat > maksUmurMs) return muat(terakhir[0], terakhir[1]);
+}
+
+/** Forget everything in memory (a resident hitting "Ganti rumah"). */
+function bersihkan() {
+  rows.value = []; blokRows.value = []; petugasRows.value = [];
+  rumahRiwayatRows.value = []; ledgerRows.value = { pending: [], kasMasuk: [] };
+  terakhir = null;
+}
 
 export function useSheet() {
-  const TAHUN = computed(() => today.value.getFullYear());
-  const BULAN_INI = computed(() => today.value.getMonth() + 1);
-  const sekarang = computed(() => periodeOf(TAHUN.value, BULAN_INI.value));
+  const TAHUN = computed(() => hari.value.tahun);
+  const BULAN_INI = computed(() => hari.value.bulan);
+  const sekarang = computed(() => hari.value.tahun * 100 + hari.value.bulan);
 
-  // key/value block (cols A,B) -> { kas_tunai, rekening, updated } — only what
-  // the app can't derive itself (docs/sheets-schema.md `D-API`).
-  const meta = computed(() =>
-    Object.fromEntries(rows.value.filter((r) => r[0]).map((r) => [r[0], r[1]])));
-  // `updated` is a yyyymmddhhmm number (keeps column B all-numeric for gviz).
+  // D-API's key/value block (cols A,B) — only the Kas payload carries it.
+  const meta = computed(() => {
+    const m = {};
+    rows.value.forEach((r) => { if (r[0]) m[r[0]] = r[1]; });
+    return m;
+  });
+  // `updated` is a yyyymmddhhmm number (D-API!B4).
   const diperbarui = computed(() => {
     const s = String(meta.value.updated || '');
     return s.length === 12 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10)}` : s;
   });
 
-  // per-house block (cols D..M, docs/sheets-schema.md `D-API`). The Sheet only
-  // says which periodes are sah (L) / pending (M); status, tunggakan, aging and
-  // tarif are all resolved here (src/lib/tagihan.js) from RumahRiwayat/TarifVersi.
-  // `aktif` (K) drops decommissioned houses out of every lookup.
-  const rumah = computed(() =>
-    rows.value.filter((r) => r[3] && String(r[10]).toUpperCase() !== 'FALSE').map((r) => {
-      const h = {
-        alamat: String(r[3]), nama: r[4], telp: r[5] != null ? String(r[5]) : '',
-        cluster: r[6], blok: String(r[7] ?? ''), rumah: String(r[8] ?? ''),
-        // per-house PIN — deterrent gate on the Warga card, see WargaCard.vue
-        pin: r[9] != null ? String(r[9]) : '',
-        lunas: periodeSet(r[11]),
-        pending: periodeSet(r[12]),
-      };
-      const t = hitungTagihan(h, rumahRiwayatRows.value, tarifVersiRows.value, sekarang.value);
-      const lt = luasTipePada(rumahRiwayatRows.value, h.alamat, TAHUN.value, BULAN_INI.value);
-      return {
-        ...h, ...t,
-        luas: lt?.luas ?? null, tipe: lt?.tipe ?? null,
-        // No RumahRiwayat baseline (or no rate card) → never billed as Rp0;
-        // every screen shows "Tarif belum diatur" and blocks paying instead.
-        tarifDiatur: t.tarif != null,
-        status: t.kartuTahun(TAHUN.value).status,
-      };
-    }));
+  const rumah = computed(() => bangunRumah(rows.value, rumahRiwayatRows.value, tarifVersiRows.value, hari.value));
 
-  // per-block color (its own Blok tab, docs/sheets-schema.md `M-Blok`), admin-editable
-  // straight in the Sheet, no code deploy needed — falls back to
-  // BLOK_WARNA_DEFAULT for any block not set yet.
+  // per-block color (M-Blok, admin-editable in the Sheet) over the built-in defaults
   const blokWarna = computed(() => ({
     ...BLOK_WARNA_DEFAULT,
     ...Object.fromEntries(blokRows.value.filter((r) => r[0]).map((r) => [String(r[0]), r[1]])),
   }));
 
-  // Petugas tab (docs/sheets-schema.md `M-Petugas`): one row per person, `peran` says which
-  // screen they belong to. The shared Pos/Kas PIN gets everyone with that peran
-  // into the screen; the app then makes them pick their own name from here (see
-  // petugasAktif in PosSatpam.vue, bendaharaNama in Bendahara.vue) so writes say
-  // who actually acted, not a hardcoded name or free text.
-  const satpamList = computed(() =>
-    petugasRows.value.filter((r) => r[1] === 'satpam').map((r) => String(r[0])));
-  const bendaharaList = computed(() =>
-    petugasRows.value.filter((r) => r[1] === 'bendahara').map((r) => String(r[0])));
+  // M-Petugas — the server only sends the signed-in role's own names
+  const namaPeran = (peran) => petugasRows.value.filter((r) => r[1] === peran).map((r) => String(r[0]));
+  const satpamList = computed(() => namaPeran('satpam'));
+  const bendaharaList = computed(() => namaPeran('bendahara'));
 
-  // Opex tab (docs/sheets-schema.md `M-Opex`): itemized fixed monthly cost, category
-  // totals only — e.g. "Gaji Satpam" is every satpam's wage summed into one row,
-  // never one row per person. Feeds the public /sum "Rincian OPEX" sheet.
-  const opexList = computed(() =>
-    opexRows.value.filter((r) => r[0]).map((r) => ({
-      kategori: r[0], ikon: r[1] || '📋', nominal: Number(r[2]) || 0, diperbarui: r[3] || '',
-    })));
-
-  // Rate card effective right now — used where the app needs to split a
-  // total tarif back into its ISLK/Iuran RT parts (WargaCard's "Tagihan
-  // berjalan" breakdown).
+  // Rate card effective right now — Warga's "Tagihan berjalan" ISLK/Iuran RT split.
   const rateCardAktif = computed(() => rateCardPada(tarifVersiRows.value, TAHUN.value, BULAN_INI.value));
 
   /** A house's tarif for one specific month — null when RumahRiwayat/TarifVersi
@@ -162,44 +113,17 @@ export function useSheet() {
   const tarifRumah = (alamat, tahun, bulan) =>
     tarifPada(rumahRiwayatRows.value, tarifVersiRows.value, alamat, tahun, bulan);
 
-  /** Cluster target for one month: every active house's tarif as of that month
-   *  (houses without a baseline yet add nothing). */
-  const targetPada = (tahun, bulan) =>
-    rumah.value.reduce((sum, h) => sum + (tarifRumah(h.alamat, tahun, bulan) || 0), 0);
-
-  // Riwayat tab (docs/sheets-schema.md `D-Riwayat`): pre-aggregated per month, newest
-  // row first (mirrors the Sheet's own fill-down order). Reversed to
-  // chronological order here, and any leading (oldest) all-zero months are
-  // trimmed so "semua data" doesn't open on a flat run of empty bars from
-  // before the cluster had any payments.
-  const riwayat = computed(() => {
-    const bulanan = riwayatRows.value
-      .filter((r) => r[0] && r[1])
-      .map((r) => ({ tahun: Number(r[0]), bulan: Number(r[1]), terkumpul: Number(r[2]) || 0 }))
-      .reverse();
-    const firstNonZero = bulanan.findIndex((b) => b.terkumpul > 0);
-    return firstNonZero <= 0 ? bulanan : bulanan.slice(firstNonZero);
-  });
-
-  // Cluster-wide totals — all derivable from data already fetched above.
-  const totals = computed(() => {
-    const iniBulan = riwayat.value.find((b) => b.tahun === TAHUN.value && b.bulan === BULAN_INI.value);
-    const opexDiperbarui = opexList.value.map((o) => String(o.diperbarui)).filter(Boolean).sort();
-    return {
-      jumlahRumah: rumah.value.length,
-      tunggakan: rumah.value.reduce((sum, h) => sum + h.tunggakan, 0),
-      target: rumah.value.reduce((sum, h) => sum + (h.tarif || 0), 0),
-      lunasBulanIni: rumah.value.filter((h) => h.lunas.has(sekarang.value)).length,
-      tarifBelumDiatur: rumah.value.filter((h) => !h.tarifDiatur),
-      terkumpulBulanIni: iniBulan?.terkumpul || 0,
-      opex: opexList.value.reduce((sum, o) => sum + o.nominal, 0),
-      opexDiperbarui: opexDiperbarui.at(-1) || '',
-    };
-  });
+  // Cluster numbers Kas shows (the full set for /sum comes from the server).
+  const totals = computed(() => ({
+    jumlahRumah: rumah.value.length,
+    tunggakan: rumah.value.reduce((sum, h) => sum + h.tunggakan, 0),
+    target: rumah.value.reduce((sum, h) => sum + (h.tarif || 0), 0),
+    lunasBulanIni: rumah.value.filter((h) => h.lunas.has(sekarang.value)).length,
+    tarifBelumDiatur: rumah.value.filter((h) => !h.tarifDiatur),
+  }));
 
   return {
-    load, refresh, loading, error, meta, diperbarui, rumah, totals, blokWarna, satpamList,
-    bendaharaList, opexList, riwayat, rateCardAktif, tarifRumah, targetPada,
-    TAHUN, BULAN_INI, sekarang,
+    muat, pastikan, refresh, bersihkan, loading, meta, diperbarui, rumah, totals, blokWarna,
+    satpamList, bendaharaList, rateCardAktif, tarifRumah, TAHUN, BULAN_INI, sekarang,
   };
 }

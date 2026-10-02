@@ -1,19 +1,18 @@
 <script setup vapor>
 import { onMounted, onUnmounted } from 'vue';
 import { useSheet } from './composables/useSheet';
-import { usePembayaranLedger } from './composables/usePembayaranLedger';
+import { apiError } from './lib/api';
 import cypressLogo from './assets/logos/the-cypress.png';
 
-// The single place data gets loaded — views never call load() on mount
-// themselves (that used to fetch everything twice on /sum). Coming back to
-// the tab refreshes it too, so a phone left on Pos/Kas overnight doesn't keep
-// showing yesterday's status, or yesterday's "bulan ini".
-const { load, refresh, error } = useSheet();
-const { refresh: refreshLedger } = usePembayaranLedger();
+// Each screen loads its own data (a signed-in role's, or the public summary).
+// All App.vue does is refresh the signed-in data when the tab comes back to the
+// foreground, so a phone left on Pos/Kas overnight doesn't keep showing
+// yesterday's status, or yesterday's "bulan ini".
+const { refresh } = useSheet();
 function onVisible() {
-  if (document.visibilityState === 'visible') { refresh(); refreshLedger(); }
+  if (document.visibilityState === 'visible') refresh();
 }
-onMounted(() => { load(); document.addEventListener('visibilitychange', onVisible); });
+onMounted(() => document.addEventListener('visibilitychange', onVisible));
 onUnmounted(() => document.removeEventListener('visibilitychange', onVisible));
 </script>
 
@@ -27,8 +26,8 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible));
       </div>
     </header>
 
-    <p v-if="error" class="scr text-muted" style="font-size:12.5px">
-      Gagal memuat data dari Sheet. Periksa koneksi, lalu tarik untuk menyegarkan.
+    <p v-if="apiError" class="scr text-muted" style="font-size:12.5px">
+      Gagal memuat data dari server. Periksa koneksi, lalu muat ulang halaman.
     </p>
 
     <router-view />

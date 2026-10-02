@@ -1,6 +1,7 @@
 <script setup vapor>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { useAuth } from '../composables/useAuth';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, alamat, REKENING, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlTransfer } from '../lib/forms';
@@ -10,100 +11,113 @@ import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import RekeningCard from '../components/RekeningCard.vue';
 
-const { rumah, blokWarna, rateCardAktif, TAHUN, sekarang } = useSheet();
+const { rumah, blokWarna, rateCardAktif, TAHUN, sekarang, muat, bersihkan } = useSheet();
+const { pinWarga, setPinWarga, lupaWarga } = useAuth();
 
-// No login, but blok+rumah alone is guessable by any resident — so opening a card
-// also needs that house's PIN ('M-Rumah'!G in the Sheet, defaults to the last 3 digits
-// of the phone number, admin can overwrite it per row). This is a deterrent, same
-// as the Pos/Kas PinGate: the Sheet is public-by-design (docs/deploy.md), so the PIN
-// itself travels in the same gviz response the app already reads — it stops a
-// neighbour from browsing someone else's dues in the app UI, not a determined actor
-// reading the raw feed directly.
+// No login, but blok+rumah alone is guessable by any resident — so a card needs
+// that house's PIN (Rumah!G, default = last 3 digits of the phone number; the
+// admin can overwrite it per row). The PIN is checked by the server, which only
+// ever returns THIS house's rows and locks out repeated wrong guesses
+// (src/server/core.js) — nobody can read another house's data out of the app or
+// the Sheet. An unknown address, a deactivated one and a wrong PIN all answer the
+// same "Alamat atau PIN salah", so addresses can't be enumerated.
 // Alamat has three parts: cluster code + block number + house number -> N7-09.
-// ?alamat=N7-09 lets each house have its own QR link (still gated by PIN); otherwise
-// the resident picks blok + types rumah. Cluster is always "N" here, so it's baked
-// into BLOK_LIST's labels instead of asking for it as a separate field.
+// ?alamat=N7-09 lets each house have its own QR link (still needs the PIN);
+// otherwise the resident picks blok + types rumah. Cluster is always "N" here,
+// so it's baked into BLOK_LIST's labels instead of asking for it.
 const CLUSTER = 'N';
 const chipStyle = (active) => active ? 'min-height:42px'
   : 'min-height:42px;background:var(--color-surface);box-shadow:var(--shadow-sm)';
 
-const pinOkKey = (id) => `iuran.pinok.${id}`;
 const qsAlamat = new URLSearchParams(location.search).get('alamat') || '';
-const storedAlamat = localStorage.getItem('iuran.alamat') || '';
-const initialAlamat = qsAlamat || storedAlamat;
+const alamatTersimpan = localStorage.getItem('iuran.alamat') || '';
 
-const key = ref('');
+const key = ref('');             // alamat of the card that's open
 const inBlok = ref('');
 const inRumah = ref('');
-const notFound = ref(false);
-const pendingHouse = ref(null);
+const pendingAlamat = ref('');   // alamat waiting for its PIN
 const pinInput = ref('');
-const pinError = ref(false);
+const pesan = ref('');
+const memeriksa = ref(false);
+
+const PESAN = {
+  pin: 'Alamat atau PIN salah.',
+  terkunci: 'Terlalu banyak percobaan salah — coba lagi dalam 15 menit.',
+  jaringan: 'Tidak bisa menghubungi server — periksa koneksi lalu coba lagi.',
+};
 
 const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
-// Each block gets its own color (admin-set in the Sheet, Blok tab — see
+// Each block gets its own color (admin-set in the Sheet, M-Blok — see
 // docs/sheets-schema.md `M-Blok`), applied to the card header here and to the house
 // badge in PosSatpam.vue.
 const warnaKartu = computed(() =>
   (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))
   || '#c67139');
 
-function tryUnlock(id, { dariSimpanan = false } = {}) {
-  const found = rumah.value.find((h) => h.alamat === id);
-  if (!found) {
-    // A remembered address that's since been deactivated: forget it quietly
-    // instead of greeting the resident with "Alamat tidak ditemukan".
-    if (dariSimpanan) { localStorage.removeItem('iuran.alamat'); return; }
-    notFound.value = true;
+/** Ask the server for this house's card. `dariSimpanan`: the PIN is the one this
+ *  device remembered — if it's refused (PIN changed, house deactivated) forget it
+ *  quietly and fall back to the entry form instead of an error screen. */
+async function masuk(id, pin, dariSimpanan = false) {
+  memeriksa.value = true;
+  pesan.value = '';
+  const gagal = await muat('warga', { alamat: id, pin });
+  memeriksa.value = false;
+  if (!gagal) {
+    key.value = id;
+    pendingAlamat.value = '';
+    setPinWarga(id, pin);
+    localStorage.setItem('iuran.alamat', id);
     return;
   }
-  notFound.value = false;
-  if (localStorage.getItem(pinOkKey(id)) === '1') {
-    key.value = id;
-    localStorage.setItem('iuran.alamat', id);
-  } else {
-    pendingHouse.value = found;
-    pinInput.value = '';
-    pinError.value = false;
+  pesan.value = PESAN[gagal] || 'Server bermasalah — coba lagi sebentar lagi.';
+  if (gagal === 'pin') {
+    lupaWarga(id);
+    if (dariSimpanan) {
+      localStorage.removeItem('iuran.alamat');
+      pesan.value = 'Data yang tersimpan di perangkat ini sudah tidak berlaku — silakan masuk lagi.';
+    }
   }
+  pendingAlamat.value = dariSimpanan ? '' : id;
+}
+
+function mulai(id) {
+  pesan.value = '';
+  const tersimpan = pinWarga(id);
+  if (tersimpan) { masuk(id, tersimpan, true); return; }
+  pendingAlamat.value = id;
+  pinInput.value = '';
 }
 
 function open() {
   const rumahNum = inRumah.value.trim();
-  if (!inBlok.value || !rumahNum) { notFound.value = true; return; }
-  tryUnlock(alamat({ cluster: CLUSTER, blok: inBlok.value, rumah: rumahNum }));
+  if (!inBlok.value || !rumahNum) { pesan.value = 'Pilih blok dan isi nomor rumah.'; return; }
+  mulai(alamat({ cluster: CLUSTER, blok: inBlok.value, rumah: rumahNum }));
 }
 
 function submitPin() {
-  if (!pendingHouse.value) return;
-  const entered = pinInput.value.trim();
-  if (entered && entered === String(pendingHouse.value.pin ?? '')) {
-    localStorage.setItem(pinOkKey(pendingHouse.value.alamat), '1');
-    key.value = pendingHouse.value.alamat;
-    localStorage.setItem('iuran.alamat', pendingHouse.value.alamat);
-    pendingHouse.value = null;
-  } else {
-    pinError.value = true;
-  }
+  const pin = pinInput.value.trim();
+  if (!pin || memeriksa.value) return;
   pinInput.value = '';
+  masuk(pendingAlamat.value, pin);
 }
-function batalPin() { pendingHouse.value = null; pinInput.value = ''; pinError.value = false; }
-// "Ganti rumah" also forgets this house's PIN on this device — on a shared
-// phone, the next person must enter it again to reopen the card.
+function batalPin() { pendingAlamat.value = ''; pinInput.value = ''; pesan.value = ''; }
+// "Ganti rumah" also forgets this house's PIN on this device and clears its data
+// from memory — on a shared phone the next person must enter the PIN again.
 function ganti() {
-  localStorage.removeItem(pinOkKey(key.value));
+  lupaWarga(key.value);
   localStorage.removeItem('iuran.alamat');
   key.value = '';
+  pesan.value = '';
+  bersihkan();
 }
 
-// ?alamat= / remembered address: try it once the Sheet has loaded — still goes
-// through tryUnlock, so a QR-code link alone can't skip the PIN on a new device.
-watch(rumah, (list) => {
-  if (list.length && initialAlamat && !key.value && !pendingHouse.value) {
-    tryUnlock(initialAlamat, { dariSimpanan: !qsAlamat });
-  }
-}, { immediate: true });
+// ?alamat= (QR) or the remembered address — either way the PIN is still checked
+// by the server, so a link alone grants nothing on a new device.
+onMounted(() => {
+  const awal = qsAlamat || alamatTersimpan;
+  if (awal) mulai(awal);
+});
 
 const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
 const label = (p) => labelBulan(p, TAHUN.value, BULAN);
@@ -198,8 +212,13 @@ function kirimKonfirmasi() {
 </script>
 
 <template>
+  <section v-if="memeriksa && !pendingAlamat && !me" class="scr col"
+           style="align-items:center;padding-top:var(--space-8)">
+    <p class="text-muted" style="font-size:13px">Memuat kartu…</p>
+  </section>
+
   <!-- masuk: blok + nomor rumah, tanpa akun -->
-  <section v-if="!me && !pendingHouse" class="scr col" style="gap:var(--space-3)">
+  <section v-else-if="!me && !pendingAlamat" class="scr col" style="gap:var(--space-3)">
     <h3 style="margin:0">Buka kartu iuran</h3>
     <p class="text-muted" style="font-size:13px;margin:0">
       Tidak perlu akun — masukkan blok dan nomor rumah Anda.
@@ -225,28 +244,30 @@ function kirimKonfirmasi() {
     </p>
     <Button block @click="open">Lihat kartu saya</Button>
     <p class="text-muted num" style="font-size:11px;margin:0">Contoh: Blok N7, No. 09.</p>
-    <p v-if="notFound" class="text-muted" style="font-size:11.5px">Alamat tidak ditemukan.</p>
+    <p v-if="pesan" class="text-muted" style="font-size:11.5px;color:var(--color-accent-700)">{{ pesan }}</p>
     <a href="#/sum" class="text-muted" style="font-size:11.5px;text-align:center">
       Lihat ringkasan kas cluster →
     </a>
   </section>
 
   <!-- verifikasi PIN rumah -->
-  <section v-else-if="pendingHouse" class="scr col"
+  <section v-else-if="pendingAlamat" class="scr col"
            style="gap:var(--space-3);align-items:center;text-align:center;padding-top:var(--space-8)">
     <div style="width:56px;height:56px;border-radius:50%;background:var(--color-accent-2-200);
                 color:var(--color-accent-2-800);display:flex;align-items:center;
                 justify-content:center;font-size:22px">🔒</div>
     <h3 style="margin:0">Verifikasi PIN</h3>
     <p class="text-muted" style="font-size:13px;margin:0">
-      <b>{{ pendingHouse.alamat }}</b><br>
+      <b>{{ pendingAlamat }}</b><br>
       Masukkan 3 digit PIN rumah Anda untuk membuka kartu.
     </p>
     <input class="input num" v-model="pinInput" type="password" inputmode="numeric" maxlength="3"
            placeholder="•••" style="max-width:120px;text-align:center;font-size:20px;letter-spacing:.3em"
            autofocus @keyup.enter="submitPin">
-    <Button style="max-width:220px" @click="submitPin">Buka kartu</Button>
-    <p v-if="pinError" style="font-size:11.5px;color:var(--color-accent-700);margin:0">PIN salah, coba lagi.</p>
+    <Button style="max-width:220px" :disabled="memeriksa" @click="submitPin">
+      {{ memeriksa ? 'Memeriksa…' : 'Buka kartu' }}
+    </Button>
+    <p v-if="pesan" style="font-size:11.5px;color:var(--color-accent-700);margin:0">{{ pesan }}</p>
     <p class="text-muted" style="font-size:11px;margin:var(--space-2) 0 0;max-width:280px">
       Lupa PIN? Default-nya 3 digit terakhir no. HP yang terdaftar — kalau sudah diganti, hubungi bendahara.
     </p>

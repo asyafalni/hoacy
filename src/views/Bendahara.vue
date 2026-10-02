@@ -1,6 +1,7 @@
 <script setup vapor>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { useAuth } from '../composables/useAuth';
 import { usePembayaranLedger } from '../composables/usePembayaranLedger';
 import { useScrollLock } from '../composables/useScrollLock';
 import { rupiah, rupiahPendek, BULAN, REKENING } from '../lib/tariff';
@@ -10,10 +11,11 @@ import Card from '../components/ui/Card.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { meta, diperbarui, rumah, totals, bendaharaList, tarifRumah, TAHUN } = useSheet();
-const { pending, cek, tunai, load: loadLedger, loadTahun, ringkasanTahun } = usePembayaranLedger();
-onMounted(loadLedger);
-const PIN = import.meta.env.VITE_PIN_KAS || '';
+const { meta, diperbarui, rumah, totals, bendaharaList, tarifRumah, TAHUN, muat, pastikan, loading } = useSheet();
+const { pending, cek, tunai, loadTahun, ringkasanTahun } = usePembayaranLedger();
+const { pins } = useAuth();
+// Kas data only exists once the server has accepted the PIN (PinGate) — load it then.
+watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
 
 const kas   = computed(() => Number(meta.value.kas_tunai || 0));
 const bank  = computed(() => Number(meta.value.rekening || 0));
@@ -41,7 +43,7 @@ function gantiBendahara() {
 
 // Riwayat kas masuk — bottom sheet, bukan dilempar semua ke halaman utama.
 // Lazy-render 10 baris per langkah (bukan lazy-fetch — seluruh tab D-KasMasuk
-// sudah sekali fetch lewat gviz, ini cuma ngerem berapa banyak yang di-render
+// sudah sekali dikirim server, ini cuma ngerem berapa banyak yang di-render
 // sekaligus) — IntersectionObserver di sentinel bawah list nambah 10 lagi
 // begitu keliatan, sampai habis.
 const showRiwayatKas = ref(false);
@@ -100,7 +102,7 @@ const kurang = (g) => g.items.filter((e) => e.nominal < (tarifRumah(e.alamat, e.
 // `L-Keputusan`): `sah` verifies a transfer, `tolak` rejects it or voids a
 // mistaken cash entry — its months go back to "Belum" and can be paid again.
 // A submission stays "terkirim" (buttons disabled) until a reload shows its
-// new status — gviz caches for minutes, so re-enabling on a timer used to
+// new status — the Sheet needs a moment to recalculate, so re-enabling on a timer used to
 // invite a second, duplicate verdict.
 const terkirim = ref(new Map());   // group key -> 'sah' | 'tolak'
 watch([pending, tunai], ([p, t]) => {
@@ -115,12 +117,12 @@ async function putuskan(g, keputusan) {
   terkirim.value = new Map([...terkirim.value, [g.key, keputusan]]);
   await submitKeputusan({ alamat: g.alamat, waktu: g.waktu, keputusan,
                           oleh: bendaharaNama.value || 'Bendahara' });
-  setTimeout(loadLedger, 4000);   // sheet cache settles, then the group's status updates
+  setTimeout(() => muat('kas'), 4000);   // let the Sheet recalculate, then the group's status updates
 }
 </script>
 
 <template>
- <PinGate :pin="PIN" storage-key="kas" title="Kas Bendahara" env-var="VITE_PIN_KAS">
+ <PinGate role="kas" title="Kas Bendahara">
 
   <!-- PIN dipakai bersama seluruh bendahara/admin/komite; nama dipilih sekali per
        device supaya tiap verifikasi tercatat atas nama yang benar -->
@@ -137,7 +139,7 @@ async function putuskan(g, keputusan) {
         {{ nama }}
       </button>
     </div>
-    <p v-if="!bendaharaList.length" class="text-muted" style="font-size:12px">
+    <p v-if="!bendaharaList.length && !loading" class="text-muted" style="font-size:12px">
       Daftar nama belum diisi admin di Sheet (tab M-Petugas, peran "bendahara").
     </p>
   </section>

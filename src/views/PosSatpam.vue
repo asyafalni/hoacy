@@ -1,6 +1,7 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
 import { useSheet } from '../composables/useSheet';
+import { useAuth } from '../composables/useAuth';
 import { usePendingSync } from '../composables/usePendingSync';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
@@ -11,7 +12,10 @@ import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { rumah, blokWarna, satpamList, TAHUN, load } = useSheet();
+const { rumah, blokWarna, satpamList, TAHUN, muat, pastikan, loading } = useSheet();
+const { pins } = useAuth();
+// Pos data only exists once the server has accepted the PIN (PinGate) — load it then.
+watch(() => pins.value.pos, (pin) => { if (pin) pastikan('pos'); }, { immediate: true });
 const { pending, add: addPending, reconcile } = usePendingSync();
 watch(rumah, (list) => { if (list.length) reconcile(list); }, { immediate: true });
 // light tint of the block's color behind the house number — dark text stays legible
@@ -19,7 +23,6 @@ const badgeStyle = (h) => {
   const hex = blokWarna.value[String(h.blok)] || BLOK_WARNA_DEFAULT[String(h.blok)] || '#c0b6a5';
   return `background:color-mix(in srgb, ${hex} 22%, white)`;
 };
-const PIN = import.meta.env.VITE_PIN_POS || '';
 const PER_PAGE = 10;
 
 // The Pos PIN is shared by every satpam — it only gates the screen. Each payment
@@ -102,7 +105,7 @@ async function catat() {
     await submitTunai(rec);    // opaque; the pending entry is what the satpam sees
     toast.value = `${sel.value.nama} · ${rec.items.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
     sel.value = null; bulan.value = [];
-    setTimeout(load, 4000);    // sheet cache settles, then reconcile (see watch(rumah))
+    setTimeout(() => muat('pos'), 4000);   // let the Sheet recalculate, then reconcile (see watch(rumah))
     setTimeout(() => (toast.value = ''), 4000);
   } finally {
     submitting.value = false;
@@ -111,12 +114,12 @@ async function catat() {
 
 async function retryPending(p) {
   await submitTunai(p);
-  await load();
+  await muat('pos');
 }
 </script>
 
 <template>
- <PinGate :pin="PIN" storage-key="pos" title="Pos Satpam" env-var="VITE_PIN_POS">
+ <PinGate role="pos" title="Pos Satpam">
 
   <!-- PIN dipakai bersama semua satpam; nama dipilih sekali per device supaya
        tiap pembayaran tercatat atas nama yang benar-benar menerima uangnya -->
@@ -133,7 +136,7 @@ async function retryPending(p) {
         {{ nama }}
       </button>
     </div>
-    <p v-if="!satpamList.length" class="text-muted" style="font-size:12px">
+    <p v-if="!satpamList.length && !loading" class="text-muted" style="font-size:12px">
       Daftar nama satpam belum diisi admin di Sheet (tab M-Petugas, peran "satpam").
     </p>
   </section>
@@ -221,7 +224,7 @@ async function retryPending(p) {
         </div>
       </Card>
       <p v-if="!daftar.length" class="text-muted" style="text-align:center;font-size:12.5px">
-        Tidak ada rumah yang cocok.
+        {{ loading ? 'Memuat…' : 'Tidak ada rumah yang cocok.' }}
       </p>
     </div>
 

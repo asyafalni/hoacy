@@ -15,7 +15,7 @@ export default defineConfig({
     vue({ features: { optionsAPI: false } }),
     // Satpam/bendahara open this from one device, every day, via a bookmarked
     // hidden URL — installable + a cached app shell means it survives a flaky
-    // pos connection and behaves like an app, not just a tab. gviz/Forms calls
+    // pos connection and behaves like an app, not just a tab. API/Forms calls
     // are never cached (generateSW's default precache is build assets only, no
     // runtimeCaching rules added here), so data is never served stale.
     VitePWA({

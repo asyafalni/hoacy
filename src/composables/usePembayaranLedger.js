@@ -1,66 +1,20 @@
 import { ref, computed } from 'vue';
-import { gviz, parse } from './useSheet.js';
+import { api, ApiError } from '../lib/api.js';
+import { ledgerRows } from './useSheet.js';
+import { useAuth } from './useAuth.js';
 
-// The Kas screen's row-level data, from two small derived tabs
-// (docs/sheets-schema.md) instead of the whole payment history:
-// - `D-Pending`  — submissions waiting on the bendahara (pending + cek)
-// - `D-KasMasuk` — cash received this year and last, by date received
-// Both have Pembayaran's column order. This is the ONLY place that knows it —
-// everything else reads `entries`. **Never used by /sum** (PDP — see
-// RingkasanPublik.vue).
-const rows = ref([]);
-const loading = ref(false);
-let used = false;
-
-async function load() {
-  used = true;
-  loading.value = true;
-  try {
-    if (import.meta.env.VITE_SHEET_ID) {
-      const tabs = await Promise.all(['D-Pending', 'D-KasMasuk']
-        .map((tab) => fetch(gviz(tab)).then((r) => r.text()).then(parse)));
-      rows.value = tabs.flat();
-    } else {
-      // mock: the full ledger — same rows those two tabs would filter out of it
-      rows.value = (await import('./mockData.js')).MOCK_PEMBAYARAN_ROWS;
-    }
-  } finally {
-    loading.value = false;
-  }
-}
-
-// One dues year's rows, from its own `D-Iuran<tahun>` tab (pre-created for ten
-// years — docs/sheets-schema.md). Fetched only when the bendahara opens that
-// year in "Iuran per tahun"; cached per year for the session.
-const perTahun = ref({});   // tahun -> { rows } | { error }
-async function loadTahun(tahun) {
-  if (perTahun.value[tahun]?.rows) return;
-  try {
-    let r;
-    if (import.meta.env.VITE_SHEET_ID) {
-      const res = await fetch(gviz(`D-Iuran${tahun}`));
-      r = parse(await res.text());
-    } else {
-      r = (await import('./mockData.js')).MOCK_PEMBAYARAN_ROWS.filter((x) => Number(x[3]) === tahun);
-    }
-    perTahun.value = { ...perTahun.value, [tahun]: { rows: r } };
-  } catch (e) {
-    // gviz answers a missing tab with an error page, not JSON → parse throws
-    perTahun.value = { ...perTahun.value, [tahun]: { error: e } };
-  }
-}
-
-/** Re-fetch only if some screen has actually loaded the ledger (App.vue calls
- *  this on visibilitychange — the public page must never trigger a fetch). */
-const refresh = () => (used ? load() : undefined);
-
+// Row-level payment data for the Kas screen only. The rows ride along with the
+// Kas payload (useSheet.muat('kas') → D-Pending + D-KasMasuk); this is the
+// ONLY place that knows their column order — everything else reads `entries`.
+// Never reachable from /sum or any other role (the server decides — PDP).
+//
 // A waktu · B alamat · C bulan · D tahun · E nominal · F metode
 // (tunai | transfer | impor) · G petugas · H bukti_url · I keabsahan
 // (sah | pending | cek | dobel | tolak). `waktu` is when the money came in
 // (the Form timestamp, or Impor's tanggal_bayar) as `yyyy-mm-dd hh:mm:ss` —
 // also a submission's id for a Keputusan (see forms.js).
-// A Sheet error cell (`#N/A`, `#REF!`…) comes through gviz as its text — never
-// treat such a row as a payment.
+// A Sheet error cell (`#N/A`, `#REF!`…) arrives as its text — never treat such
+// a row as a payment.
 const isData = (r) => r[1] && !String(r[1]).startsWith('#');
 const toEntries = (list) => list.filter(isData).map((r) => ({
   waktu: r[0] != null ? String(r[0]) : '', alamat: String(r[1]),
@@ -68,23 +22,28 @@ const toEntries = (list) => list.filter(isData).map((r) => ({
   metode: r[5], petugas: r[6], buktiUrl: r[7], keabsahan: r[8],
 }));
 
-export function usePembayaranLedger() {
-  const entries = computed(() => toEntries(rows.value));
+// One dues year's summary, summed by the server from that year's own
+// D-Iuran<tahun> tab — fetched whenever the bendahara opens or switches year
+// (always fresh; a payment verified a minute ago shows up).
+const perTahun = ref({});   // tahun -> { ringkasan } | { error }
+async function loadTahun(tahun) {
+  try {
+    const res = await api('kasTahun', { pin: useAuth().pins.value.kas, tahun });
+    perTahun.value = { ...perTahun.value, [tahun]: { ringkasan: res.ringkasan } };
+  } catch (e) {
+    if (e instanceof ApiError && e.kode === 'pin') useAuth().clearPin('kas', true);
+    perTahun.value = { ...perTahun.value, [tahun]: { error: true } };
+  }
+}
 
-  /** A dues year's per-month summary (sah rows only), or null while loading. */
+export function usePembayaranLedger() {
+  const entries = computed(() => toEntries([...ledgerRows.value.pending, ...ledgerRows.value.kasMasuk]));
+
+  /** A dues year's per-month summary, null while loading, { error } if the tab's missing. */
   const ringkasanTahun = (tahun) => {
     const t = perTahun.value[tahun];
     if (!t) return null;
-    if (t.error) return { error: true };
-    const sah = toEntries(t.rows).filter((e) => e.keabsahan === 'sah');
-    const bulan = Array.from({ length: 12 }, (_, i) => {
-      const di = sah.filter((e) => e.bulan === i + 1);
-      return { bulan: i + 1, total: di.reduce((sum, e) => sum + e.nominal, 0),
-               rumah: new Set(di.map((e) => e.alamat)).size };
-    });
-    const perMetode = {};
-    for (const e of sah) perMetode[e.metode] = (perMetode[e.metode] || 0) + e.nominal;
-    return { bulan, perMetode, total: sah.reduce((sum, e) => sum + e.nominal, 0) };
+    return t.error ? { error: true } : t.ringkasan;
   };
 
   // `waktu` is `yyyy-mm-dd hh:mm:ss` text, so it sorts as a string.
@@ -121,5 +80,5 @@ export function usePembayaranLedger() {
   // sheet lazy-renders this itself.
   const tunai = computed(() => kelompok(terbaru.value.filter((e) => e.metode === 'tunai')));
 
-  return { loading, load, refresh, entries, pending, cek, tunai, loadTahun, ringkasanTahun };
+  return { entries, pending, cek, tunai, loadTahun, ringkasanTahun };
 }

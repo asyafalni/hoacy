@@ -77,7 +77,7 @@ export function hitungTagihan(h, rumahRiwayatRows, tarifVersiRows, sekarang) {
     tarif: tarifPer(sekarang),
     tunggakanList,
     tunggakan: tunggakanList.reduce((sum, t) => sum + t.tarif, 0),
-    tertua: tunggakanList[0]?.periode ?? null,
+    tertua: tunggakanList.length ? tunggakanList[0].periode : null,
     statusPada,
     tarifPer,
     kartuTahun,
