@@ -9,7 +9,8 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
     docs/setup.md           Step-by-step setup guide (Bahasa Indonesia) — start here
     docs/sheets-schema.md   Tabs, columns and every formula (build this first)
     docs/form-mapping.md    Form fields, prefill URLs, silent-submit option
-    docs/deploy.md          Build + GitHub Pages, what is public and what isn't
+    docs/deploy.md          Build + Fly.io deploy, what is public and what isn't
+    Dockerfile nginx.conf fly.toml   The Fly.io deployment
     apps-script/Code.gs     The read gateway to paste into Apps Script (generated)
     scripts/                build-apps-script.mjs, test-server.mjs
     src/                    Vue Vapor app

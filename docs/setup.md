@@ -293,9 +293,16 @@ Catatan:
 
 ---
 
-## Tahap 9 — Deploy ke GitHub Pages
+## Tahap 9 — Deploy ke Fly.io
 
-Lihat `docs/deploy.md` (workflow, secret `DOTENV`, dan pengaturan Pages).
+1. `.env` harus lengkap: `VITE_API_URL` + semua id Form dan entry id (Tahap 7).
+   `VITE_BASE` dikosongkan. Build menolak jalan kalau ada yang kosong.
+2. `fly auth login` (sekali per komputer), lalu `fly apps create iuran-cypress`
+   (atau nama lain — samakan `app` di `fly.toml`), lalu `fly deploy --ha=false`.
+3. Buka `https://iuran-cypress.fly.dev`, coba `/#/sum`, kartu warga, Pos, dan Kas.
+
+**Tentukan domain sebelum mencetak QR** — QR tiap rumah berisi alamat situs saat
+dicetak. Detail dan cara pasang domain sendiri: `docs/deploy.md`.
 
 ---
 
