@@ -281,11 +281,25 @@ Catatan:
    ini** — bukan tahun rumah dibangun atau dibeli. Samakan dengan bulan pertama
    data `M-Impor` rumah itu. Setiap bulan sejak baseline yang tidak ada
    pembayarannya akan tampil sebagai tunggakan, jadi baseline dan data impor harus
-   sejalan. (Contoh: baseline 2007, tarif pertama 2020, impor mulai 2023 → 36 bulan
+   sejalan. (Contoh: baseline 2016, tarif pertama 2020, impor mulai 2023 → 36 bulan
    2020–2022 tampil sebagai tunggakan.)
 3. **`M-Impor2023` … `M-Impor2026`**: satu baris per rumah per bulan yang sudah dibayar
    **sebelum go-live** — termasuk bulan-bulan awal tahun go-live.
    Komite bisa membagi per tahun. Salah ketik cukup diedit langsung di baris itu.
+
+   **Data mulai 2016** (baseline `2016, 1`) — empat hal, tanpa ubah kode:
+   - **`M-TarifVersi`**: rate card pertama bertanggal `2016, 1` dengan harga yang
+     berlaku saat itu, lalu satu set baris lengkap baru setiap kali harga atau
+     Iuran RT berubah. Bulan sebelum rate card pertama **tidak ditagih** (kartu
+     menampilkan "—" dan tahun itu tidak muncul di pilihan tahun).
+   - **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama datanya, mis.
+     `N7-09, 2016, 1, 124, rumah` (rumah yang baru dihuni belakangan pakai bulan
+     itu).
+   - **`M-Impor2016` … `M-Impor2022`**: tab tambahan, format sama dengan
+     `M-Impor2023`; tiap tab ditambahkan sebagai satu baris `HSTACK(...)` di
+     `VSTACK` rumus `D-Pembayaran` (Tahap 3).
+   - **`D-Iuran2016` … `D-Iuran2022`**: rumus A1 yang sama, ganti angka tahunnya —
+     supaya *Iuran per tahun* di Kas bisa membuka tahun itu.
 4. **`M-SaldoAwal`**: isi saldo kas tunai dan rekening **pada tanggal go-live**.
 5. Cek hasil: buka `/kas` → *Lihat semua kartu rumah* — rumah dengan tunggakan
    yang mencurigakan biasanya berarti ada bulan yang terlewat di impor atau
