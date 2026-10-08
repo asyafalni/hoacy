@@ -4,7 +4,7 @@ import { useSheet } from '../composables/useSheet';
 import { useAuth } from '../composables/useAuth';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, alamat, REKENING, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { urlTransfer } from '../lib/forms';
+import { urlTransfer, urlWaOperasional } from '../lib/forms';
 import { labelBulan, tahunOf, geserPeriode } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -481,6 +481,10 @@ function kirimKonfirmasi() {
              ? 'Form terbuka untuk melampirkan bukti — status menjadi Pending verifikasi'
              : 'Lampirkan bukti transfer untuk melanjutkan' }}
         </div>
+        <a class="text-muted" target="_blank" style="text-align:center;font-size:11.5px"
+           :href="urlWaOperasional(`Halo pengurus, saya ${me.nama} (${me.alamat}). Ada kendala saat konfirmasi transfer: `)">
+          Ada kendala kirim bukti? <b style="color:var(--color-accent-700)">Hubungi pengurus via WhatsApp</b>
+        </a>
        </div>
       </div>
     </div>

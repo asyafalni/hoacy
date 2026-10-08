@@ -5,7 +5,7 @@ import { useAuth } from '../composables/useAuth';
 import { usePendingSync } from '../composables/usePendingSync';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { submitTunai } from '../lib/forms';
+import { submitTunai, urlWaOperasional } from '../lib/forms';
 import { labelBulan, ringkasPeriode } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -182,6 +182,9 @@ async function retryPending(p) {
         <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
           ⚠ {{ pending.length }} pembayaran belum tersinkron
         </span>
+        <a class="btn btn-ghost" target="_blank" style="font-size:11px;padding-inline:6px"
+           :href="urlWaOperasional(`Halo pengurus, saya ${petugasAktif} di pos. Pembayaran tunai ini belum tersinkron: `
+             + pending.map(p => p.alamat).join(', '))">Hubungi pengurus</a>
       </div>
       <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
         <span>{{ p.alamat }} · {{ p.items.map(i => label(i.periode)).join(', ') }} ·
@@ -308,6 +311,10 @@ async function retryPending(p) {
         <Button block :disabled="submitting || !items.length" @click="catat">
           {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
         </Button>
+        <a class="text-muted" target="_blank" style="text-align:center;font-size:11.5px"
+           :href="urlWaOperasional(`Halo pengurus, saya ${petugasAktif} di pos. Ada kendala mencatat tunai ${sel.alamat}: `)">
+          Ada kendala? <b style="color:var(--color-accent-700)">Hubungi pengurus via WhatsApp</b>
+        </a>
       </div>
     </div>
 

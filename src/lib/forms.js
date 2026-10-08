@@ -77,6 +77,13 @@ export function urlWhatsapp({ nama, telp, alamat }) {
   return `https://wa.me/${telp}?text=${encodeURIComponent(pesan)}`;
 }
 
+/** wa.me link to the pengurus' operational number (VITE_WA_OPERASIONAL, 62xxx),
+ *  prefilled with who is writing and about what — the "ada kendala?" contact
+ *  under the transfer dialog and on Pos. */
+export function urlWaOperasional(pesan) {
+  return `https://wa.me/${import.meta.env.VITE_WA_OPERASIONAL}?text=${encodeURIComponent(pesan)}`;
+}
+
 /** `'D-Pembayaran'!H` (bukti_url) is a Google Drive **share** link
  *  ("/file/d/<id>/view..." or "open?id=<id>"), not a direct image URL — an
  *  <img> can't render it as-is. Rewrite known Drive share shapes to Drive's

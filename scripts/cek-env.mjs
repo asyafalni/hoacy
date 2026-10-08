@@ -10,6 +10,7 @@ const WAJIB = [
   'VITE_FORM_TRANSFER', 'VITE_E_TRANSFER_ALAMAT', 'VITE_E_TRANSFER_RINCIAN', 'VITE_E_TRANSFER_TOTAL',
   'VITE_FORM_SETORAN', 'VITE_E_SETOR_NOMINAL', 'VITE_E_SETOR_OLEH',
   'VITE_FORM_KEPUTUSAN', 'VITE_E_KEP_ALAMAT', 'VITE_E_KEP_WAKTU', 'VITE_E_KEP_KEPUTUSAN', 'VITE_E_KEP_OLEH',
+  'VITE_WA_OPERASIONAL',
 ];
 
 const env = { ...process.env };
@@ -28,6 +29,10 @@ if (kosong.length) {
   console.error(`\n✗ Build dibatalkan — variabel ini kosong di .env:\n  ${kosong.join('\n  ')}\n`
     + 'Tanpa VITE_API_URL situs akan jalan dengan data mock; tanpa id Form semua pencatatan hilang.\n'
     + 'Lihat docs/setup.md Tahap 7.\n');
+  process.exit(1);
+}
+if (!/^62\d{8,13}$/.test(env.VITE_WA_OPERASIONAL)) {
+  console.error('\n✗ VITE_WA_OPERASIONAL harus nomor WhatsApp berawalan 62, tanpa + atau spasi (mis. 6281234567890)\n');
   process.exit(1);
 }
 if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.VITE_API_URL)) {
