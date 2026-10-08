@@ -6,41 +6,60 @@ npm run dev        # http://localhost:5173
 npm run build      # -> dist/
 ```
 
-## GitHub Pages
+## Fly.io
 
-`vite.config.js` already reads `base` from `VITE_BASE`. For
-`https://<user>.github.io/hoacy/`:
+The site is static: `Dockerfile` builds it with Vite and serves `dist/` with nginx
+(`nginx.conf`) on port 8080; `fly.toml` runs it in Singapore (`sin`) and scales to
+zero when idle.
+
+**The build reads `.env`.** Every `VITE_*` value is baked into the JavaScript at
+build time, so the Docker build stage reads the project's `.env` (it never reaches
+the final image — only `dist/` does). `scripts/cek-env.mjs` stops the build if
+`VITE_API_URL` or any Form id/entry id is missing — otherwise the site would
+silently run on mock data, or record nothing. Leave `VITE_BASE` empty (the site
+lives at the domain root). PINs are **not** in `.env`; they're Script Properties.
+
+First deploy:
 
 ```bash
-VITE_BASE=/hoacy/ npm run build
+fly auth login                       # once per machine (opens the browser)
+fly apps create iuran-cypress        # or another free name — then set `app` in fly.toml
+fly deploy --ha=false                # one machine is plenty for this site
 ```
 
-`.github/workflows/pages.yml`:
+The site is then at `https://iuran-cypress.fly.dev`. Every later deploy is just
+`fly deploy`. After changing a Form id or the API URL: edit `.env`, `fly deploy`.
 
-```yaml
-name: pages
-on: { push: { branches: [main] } }
-permissions: { contents: read, pages: write, id-token: write }
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci
-      - run: VITE_BASE=/hoacy/ npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with: { path: dist }
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: github-pages
-    steps: [{ uses: actions/deploy-pages@v4 }]
-```
+Things to know:
 
-The sheet id and form ids are **public by design** (the sheet is published, the form
-accepts anonymous responses). Do not put anything private in that spreadsheet.
+- **Decide the domain before printing QR codes.** Each house's QR (Kas → Cetak QR)
+  encodes the site's address at the time. For a custom domain:
+  `fly certs add iuran.example.id`, point the DNS records `fly certs show` lists,
+  then print.
+- **A deploy reaches phones on their next visit.** `index.html` and the service
+  worker are served `no-cache`, hashed assets are cached for a year — an open
+  Pos/Kas tab picks up the new version after a reload.
+- **Cost:** with `auto_stop_machines` the machine only runs while someone is using
+  the site; Fly bills per second of running time (a card is required on the
+  account).
+- `npm run build` without a complete `.env` still works locally (mock mode) — only
+  the Docker build insists on the real values.
+
+## What is and isn't public
+
+- **The spreadsheet is private** — shared with the pengurus only, never published.
+  Names, phone numbers, PINs, per-house payment status and proof links never leave
+  it except through the Apps Script gateway, which checks the PIN first and returns
+  each role only its own slice (`docs/sheets-schema.md`, *How the app reads the
+  Sheet*). PINs live in Script Properties, not in the bundle.
+- **Public by design:** the web-app URL (`VITE_API_URL`) and the Form ids/entry ids
+  — they ship in the site's JavaScript. The URL alone returns only aggregates (the
+  `/sum` numbers); anything per-house needs the PIN, and guesses are rate-limited.
+- **Known limit — Forms still accept anonymous writes.** Anyone who reads the
+  bundle can submit a forged cash row or a Keputusan to the Forms, which the Sheet
+  would count. The Kas screen's per-submission view and the bendahara's checks
+  against the bukti are the guard; closing it fully would mean routing writes through
+  the gateway too (a later change, not needed for reading).
 
 ## Recovery — the Sheet *is* the database
 

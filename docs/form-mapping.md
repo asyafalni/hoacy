@@ -1,96 +1,113 @@
 # Google Forms as the write endpoint
 
-Four forms, each wired to one tab of **Iuran_BlokN_2026**.
+Five forms, each linked to one ledger tab of **Iuran_ClusterN**
+(`docs/sheets-schema.md`). Every entry id is read from `.env` — Google generates
+them per Form, so copy the real ones from each Form: ⋮ → **Get pre-filled link**,
+fill anything, copy the URL, read the `entry.NNN` keys.
 
-## A. Form "Catat Pembayaran" → `Pembayaran`
+Settings that apply to **every** Form:
 
-| Question | Type | entry id (yours will differ) |
+- *Settings → Responses → Collect email addresses* → **Do not collect**. It would
+  insert an extra column and shift every column the Sheet formulas read.
+- *Link to Sheets* → pick the existing spreadsheet, then **rename** the new
+  response tab to the tab name below. Never type into or add formulas to a
+  response tab (`docs/sheets-schema.md` — ledger tabs hold no formulas).
+- Keep questions in the order listed: Forms writes one column per question, in
+  question order.
+- Number questions: *Response validation → Number → Is number* (and the ranges
+  noted below), so a stray letter can't turn a column into text.
+
+## A. Form "Catat Tunai" → `L-Tunai`
+
+| Question | Type | `.env` key |
 | --- | --- | --- |
-| Alamat (cluster+blok-rumah, mis. N7-09) | short text | `entry.1000001` |
-| Bulan | short text (1–12) | `entry.1000002` |
-| Tahun | short text | `entry.1000003` |
-| Nominal | short text | `entry.1000004` |
-| Metode | multiple choice: tunai / transfer | `entry.1000005` |
-| Petugas | short text — a name from `Petugas!A` (peran `satpam`), or `Warga` | `entry.1000006` |
-| Catatan | short text | `entry.1000007` |
-| Bukti transfer | **file upload** | — (Drive; no entry id, cannot be prefilled) |
+| Alamat | short answer | `VITE_E_TUNAI_ALAMAT` |
+| Rincian | short answer | `VITE_E_TUNAI_RINCIAN` |
+| Total | short answer, *Number* | `VITE_E_TUNAI_TOTAL` |
+| Petugas | short answer | `VITE_E_TUNAI_PETUGAS` |
 
-The file-upload question makes the form require a Google sign-in and blocks the
-silent `/formResponse` route — so the **warga** flow always opens `viewform`
-(one tab per month), while the **satpam** cash flow keeps the silent submit.
-
-Get the real ids: open the form → ⋮ → **Get pre-filled link**, fill anything,
-copy the URL, read the `entry.NNN` keys.
-
-**File-upload question settings** (question ⋮ → the file-upload block itself):
-allowed file types → check **Image** only (uncheck the rest, or add PDF if you
-also want screenshots-as-PDF), max number of files → **1**, max file size →
-**10 MB** is plenty for a phone photo. Restricting the type to Image is what
-makes mobile browsers default straight to the camera when the app's "Ambil
-foto" button opens this input — Forms' file-upload question is just an
-`<input type=file>` under the hood, same as `WargaCard.vue`'s own picker.
-
-### Prefill URL (what every button in the app builds)
-
-```
-https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url
-  &entry.1000001=N7-03
-  &entry.1000002=9
-  &entry.1000003=2026
-  &entry.1000004=360000
-  &entry.1000005=tunai
-  &entry.1000006=Ujang
-```
-
-The satpam only reviews and taps **Kirim** — nothing to type. One request per month
-being paid (loop the months; they are separate rows so partial payments stay
-auditable).
-
-### Optional: silent submit (no form UI)
+Form id: `VITE_FORM_TUNAI`. **No file-upload question and "Require sign in" off**
+(*Settings → Responses*) — that's what lets the Pos screen submit it silently in
+one tap:
 
 ```js
-// same params, /formResponse instead of /viewform — fire-and-forget
-fetch(\`https://docs.google.com/forms/d/e/\${FORM_ID}/formResponse?\${params}\`,
+// src/lib/forms.js — same params, /formResponse instead of /viewform
+fetch(`https://docs.google.com/forms/d/e/${FORM_ID}/formResponse?${params}`,
       { method: 'POST', mode: 'no-cors' })
 ```
 
-Response is opaque (no-cors), so you cannot read success — show an optimistic row
-and confirm on the next fetch. Keep the `viewform` route as the fallback when the
-network is bad; the satpam then has a visible receipt screen.
+The response is opaque (no-cors), so the Pos screen keeps each submission as a
+local "belum tersinkron" entry until a re-fetch shows its months as paid
+(`usePendingSync.js`). One submission = one payment, however many months it
+covers.
 
-## B. Form "Setor ke Bank" → `Setoran`
+## B. Form "Konfirmasi Transfer" → `L-Transfer`
 
-`batch_id` prefilled as `SET-260921-1`, `nominal` prefilled with the current
-Kas Tunai balance, `oleh` prefilled with the treasurer's name.
-After submitting, paste the batch id into `Pembayaran!L` for the banked rows.
-
-## C. Form "Pengeluaran" → `Pengeluaran`
-
-`keterangan`, `nominal`, `sumber` (kas | bank). No prefill needed.
-
-## D. Form "Verifikasi Transfer" → `Verifikasi`
-
-| Question | Type | entry id (yours will differ) |
+| Question | Type | `.env` key |
 | --- | --- | --- |
-| Alamat | short text | `entry.3000001` |
-| Bulan | short text (1–12) | `entry.3000002` |
-| Tahun | short text | `entry.3000003` |
-| Oleh | short text | `entry.3000004` |
+| Alamat | short answer | `VITE_E_TRANSFER_ALAMAT` |
+| Rincian | short answer | `VITE_E_TRANSFER_RINCIAN` |
+| Total | short answer, *Number* | `VITE_E_TRANSFER_TOTAL` |
+| Bukti transfer | **file upload — must be the last question** | — (Drive; can't be prefilled) |
 
-The Kas screen's "Perlu diverifikasi" list comes from a direct read of the
-`Pembayaran` tab (not the `API` tab — `usePembayaranLedger.js`), filtered to
-`metode="transfer"` and `keabsahan="pending"`. Reading `Pembayaran` directly
-(rather than adding yet more columns to `API`) is also how bendahara gets to see
-`I` (bukti_url) per pending row — a "Lihat bukti" link opens the Drive photo
-before they decide to verify. Tapping **Verifikasi** fires this form silently
-(same `/formResponse` no-cors pattern as Form A), prefilled with that house/month
-and `oleh` = whichever `Petugas` roster name (peran `bendahara`) they picked at
-the "Siapa Anda?" screen (see `Bendahara.vue`). `Pembayaran!K` picks the new row
-up via `COUNTIFS(Verifikasi!...)` — §4/§7 of `docs/sheets-schema.md`.
+Form id: `VITE_FORM_TRANSFER`. The file-upload question forces a Google sign-in,
+so this Form is always **opened** (never submitted silently): the warga card picks
+the months, then opens one prefilled Form for all of them — one transfer, one bukti.
 
-## Verifying a transfer
+**File-upload settings** (the question's own options): allowed types → **Image**
+(add PDF if screenshots-as-PDF are fine), max files → **1**, max size → **10 MB**.
+Restricting to Image makes mobile browsers offer the camera straight away.
 
-Two equivalent paths, either one flips `Pembayaran!K` from `pending` to `sah`:
-the treasurer ticks `Pembayaran!M` directly in the sheet, or taps **Verifikasi**
-in the Kas app screen (Form D above). Both are just inputs to the same formula —
-neither is more "official" than the other.
+### Prefill URL (what the app builds)
+
+```
+https://docs.google.com/forms/d/e/<FORM_ID>/viewform?usp=pp_url
+  &entry.<ALAMAT>=N7-01
+  &entry.<RINCIAN>=202512%3D300000%2C202609%3D300000
+  &entry.<TOTAL>=600000
+```
+
+`Rincian` is `periode=nominal` pairs, comma-separated (`202512=300000,202609=300000`,
+`periode = tahun*100 + bulan`). The resident only attaches the bukti and taps
+**Kirim**. If they edit the rincian so it no longer adds up to the total, the
+Sheet marks it `cek` and doesn't count it (`docs/sheets-schema.md` `D-Pembayaran`).
+
+## C. Form "Setor ke Bank" → `L-Setoran`
+
+| Question | Type | `.env` key |
+| --- | --- | --- |
+| Nominal | short answer, *Number* | `VITE_E_SETOR_NOMINAL` |
+| Oleh | short answer — the bendahara's `M-Petugas` name | `VITE_E_SETOR_OLEH` |
+
+Form id: `VITE_FORM_SETORAN`. The Kas screen's "Setor ke Bank" button opens it
+prefilled with the current kas balance and the signed-in bendahara. Submitting is
+the whole deposit — `'D-API'!kas_tunai`/`rekening` move the amount by formula.
+To record a **withdrawal** from the bank into kas, open the Form directly and
+enter a negative nominal (e.g. `-500000`) — keep the Number validation at *Is
+number*, which accepts negatives.
+
+## D. Form "Pengeluaran" → `L-Pengeluaran`
+
+`keterangan`, `nominal` (*Number*), `sumber` (multiple choice: kas | bank). No
+prefill, no app screen — bendahara opens it directly.
+
+## E. Form "Keputusan" → `L-Keputusan`
+
+| Question | Type | `.env` key |
+| --- | --- | --- |
+| Alamat | short answer | `VITE_E_KEP_ALAMAT` |
+| Waktu kiriman | short answer — `yyyy-mm-dd hh:mm:ss` (24-hour, with seconds), exactly as `'D-Pembayaran'!A` shows it, e.g. `2026-09-16 07:55:00` | `VITE_E_KEP_WAKTU` |
+| Keputusan | multiple choice: `sah` / `tolak` | `VITE_E_KEP_KEPUTUSAN` |
+| Oleh | short answer | `VITE_E_KEP_OLEH` |
+
+Form id: `VITE_FORM_KEPUTUSAN`. No file upload, sign-in off (silent submit).
+The Kas screen writes it:
+
+- **Verifikasi** (`sah`) / **Tolak** (`tolak`) on each pending transfer — one card
+  per submission, bukti shown inline, any month claimed below its tarif flagged.
+- **Batalkan** (`tolak`) on a cash entry in *Riwayat Kas Masuk* — for a satpam's
+  wrong house/month; the satpam then records it again correctly.
+
+One row decides a whole submission (all its months). The latest decision wins.
+If the app is down, submitting this Form directly does the same — copy `waktu`
+and `alamat` from the `D-Pembayaran` tab.

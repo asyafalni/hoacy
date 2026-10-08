@@ -1,20 +1,5 @@
-// Mirrors Rumah!F and Rumah!H. The Sheet is authoritative — this exists only so the
-// app can prefill a nominal before the next fetch lands.
-export const IURAN_RT = 50000;
-
 // Single source for the destination account shown on Kartu/Pos/Kas — change it here.
 export const REKENING = { bank: 'BRI', nomor: '038401002159562', nama: 'Cluster The Cypress' };
-
-export function islk({ luas, tipe }) {
-  if (tipe === 'kavling') return 400 * luas;
-  if (luas < 120) return 225000;
-  if (luas < 150) return 250000;
-  if (luas < 260) return 310000;
-  if (luas < 400) return 375000;
-  return 400000;
-}
-
-export const tarifBulanan = (h) => islk(h) + IURAN_RT;
 
 export const rupiah = (n) =>
   'Rp ' + Math.round(n || 0).toLocaleString('id-ID');
@@ -32,7 +17,7 @@ export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
 // Every block in Cluster N. Shared by the warga login picker and the Pos blok filter.
 export const BLOK_LIST = ['Blvd', '1', '2', '3', '5', '6', '7', '8', '9', '10'];
 
-// Fallback only — the real source is the Blok tab (docs/sheets-schema.md §2),
+// Fallback only — the real source is the Blok tab (docs/sheets-schema.md `M-Blok`),
 // editable by the admin straight in the Sheet, no deploy needed. This just covers local dev
 // (mockData.js) and any block the admin hasn't set yet. Order matches BLOK_LIST;
 // all 10 hues pass the dataviz-skill categorical checks (lightness/chroma/CVD/

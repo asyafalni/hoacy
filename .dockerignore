@@ -1,0 +1,7 @@
+# .env is deliberately NOT ignored: the build stage reads its public VITE_* values
+# (it never reaches the final image — only dist/ does).
+node_modules
+dist
+.git
+*.log
+.env.local

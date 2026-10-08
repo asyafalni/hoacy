@@ -1,10 +1,19 @@
 <script setup vapor>
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { useSheet } from './composables/useSheet';
+import { apiError } from './lib/api';
 import cypressLogo from './assets/logos/the-cypress.png';
 
-const { load, error } = useSheet();
-onMounted(load);
+// Each screen loads its own data (a signed-in role's, or the public summary).
+// All App.vue does is refresh the signed-in data when the tab comes back to the
+// foreground, so a phone left on Pos/Kas overnight doesn't keep showing
+// yesterday's status, or yesterday's "bulan ini".
+const { refresh } = useSheet();
+function onVisible() {
+  if (document.visibilityState === 'visible') refresh();
+}
+onMounted(() => document.addEventListener('visibilitychange', onVisible));
+onUnmounted(() => document.removeEventListener('visibilitychange', onVisible));
 </script>
 
 <template>
@@ -17,8 +26,8 @@ onMounted(load);
       </div>
     </header>
 
-    <p v-if="error" class="scr text-muted" style="font-size:12.5px">
-      Gagal memuat data dari Sheet. Periksa koneksi, lalu tarik untuk menyegarkan.
+    <p v-if="apiError" class="scr text-muted" style="font-size:12.5px">
+      Gagal memuat data dari server. Periksa koneksi, lalu muat ulang halaman.
     </p>
 
     <router-view />

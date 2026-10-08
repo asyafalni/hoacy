@@ -9,6 +9,7 @@ export function useChartTooltip() {
   const tip = ref(null);   // { x, y, ...whatever data the caller passes in }
 
   function show(e, data) {
+    if (!wrapEl.value) return;   // chart unmounted mid-gesture (sheet closed)
     const rect = wrapEl.value.getBoundingClientRect();
     const point = e.touches ? e.touches[0] : e;
     tip.value = { x: point.clientX - rect.left, y: point.clientY - rect.top, ...data };
