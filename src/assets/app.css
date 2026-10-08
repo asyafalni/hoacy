@@ -48,6 +48,10 @@
   scrollbar-width: thin;
   scrollbar-color: var(--color-neutral-400) transparent;
 }
+/* A flex column taller than its max-height shrinks its children before it
+   scrolls — a long month list squashed the rekening card to a sliver. Keep
+   every block at its own height; the wrapper scrolls instead. */
+.sheet-scroll > * { flex-shrink: 0; }
 .sheet-scroll::-webkit-scrollbar { width: 8px; }
 .sheet-scroll::-webkit-scrollbar-track { background: transparent; }
 .sheet-scroll::-webkit-scrollbar-thumb {
