@@ -351,13 +351,13 @@ async function putuskan(g, keputusan) {
           <button class="btn btn-ghost" @click="showTahunan = false">×</button>
         </div>
 
-        <div class="row" style="gap:6px;flex-wrap:wrap">
-          <button v-for="y in tahunList" :key="y" type="button" class="btn"
-                  :class="tahunPilih === y ? 'btn-primary' : 'btn-secondary'"
-                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="pilihTahun(y)">
-            {{ y }}
-          </button>
-        </div>
+        <label class="row" style="gap:8px;align-items:center">
+          <span class="kick">Tahun</span>
+          <select :value="tahunPilih" class="input" style="min-height:32px;font-size:13px"
+                  @change="pilihTahun(Number($event.target.value))">
+            <option v-for="y in tahunList" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </label>
 
         <p v-if="!ringkasan" class="text-muted" style="font-size:12px;margin:0">Memuat tab D-Iuran{{ tahunPilih }}…</p>
         <p v-else-if="ringkasan.error" class="text-muted" style="font-size:12px;margin:0">

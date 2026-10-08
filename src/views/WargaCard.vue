@@ -306,24 +306,19 @@ function kirimKonfirmasi() {
       </div>
 
       <div style="padding:var(--space-4)">
-        <div class="spread" style="margin-bottom:var(--space-2)">
-          <span class="kick">Tahun {{ tahunDilihat }}</span>
+        <div class="spread" style="margin-bottom:var(--space-3)">
+          <!-- tahun-tahun sebelumnya — dropdown, karena daftarnya terus bertambah -->
+          <label v-if="historyYears.length" class="row" style="gap:8px;align-items:center">
+            <span class="kick">Tahun</span>
+            <select v-model.number="tahunDilihat" class="input" style="min-height:32px;font-size:13px">
+              <option :value="tahunIni">{{ tahunIni }}</option>
+              <option v-for="y in historyYears" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </label>
+          <span v-else class="kick">Tahun {{ tahunDilihat }}</span>
           <Tag :status="tahunData.tunggakan > 0 ? 'Tunggak' : 'Lunas'">
             {{ tahunData.tunggakan > 0 ? rupiahPendek(tahunData.tunggakan) + ' belum dibayar' : 'Lunas' }}
           </Tag>
-        </div>
-
-        <!-- lihat kartu tahun-tahun sebelumnya — cuma muncul kalau ada datanya -->
-        <div v-if="historyYears.length" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:var(--space-3)">
-          <button type="button" class="btn" :class="tahunDilihat === tahunIni ? 'btn-primary' : 'btn-secondary'"
-                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="tahunDilihat = tahunIni">
-            {{ tahunIni }}
-          </button>
-          <button v-for="y in historyYears" :key="y" type="button" class="btn"
-                  :class="tahunDilihat === y ? 'btn-primary' : 'btn-secondary'"
-                  style="min-height:32px;padding:5px 12px;font-size:12px" @click="tahunDilihat = y">
-            {{ y }}
-          </button>
         </div>
 
         <div class="months">
