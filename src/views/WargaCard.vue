@@ -125,12 +125,16 @@ const label = (p) => labelBulan(p, TAHUN.value, BULAN);
 // ── Kartu per tahun ───────────────────────────────────────────────────────────
 // Status + tarif per month for any year come from src/lib/tagihan.js — the same
 // lookup Pos, Kas and /sum use; a past month is billed at the rate in force then.
-// Year tabs start at the house's first RumahRiwayat row (when billing began).
+// Past years run back to the house's first RumahRiwayat row (when billing
+// began), skipping years with no billed month at all — before the first
+// M-TarifVersi card nothing is owed, so such a year is all "—".
 const tahunIni = computed(() => TAHUN.value);
 const historyYears = computed(() => {
   if (!me.value?.mulai) return [];
   const years = [];
-  for (let y = tahunIni.value - 1; y >= tahunOf(me.value.mulai); y -= 1) years.push(y);
+  for (let y = tahunIni.value - 1; y >= tahunOf(me.value.mulai); y -= 1) {
+    if (me.value.kartuTahun(y).status.some((s) => s !== '-')) years.push(y);
+  }
   return years;
 });
 const tahunDilihat = ref(0);
