@@ -102,6 +102,43 @@ function labelBulan(p, tahunIni, BULAN) {
   return tahunOf(p) === tahunIni ? nama : `${nama} '${String(tahunOf(p)).slice(2)}`;
 }
 
+/** A short label for a set of months: full years as `2016` (consecutive full
+ *  years as `2016–2018`), consecutive months within a year as `Jun–Sep '16`,
+ *  lone months as `Nov '21`. The current year's months drop the `'yy`, as in
+ *  labelBulan. Input: yyyymm numbers, any order. */
+function ringkasPeriode(periodes, tahunIni, BULAN) {
+  const perTahun = new Map();
+  for (const p of [...periodes].sort((a, b) => a - b)) {
+    const y = tahunOf(p);
+    if (!perTahun.has(y)) perTahun.set(y, []);
+    perTahun.get(y).push(bulanOf(p));
+  }
+  const nama = (b) => BULAN[b - 1].slice(0, 3);
+  const bagian = [];
+  let penuh = null;   // [first, last] run of consecutive full years
+  const tutupPenuh = () => {
+    if (penuh) bagian.push(penuh[0] === penuh[1] ? String(penuh[0]) : `${penuh[0]}–${penuh[1]}`);
+    penuh = null;
+  };
+  for (const [y, bulan] of perTahun) {
+    if (bulan.length === 12) {
+      if (penuh && penuh[1] === y - 1) penuh[1] = y;
+      else { tutupPenuh(); penuh = [y, y]; }
+      continue;
+    }
+    tutupPenuh();
+    const thn = y === tahunIni ? '' : ` '${String(y).slice(2)}`;
+    for (let i = 0; i < bulan.length; ) {
+      let j = i;
+      while (j + 1 < bulan.length && bulan[j + 1] === bulan[j] + 1) j += 1;
+      bagian.push((j > i ? `${nama(bulan[i])}–${nama(bulan[j])}` : nama(bulan[i])) + thn);
+      i = j + 1;
+    }
+  }
+  tutupPenuh();
+  return bagian.join(', ');
+}
+
 /** Earliest RumahRiwayat periode for a house — billing starts here. */
 function mulaiTagih(rumahRiwayatRows, alamat) {
   let min = null;

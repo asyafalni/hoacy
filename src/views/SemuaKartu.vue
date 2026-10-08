@@ -5,7 +5,7 @@ import { useAuth } from '../composables/useAuth';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { urlWhatsapp } from '../lib/forms';
-import { labelBulan } from '../lib/tagihan';
+import { ringkasPeriode } from '../lib/tagihan';
 import PinGate from '../components/PinGate.vue';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
@@ -54,7 +54,7 @@ watch([q, blokFilter, statusFilter], () => { page.value = 1; });
 const totalPages = computed(() => Math.max(1, Math.ceil(daftar.value.length / PER_PAGE)));
 const halaman = computed(() => daftar.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 
-const ringkasBelum = (h) => h.tunggakanList.map((t) => labelBulan(t.periode, TAHUN.value, BULAN)).join(', ');
+const ringkasBelum = (h) => ringkasPeriode(h.tunggakanList.map((t) => t.periode), TAHUN.value, BULAN);
 
 const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] || 'kosong');
 </script>

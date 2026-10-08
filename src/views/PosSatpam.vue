@@ -6,7 +6,7 @@ import { usePendingSync } from '../composables/usePendingSync';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
 import { submitTunai } from '../lib/forms';
-import { labelBulan } from '../lib/tagihan';
+import { labelBulan, ringkasPeriode } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
@@ -71,7 +71,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(daftar.value.length / PE
 const halaman = computed(() => daftar.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
 
 const label = (p) => labelBulan(p, TAHUN.value, BULAN);
-const ringkasBelum = (h) => h.tunggakanList.map((t) => label(t.periode)).join(', ');
+const ringkasBelum = (h) => ringkasPeriode(h.tunggakanList.map((t) => t.periode), TAHUN.value, BULAN);
 
 // Every owed month across years, oldest first; the two oldest are preselected.
 function pilih(h) {
