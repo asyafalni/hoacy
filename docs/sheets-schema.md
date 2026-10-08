@@ -199,15 +199,20 @@ the one with the latest date not after X. A house pays the `islk_rumah` row with
 the largest `luas_min` ≤ its luas (or `luas × islk_kavling` if it's a kavling),
 plus `iuran_rt`. A price change — any tier, the kavling rate, `iuran_rt` — is a
 **complete new set of rows** with the new date, including the unchanged rules;
-older months keep using the older set. Day-one card:
+older months keep using the older set.
+
+**`islk_rumah` is ISLK alone, without Iuran RT.** The app adds `iuran_rt` on
+top. The developer's price list (Rp225rb <120 m², Rp250rb 120–149 m², …)
+already *includes* the Rp50rb Iuran RT, so enter each tier as the list price
+minus `iuran_rt`. Day-one card (list price in the comment):
 
 ```
 tahun  bulan  komponen      luas_min  nominal
-2023   1      islk_rumah    0         225000
-2023   1      islk_rumah    120       250000
-2023   1      islk_rumah    150       310000
-2023   1      islk_rumah    260       375000
-2023   1      islk_rumah    400       400000
+2023   1      islk_rumah    0         175000    ← 225rb − 50rb
+2023   1      islk_rumah    120       200000    ← 250rb − 50rb
+2023   1      islk_rumah    150       260000    ← 310rb − 50rb
+2023   1      islk_rumah    260       325000    ← 375rb − 50rb
+2023   1      islk_rumah    400       350000    ← 400rb − 50rb
 2023   1      islk_kavling            400
 2023   1      iuran_rt                50000
 ```
