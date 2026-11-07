@@ -1,0 +1,65 @@
+# DigitalOcean App Platform spec — docs/deploy.md.
+#   doctl apps create --spec .do/app.yaml        (first time)
+#   doctl apps update <app-id> --spec .do/app.yaml
+# Values marked SECRET are set once in the DO console (Settings → App-Level /
+# Component env vars → Encrypt) or with `doctl apps update`; never commit them.
+name: iuran-cypress
+region: blr                         # Bangalore — same data center as the Aiven database
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    source_dir: /
+    github:
+      repo: asyafalni/hoacy
+      branch: main
+      deploy_on_push: true
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      http_path: /api/sehat
+    envs:
+      # ── build time: public, baked into the frontend ──
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        scope: BUILD_TIME
+        value: pk_test_GANTI
+      - key: VITE_WA_OPERASIONAL
+        scope: BUILD_TIME
+        value: "6281299900314"
+      # ── run time ──
+      - key: APP_ENV
+        scope: RUN_TIME
+        value: production
+      - key: IP_HEADER              # DO's proxy puts the client IP here (lock-out per IP)
+        scope: RUN_TIME
+        value: do-connecting-ip
+      - key: BOOTSTRAP_ADMIN_EMAIL  # the first admin; others are added in the app
+        scope: RUN_TIME
+        value: GANTI@email-admin-pertama
+      - key: BOOTSTRAP_ADMIN_NAMA
+        scope: RUN_TIME
+        value: Admin
+      - key: SHEET_ID
+        scope: RUN_TIME
+        value: GANTI
+      - key: DRIVE_FOLDER_ID
+        scope: RUN_TIME
+        value: GANTI
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: SESSION_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: CLERK_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_REFRESH_TOKEN
+        scope: RUN_TIME
+        type: SECRET

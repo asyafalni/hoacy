@@ -18,7 +18,7 @@ let memuat = null;
 export function muatClerk() {
   if (modeDev) return Promise.resolve(null);
   if (!memuat) {
-    memuat = Promise.all([import('@clerk/clerk-js'), import('@clerk/localizations')]).then(async ([{ Clerk }, { idID }]) => {
+    memuat = Promise.all([import('@clerk/clerk-js'), import('@clerk/localizations/id-ID')]).then(async ([{ Clerk }, { idID }]) => {
       clerk = new Clerk(KUNCI);
       await clerk.load({ localization: idID });
       return clerk;

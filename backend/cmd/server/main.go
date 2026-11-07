@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata" // Asia/Jakarta even on an image without a zoneinfo database
 
 	fib "github.com/lesismal/fib"
 	fibhttp "github.com/lesismal/fib/http"
@@ -249,7 +250,14 @@ func frontend(dir string) (fibhttp.HandlerFunc, error) {
 		p := filepath.Clean("/" + c.Request.URL.Path)
 		file := filepath.Join(abs, p)
 		if st, err := os.Stat(file); err != nil || st.IsDir() || !strings.HasPrefix(file, abs) {
-			file = index
+			if strings.HasPrefix(p, "/assets/") {
+				// an old hashed asset after a deploy: a real 404, never index.html
+				// under a year-long immutable cache header
+				c.Header().Set("Cache-Control", "no-store")
+				_ = c.Respond(http.StatusNotFound, "text/plain; charset=utf-8", []byte("not found\n"))
+				return
+			}
+			file, p = index, "/index.html"
 		}
 		switch {
 		case strings.HasPrefix(p, "/assets/"):

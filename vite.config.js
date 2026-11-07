@@ -13,6 +13,13 @@ export default defineConfig({
   },
   // `npm run dev` talks to the Go backend (backend/, `go run ./cmd/server`)
   server: { proxy: { '/api': process.env.API_DEV || 'http://localhost:8080' } },
+  // Clerk (pengurus sign-in, ~4 MB) gets its own chunk: only /kas pages load
+  // it, and it stays out of the offline precache — signing in needs a network anyway.
+  build: {
+    rollupOptions: {
+      output: { manualChunks: (id) => (id.includes('/@clerk/') ? 'clerk' : undefined) },
+    },
+  },
   plugins: [
     vue({ features: { optionsAPI: false } }),
     // Residents and pengurus open this from their phones, often — installable
@@ -22,7 +29,7 @@ export default defineConfig({
     // out of the navigation fallback.
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: { navigateFallbackDenylist: [/^\/api\//] },
+      workbox: { navigateFallbackDenylist: [/^\/api\//], globIgnores: ['**/clerk-*.js'] },
       manifest: {
         name: 'Iuran Cluster the Cypress',
         short_name: 'Iuran Cypress',
