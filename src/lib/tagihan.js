@@ -1,15 +1,6 @@
-import { periodeOf, tarifPada } from './tarifHistoris.js';
-
-// The one place that turns "which months has this house paid" into status,
-// tunggakan and aging — for every screen and every year. The Sheet only says
-// which periodes are sah/pending per house ('D-API'!L/M, docs/sheets-schema.md
-// `D-API`); everything that needs a tarif is resolved here with tarifPada(), the
-// same lookup the rest of the app uses, so there's no second copy of the rate
-// logic living in a Sheet formula.
-//
-// A month is always paid in full (no partial payments — docs/sheets-schema.md
-// `D-Pembayaran`), so a month is simply Lunas, Pending, Belum, or '-' (not billed:
-// before the house's first RumahRiwayat row, not due yet, or no rate card).
+// Display helpers for periodes (yyyymm). The billing itself — status,
+// tunggakan, each month's tarif — is computed by the server
+// (backend/internal/tagihan); the app only shows it.
 
 export const tahunOf = (p) => Math.floor(p / 100);
 export const bulanOf = (p) => p % 100;
@@ -67,56 +58,11 @@ export function ringkasPeriode(periodes, tahunIni, BULAN) {
   return bagian.join(', ');
 }
 
-/** Earliest RumahRiwayat periode for a house — billing starts here. */
-export function mulaiTagih(rumahRiwayatRows, alamat) {
-  let min = null;
-  for (const r of rumahRiwayatRows) {
-    if (r[0] !== alamat) continue;
-    const p = periodeOf(r[1], r[2]);
-    if (min == null || p < min) min = p;
-  }
-  return min;
-}
-
-/**
- * Everything the app shows about one house's dues, as of `sekarang` (a periode).
- * `h` needs { alamat, lunas:Set<periode>, pending:Set<periode> }.
- */
-export function hitungTagihan(h, rumahRiwayatRows, tarifVersiRows, sekarang) {
-  const tarifPer = (p) => tarifPada(rumahRiwayatRows, tarifVersiRows, h.alamat, tahunOf(p), bulanOf(p));
-  const mulai = mulaiTagih(rumahRiwayatRows, h.alamat);
-
-  function statusPada(p) {
-    if (h.lunas.has(p)) return 'Lunas';
-    if (h.pending.has(p)) return 'Pending';
-    if (mulai == null || p < mulai || p > sekarang || tarifPer(p) == null) return '-';
-    return 'Belum';
-  }
-
-  // Every due, unpaid, not-pending month since billing started, oldest first.
-  // Pending transfers aren't owed any more from the resident's side — bendahara
-  // clears them from the Kas screen.
-  const tunggakanList = [];
-  if (mulai != null) {
-    for (let p = mulai; p <= sekarang; p = geserPeriode(p, 1)) {
-      if (statusPada(p) === 'Belum') tunggakanList.push({ periode: p, tarif: tarifPer(p) });
-    }
-  }
-
-  /** 12-month card for any year: status + that month's own tarif. */
-  const kartuTahun = (tahun) => {
-    const bulan = Array.from({ length: 12 }, (_, i) => periodeOf(tahun, i + 1));
-    return { status: bulan.map(statusPada), tarifBulan: bulan.map(tarifPer) };
-  };
-
-  return {
-    mulai,
-    tarif: tarifPer(sekarang),
-    tunggakanList,
-    tunggakan: tunggakanList.reduce((sum, t) => sum + t.tarif, 0),
-    tertua: tunggakanList.length ? tunggakanList[0].periode : null,
-    statusPada,
-    tarifPer,
-    kartuTahun,
-  };
+/** A server timestamp (ISO) as "2026-09-16 07:55", in WIB. */
+export function waktuTeks(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const f = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return f.format(d);
 }

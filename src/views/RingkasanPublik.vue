@@ -17,7 +17,7 @@ import Card from '../components/ui/Card.vue';
 // law's definition of "data pribadi" — that's the line every number on this page
 // is checked against. See the Q&A in project history for the full reasoning.
 // It is enforced by construction: the numbers below are computed by the server
-// (src/lib/ringkasan.js, run in Apps Script) and the Sheet itself is private, so
+// (backend/internal/tagihan, on the server) from the private database, so
 // no per-house row, name, address or proof link ever reaches this page.
 const { data: p, muat } = usePublik();
 onMounted(muat);

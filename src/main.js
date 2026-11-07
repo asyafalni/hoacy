@@ -13,6 +13,7 @@ const routes = [
   { path: '/kas/tunai', name: 'catat-tunai', component: () => import('./views/CatatTunai.vue') },
   { path: '/kas/qr',    name: 'cetak-qr',   component: () => import('./views/CetakQR.vue') },
   { path: '/kas/rumah', name: 'semua-kartu', component: () => import('./views/SemuaKartu.vue') },
+  { path: '/kas/admin', name: 'admin',      component: () => import('./views/Admin.vue') },
   { path: '/sum',       name: 'ringkasan',  component: () => import('./views/RingkasanPublik.vue') },
 ];
 

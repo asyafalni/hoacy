@@ -1,22 +1,21 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
-import { useSheet } from '../composables/useSheet';
-import { useAuth } from '../composables/useAuth';
+import { useKas, useSaya } from '../composables/useKas';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { urlWhatsapp } from '../lib/forms';
+import { urlWhatsapp } from '../lib/tautan';
 import { ringkasPeriode } from '../lib/tagihan';
-import PinGate from '../components/PinGate.vue';
+import PengurusGate from '../components/PengurusGate.vue';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 
 // Read-only version of the Catat Tunai house list — same search/filter/pagination, but
 // bendahara is here to LOOK, not collect cash, so tapping a house opens its
 // 12-month card (same grid WargaCard.vue shows the resident) instead of a
-// payment dialog. Shares the Kas PIN/storage-key with Bendahara.vue and CetakQR.vue.
-const { rumah, blokWarna, TAHUN, pastikan, loading } = useSheet();
-const { pins } = useAuth();
-watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
+// payment dialog. Same sign-in and data as Bendahara.vue and CetakQR.vue.
+const { rumah, blokWarna, TAHUN, pastikan, loading } = useKas();
+const { status } = useSaya();
+watch(status, (s) => { if (s === 'masuk') pastikan(); }, { immediate: true });
 const PER_PAGE = 10;
 
 const badgeStyle = (h) => {
@@ -60,7 +59,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
 </script>
 
 <template>
- <PinGate role="kas" title="Kas Bendahara">
+ <PengurusGate>
   <section class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
@@ -203,7 +202,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
           Kirim link kartu via WhatsApp
         </a>
         <p v-else class="text-muted" style="font-size:11.5px;margin:0">
-          Tidak ada no. HP terdaftar untuk rumah ini (kolom telp di tab M-Rumah kosong).
+          Tidak ada no. HP terdaftar untuk rumah ini (isi di Admin → Rumah).
         </p>
 
         <div class="months">
@@ -216,5 +215,5 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
       </div>
     </div>
   </section>
- </PinGate>
+ </PengurusGate>
 </template>

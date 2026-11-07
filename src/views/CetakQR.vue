@@ -1,19 +1,18 @@
 <script setup vapor>
 import { ref, watch } from 'vue';
 import QRCode from 'qrcode';
-import { useSheet } from '../composables/useSheet';
-import { useAuth } from '../composables/useAuth';
-import { urlKartu } from '../lib/forms';
-import PinGate from '../components/PinGate.vue';
+import { useKas, useSaya } from '../composables/useKas';
+import { urlKartu } from '../lib/tautan';
+import PengurusGate from '../components/PengurusGate.vue';
 
 // Rollout tool for bendahara: one printable QR per house, stuck on a door/mailbox,
 // so a resident doesn't have to type blok+rumah on their own phone. The QR only
-// pre-fills the address (?alamat=N7-09) — it still goes through the PIN screen,
+// pre-fills the address (?alamat=N7-09) — it still goes through the house PIN screen,
 // same as typing it in by hand, so a printed sticker being seen by a neighbour
 // doesn't grant them anything.
-const { rumah, pastikan } = useSheet();
-const { pins } = useAuth();
-watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
+const { rumah, pastikan } = useKas();
+const { status } = useSaya();
+watch(status, (s) => { if (s === 'masuk') pastikan(); }, { immediate: true });
 
 // `window` isn't reachable from a template expression — call it from here.
 const cetak = () => window.print();
@@ -28,7 +27,7 @@ watch(rumah, async (list) => {
 </script>
 
 <template>
- <PinGate role="kas" title="Kas Bendahara">
+ <PengurusGate>
   <section class="scr col" style="gap:var(--space-3)">
     <div class="row no-print" style="align-items:flex-start;gap:var(--space-3)">
       <div class="grow">
@@ -57,5 +56,5 @@ watch(rumah, async (list) => {
       </div>
     </div>
   </section>
- </PinGate>
+ </PengurusGate>
 </template>

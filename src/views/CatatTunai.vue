@@ -1,27 +1,22 @@
 <script setup vapor>
 import { ref, computed, watch } from 'vue';
-import { useSheet } from '../composables/useSheet';
-import { useAuth } from '../composables/useAuth';
-import { usePendingSync } from '../composables/usePendingSync';
+import { useKas, useSaya } from '../composables/useKas';
 import { useScrollLock } from '../composables/useScrollLock';
+import { api, ApiError } from '../lib/api';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { submitTunai } from '../lib/forms';
 import { labelBulan, ringkasPeriode } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
-import PinGate from '../components/PinGate.vue';
+import PengurusGate from '../components/PengurusGate.vue';
 
 // Catat Tunai — the bendahara recording cash a resident handed over in person
 // (since Jan 2027 the default is transfer; the satpam's Pos screen is gone).
-// Same Form A "Catat Tunai" as before, so `L-Tunai` and the Kas Tunai balance
-// work unchanged; petugas = the bendahara's own name, picked once on /kas.
-const { rumah, blokWarna, TAHUN, muat, pastikan, loading } = useSheet();
-const { pins } = useAuth();
-// Kas data only exists once the server has accepted the PIN (PinGate) — load it then.
-watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
-const { pending, add: addPending, reconcile } = usePendingSync();
-watch(rumah, (list) => { if (list.length) reconcile(list); }, { immediate: true });
+// The server checks every month (owed, at its own tarif) and records it at
+// once; the pencatat is the signed-in pengurus.
+const { rumah, blokWarna, TAHUN, muat, pastikan, loading } = useKas();
+const { saya, status } = useSaya();
+watch(status, (s) => { if (s === 'masuk') pastikan(); }, { immediate: true });
 // light tint of the block's color behind the house number — dark text stays legible
 const badgeStyle = (h) => {
   const hex = blokWarna.value[String(h.blok)] || BLOK_WARNA_DEFAULT[String(h.blok)] || '#c0b6a5';
@@ -29,9 +24,6 @@ const badgeStyle = (h) => {
 };
 const PER_PAGE = 10;
 
-// Who received the cash = the bendahara name chosen on /kas (Bendahara.vue,
-// same localStorage key) — recorded on 'L-Tunai'!petugas.
-const petugasAktif = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 const STATUS_LIST = [
   { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
   { value: 'lunas', label: 'Lunas', test: (h) => h.tarifDiatur && h.tunggakan <= 0 },
@@ -81,50 +73,40 @@ function toggle(p) {
 // A month is always paid in full at its own tarif (RumahRiwayat/TarifVersi) —
 // a house upgraded mid-year owes its earlier months at the old rate. Partial
 // payments don't exist in the app (docs/sheets-schema.md `D-Pembayaran`).
-const items = computed(() => !sel.value ? [] : bulan.value.map((p) => ({ periode: p, nominal: sel.value.tarifPer(p) })));
+const items = computed(() => !sel.value ? [] : bulan.value.map((p) => ({
+  periode: p, nominal: sel.value.tunggakanList.find((t) => t.periode === p).tarif })));
 const total = computed(() => items.value.reduce((sum, i) => sum + i.nominal, 0));
 
 const submitting = ref(false);   // disables the button — stops a double-tap from firing two rows
 
-// One silent POST per transaction (all its months in one "rincian" answer).
-// If a submission is stuck, "Coba lagi" retries the same POST — see usePendingSync.js.
+const pesan = ref('');
 async function catat() {
   if (!sel.value || !items.value.length || submitting.value) return;
   submitting.value = true;
+  pesan.value = '';
   try {
-    const rec = { alamat: sel.value.alamat, items: items.value, petugas: petugasAktif.value };
-    addPending(rec);           // survives a reload/crash — see usePendingSync
-    await submitTunai(rec);    // opaque; the pending entry is what the bendahara sees
-    toast.value = `${sel.value.nama} · ${rec.items.length} bulan tunai tercatat. Masuk Kas Tunai.`;
+    const r = await api('/api/kas/tunai', { method: 'POST', pakai: 'pengurus',
+      body: { alamat: sel.value.alamat, periode: items.value.map((i) => i.periode) } });
+    toast.value = `${sel.value.nama} · ${items.value.length} bulan tunai tercatat (${rupiah(r.total)}). Masuk Kas Tunai.`;
     sel.value = null; bulan.value = [];
-    setTimeout(() => muat('kas'), 4000);   // let the Sheet recalculate, then reconcile (see watch(rumah))
     setTimeout(() => (toast.value = ''), 4000);
+    await muat();
+  } catch (e) {
+    pesan.value = e instanceof ApiError ? e.message : 'Gagal mencatat — coba lagi.';
   } finally {
     submitting.value = false;
   }
 }
-
-async function retryPending(p) {
-  await submitTunai(p);
-  await muat('kas');
-}
 </script>
 
 <template>
- <PinGate role="kas" title="Kas Bendahara">
+ <PengurusGate>
 
-  <!-- the name is picked on /kas; without it a cash row would have no petugas -->
-  <section v-if="!petugasAktif" class="scr col"
-           style="gap:var(--space-3);align-items:center;text-align:center;padding-top:var(--space-8)">
-    <p class="text-muted" style="font-size:13px;margin:0">Pilih nama bendahara dulu di halaman Kas.</p>
-    <a class="btn btn-primary" href="#/kas">Ke Kas</a>
-  </section>
-
-  <section v-else class="scr col" style="gap:var(--space-3)">
+  <section class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
         <h4 style="margin:0">Catat Tunai</h4>
-        <div class="text-muted" style="font-size:11.5px">Uang diterima langsung oleh {{ petugasAktif }}</div>
+        <div class="text-muted" style="font-size:11.5px">Uang diterima langsung oleh {{ saya.nama }}</div>
       </div>
       <a class="btn btn-ghost" href="#/kas" style="font-size:12px">← Kas</a>
     </div>
@@ -151,24 +133,6 @@ async function retryPending(p) {
       </span>
     </div>
 
-    <!-- submissions the sheet hasn't confirmed yet — no-cors POST means we never
-         actually know if these landed, so keep them visible until reconcile()
-         (watch(rumah) above) sees every month in it as lunas -->
-    <Card v-if="pending.length" style="background:var(--color-accent-100);gap:6px">
-      <div class="spread">
-        <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
-          ⚠ {{ pending.length }} pembayaran belum tersinkron
-        </span>
-      </div>
-      <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
-        <span>{{ p.alamat }} · {{ p.items.map(i => label(i.periode)).join(', ') }} ·
-          {{ rupiahPendek(p.items.reduce((s, i) => s + i.nominal, 0)) }}</span>
-        <button class="btn btn-ghost" style="font-size:11px;padding-inline:6px" @click="retryPending(p)">
-          Coba lagi
-        </button>
-      </div>
-    </Card>
-
     <div class="spread text-muted" style="font-size:11.5px">
       <span>{{ daftar.length }} rumah</span>
       <span v-if="totalPages > 1">Hal. {{ page }}/{{ totalPages }}</span>
@@ -186,7 +150,7 @@ async function retryPending(p) {
           <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
           <div class="text-muted" style="font-size:11.5px">
-            {{ !h.tarifDiatur ? 'Tarif belum diatur di M-RumahRiwayat'
+            {{ !h.tarifDiatur ? 'Tarif belum diatur (Admin → Rumah)'
                : h.tunggakan ? 'Belum: ' + ringkasBelum(h) : 'Lunas' }}
           </div>
         </div>
@@ -282,8 +246,9 @@ async function retryPending(p) {
           </span>
         </div>
 
+        <p v-if="pesan" style="font-size:12px;color:var(--color-accent-700);margin:0">{{ pesan }}</p>
         <Button block :disabled="submitting || !items.length" @click="catat">
-          {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
+          {{ submitting ? 'Mengirim…' : 'Catat pembayaran tunai' }}
         </Button>
       </div>
     </div>
@@ -293,5 +258,5 @@ async function retryPending(p) {
                 width:min(432px,calc(100% - 32px));background:var(--color-neutral-900);
                 color:var(--color-neutral-100);font-size:12.5px">{{ toast }}</div>
   </section>
- </PinGate>
+ </PengurusGate>
 </template>

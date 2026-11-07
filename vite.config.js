@@ -11,15 +11,18 @@ export default defineConfig({
   resolve: {
     alias: { vue: 'vue/dist/vue.runtime-with-vapor.esm-browser.js' },
   },
+  // `npm run dev` talks to the Go backend (backend/, `go run ./cmd/server`)
+  server: { proxy: { '/api': process.env.API_DEV || 'http://localhost:8080' } },
   plugins: [
     vue({ features: { optionsAPI: false } }),
-    // Satpam/bendahara open this from one device, every day, via a bookmarked
-    // hidden URL — installable + a cached app shell means it survives a flaky
-    // pos connection and behaves like an app, not just a tab. API/Forms calls
-    // are never cached (generateSW's default precache is build assets only, no
-    // runtimeCaching rules added here), so data is never served stale.
+    // Residents and pengurus open this from their phones, often — installable
+    // + a cached app shell behaves like an app, not just a tab. API calls are
+    // never cached (the default precache is build assets only, no
+    // runtimeCaching rules), so data is never served stale, and /api is kept
+    // out of the navigation fallback.
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: { navigateFallbackDenylist: [/^\/api\//] },
       manifest: {
         name: 'Iuran Cluster the Cypress',
         short_name: 'Iuran Cypress',

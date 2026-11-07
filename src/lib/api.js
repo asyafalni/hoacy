@@ -1,43 +1,71 @@
 import { ref } from 'vue';
+import { headerPengurus } from './pengurus.js';
 
-// The only door to the data. In production every call is one POST to the Apps
-// Script web app (VITE_API_URL — docs/setup.md, Tahap 6); the Sheet behind it is
-// private, and the server decides what each caller may see. Without
-// VITE_API_URL the same server code runs locally against src/composables/
-// mockData.js (see apiLokal.js), so `npm run dev` works with no Google setup.
-/** The last network/server failure (null while calls succeed) — App.vue shows a
- *  banner from it. A wrong PIN is not a failure and never lands here. */
-export const apiError = ref(null);
+// The one way the app talks to the backend (backend/internal/api). Same origin
+// in production — the Go server serves this app too; `npm run dev` proxies
+// /api to it (vite.config.js).
+//
+// Every answer is JSON {ok, …}; a refusal is {ok:false, kode, pesan} where
+// `pesan` is meant for the user as is. Network trouble goes to `apiError`
+// (the banner in App.vue); a refusal is thrown as ApiError for the screen to show.
+
+export const apiError = ref('');
 
 export class ApiError extends Error {
-  constructor(kode, pesan) {
+  constructor(kode, pesan, status) {
     super(pesan || kode);
-    this.kode = kode;   // pin | terkunci | config | tab | server …
+    this.kode = kode;
+    this.status = status;
   }
 }
 
-export async function api(action, params = {}) {
+const SESI = 'iuran.sesi';   // { alamat, token } — the resident signed in on this device
+export function sesiWarga() {
+  try { return JSON.parse(localStorage.getItem(SESI) || 'null'); } catch { return null; }
+}
+export function simpanSesiWarga(s) {
+  try { s ? localStorage.setItem(SESI, JSON.stringify(s)) : localStorage.removeItem(SESI); } catch { /* private mode */ }
+}
+
+/**
+ * `pakai`: 'warga' sends the resident's session token, 'pengurus' the signed-in
+ * pengurus (Clerk), nothing otherwise. `body` is JSON; `form` a FormData upload.
+ */
+export async function api(path, { method = 'GET', body, form, pakai } = {}) {
+  const headers = {};
+  if (pakai === 'warga') {
+    const s = sesiWarga();
+    if (s) headers.Authorization = `Bearer ${s.token}`;
+  } else if (pakai === 'pengurus') {
+    Object.assign(headers, await headerPengurus());
+  }
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res;
   try {
-    // The condition reads import.meta.env directly (not through a variable) so the
-    // build can see it's constant and drop the mock branch — and apiLokal.js, with
-    // its dev PINs and fixtures — from a production bundle.
-    if (import.meta.env.VITE_API_URL) {
-      // No Content-Type header → text/plain: a "simple" request, so the browser
-      // sends no CORS preflight (Apps Script web apps can't answer one).
-      const r = await fetch(import.meta.env.VITE_API_URL, { method: 'POST', body: JSON.stringify({ action, ...params }) });
-      res = await r.json();
-    } else {
-      res = await (await import('./apiLokal.js')).panggilLokal({ action, ...params });
-    }
-  } catch (e) {
-    apiError.value = e;
-    throw e;
+    res = await fetch(path, {
+      method, headers,
+      body: form || (body !== undefined ? JSON.stringify(body) : undefined),
+    });
+  } catch {
+    apiError.value = 'Tidak bisa menghubungi server — periksa koneksi lalu coba lagi.';
+    throw new ApiError('jaringan', apiError.value, 0);
   }
-  apiError.value = null;
-  if (!res.ok) {
-    if (res.kode === 'server' || res.kode === 'config') apiError.value = new Error(res.pesan || res.kode);
-    throw new ApiError(res.kode, res.pesan);
+  let data = null;
+  try { data = await res.json(); } catch { /* not JSON */ }
+  if (res.status >= 500 && !(data && data.pesan)) {
+    apiError.value = 'Server bermasalah — coba lagi sebentar lagi.';
+  } else {
+    apiError.value = '';
   }
-  return res;
+  if (!res.ok || !data || data.ok === false) {
+    throw new ApiError((data && data.kode) || 'server', (data && data.pesan) || 'Server bermasalah.', res.status);
+  }
+  return data;
+}
+
+/** A proof image/PDF served only to pengurus → a local object URL for <img>/<a>. */
+export async function urlBerkas(path) {
+  const res = await fetch(path, { headers: await headerPengurus() });
+  if (!res.ok) throw new ApiError('berkas', 'Berkas tidak bisa dibuka.', res.status);
+  return URL.createObjectURL(await res.blob());
 }
