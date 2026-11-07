@@ -1,0 +1,5 @@
+alamat,cluster,blok,rumah,nama,telp,pin,konfirmasi_nonaktif,dinonaktifkan_oleh,tanggal_nonaktif,aktif,peringatan
+N7-09,N,7,9,Alfin,6281299900314,314,,,,TRUE,
+N7-01,N,7,01,Budi,6281234500001,001,,,,TRUE,
+NBlvd-02,N,Blvd,02,Kavling Kosong,,000,NBlvd-02,Ibu Siti,2026-10-01,FALSE,
+N7-1,N,7,03,Salah,,,,,,TRUE,
