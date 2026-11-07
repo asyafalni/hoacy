@@ -51,7 +51,12 @@ func (a *App) adminRumah(c *fibhttp.Context, _ *auth.Pengurus) {
 		a.galat(c, err)
 		return
 	}
-	a.json(c, 200, map[string]any{"ok": true, "rumah": list})
+	warna, err := a.Store.WarnaBlok(c.Context())
+	if err != nil {
+		a.galat(c, err)
+		return
+	}
+	a.json(c, 200, map[string]any{"ok": true, "rumah": list, "warna": warna})
 }
 
 func (a *App) adminTambahRumah(c *fibhttp.Context, p *auth.Pengurus) {

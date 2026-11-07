@@ -271,6 +271,24 @@ func (s *Store) HapusRateCard(ctx context.Context, berlaku int, oleh string) err
 	})
 }
 
+// WarnaBlok is every block's stored color (blocks without one are absent).
+func (s *Store) WarnaBlok(ctx context.Context) (map[string]string, error) {
+	rows, err := s.DB.Query(ctx, `select kode, warna from blok where warna is not null`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, w string
+		if err := rows.Scan(&k, &w); err != nil {
+			return nil, err
+		}
+		out[k] = w
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) SimpanWarnaBlok(ctx context.Context, kode, warna, oleh string) error {
 	return s.ubah(ctx, "blok", kode, oleh, `select to_jsonb(b) from blok b where kode = $1`, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `insert into blok values ($1, nullif($2, '')) on conflict (kode) do update set warna = excluded.warna`, kode, warna)

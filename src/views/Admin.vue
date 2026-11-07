@@ -32,6 +32,7 @@ const labelPeriode = (p) => `${BULAN[(p % 100) - 1].slice(0, 3)} ${Math.floor(p 
 
 // ── Rumah ──
 const rumah = ref([]);
+const warnaBlok = ref({});   // blok → color as stored (defaults for blocks without one)
 const cari = ref('');
 const pilihAlamat = ref('');
 const pilih = computed(() => rumah.value.find((r) => r.alamat === pilihAlamat.value));
@@ -42,7 +43,11 @@ const riwayatBaru = ref({ bulan: '', luas: '', tipe: 'rumah' });
 const konfirmasi = ref('');
 const pinAcak = ref('');
 const rumahBaru = ref({ blok: '', rumah: '', nama: '', telp: '' });
-async function muatRumah() { rumah.value = (await A('/api/admin/rumah')).rumah; }
+async function muatRumah() {
+  const r = await A('/api/admin/rumah');
+  rumah.value = r.rumah;
+  warnaBlok.value = Object.fromEntries(BLOK_LIST.map((b) => [b, (r.warna || {})[b] || BLOK_WARNA_DEFAULT[b]]));
+}
 watch(pilih, (r) => {
   if (!r) return;
   edit.value = { nama: r.nama, telp: r.telp || '' };
@@ -77,7 +82,6 @@ const tambahRumah = () => jalan(async () => {
 }, 'Rumah ditambahkan — isi riwayat luas/tipe supaya tagihannya mulai.');
 
 // ── Blok ──
-const warnaBlok = ref({});
 const simpanWarna = (b) => jalan(() => A(`/api/admin/blok/${b}`, { method: 'PUT', body: { warna: warnaBlok.value[b] } }), `Warna blok ${b} disimpan.`);
 
 // ── Tarif ──
@@ -147,7 +151,6 @@ async function bukaTab(t) {
   });
 }
 watch(status, (s) => { if (s === 'masuk' && boleh()) bukaTab(tab.value); }, { immediate: true });
-BLOK_LIST.forEach((b) => { warnaBlok.value[b] = BLOK_WARNA_DEFAULT[b]; });
 const baris = 'padding:7px 0;border-top:1px solid var(--color-divider);font-size:12.5px';
 </script>
 
