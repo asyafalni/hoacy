@@ -1,72 +1,67 @@
-# Deploy
+# Deploy — DigitalOcean App Platform
 
-```bash
-npm install
-npm run dev        # http://localhost:5173
-npm run build      # -> dist/
-```
+One Docker image (`Dockerfile`): the Vue app is built, the Go server is built,
+and the server serves both `/api` and the app on port 8080. It runs in
+DigitalOcean's `blr` region, the same data center as the Aiven database, so a
+query is a ~1 ms hop. `.do/app.yaml` is the app spec.
 
-## Fly.io
+## First deploy
 
-The site is static: `Dockerfile` builds it with Vite and serves `dist/` with nginx
-(`nginx.conf`) on port 8080; `fly.toml` runs it in Singapore (`sin`) and scales to
-zero when idle.
+1. DigitalOcean → **Apps → Create App → GitHub** → repo `asyafalni/hoacy`,
+   branch `main`. Or with `doctl`: `doctl apps create --spec .do/app.yaml`.
+2. In the app's **Settings → Environment variables**, fill in — and tick
+   **Encrypt** for every one marked secret:
 
-**The build reads `.env`.** Every `VITE_*` value is baked into the JavaScript at
-build time, so the Docker build stage reads the project's `.env` (it never reaches
-the final image — only `dist/` does). `scripts/cek-env.mjs` stops the build if
-`VITE_API_URL` or any Form id/entry id is missing — otherwise the site would
-silently run on mock data, or record nothing. Leave `VITE_BASE` empty (the site
-lives at the domain root). PINs are **not** in `.env`; they're Script Properties.
+   | Variable | Scope | Value |
+   | --- | --- | --- |
+   | `VITE_CLERK_PUBLISHABLE_KEY` | build | `pk_test_…` / `pk_live_…` (public) |
+   | `VITE_WA_OPERASIONAL` | build | `62…` (public) |
+   | `APP_ENV` | run | `production` |
+   | `IP_HEADER` | run | `do-connecting-ip` |
+   | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAMA` | run | the first admin |
+   | `SHEET_ID`, `DRIVE_FOLDER_ID` | run | from `docs/setup.md` Tahap 3 |
+   | `DATABASE_URL` | run, **secret** | Aiven Service URI |
+   | `SESSION_SECRET` | run, **secret** | `openssl rand -base64 48` |
+   | `CLERK_SECRET_KEY` | run, **secret** | `sk_test_…` / `sk_live_…` |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | run, **secret** | Tahap 3 |
 
-First deploy:
+3. Deploy. The build refuses to start without the two `VITE_*` values (and refuses
+   a `sk_…` key or anything secret-looking under a `VITE_` name). The server
+   refuses to start in production without `SESSION_SECRET`, `CLERK_SECRET_KEY` and
+   the Google credentials, and runs the database migrations on every start.
+4. Check `https://<app>.ondigitalocean.app/api/sehat` → `{"ok":true}`.
 
-```bash
-fly auth login                       # once per machine (opens the browser)
-fly apps create iuran-cypress        # or another free name — then set `app` in fly.toml
-fly deploy --ha=false                # one machine is plenty for this site
-```
+Every push to `main` redeploys. Check the instance size slug in `.do/app.yaml`
+against DigitalOcean's current list if the create step rejects it.
 
-The site is then at `https://iuran-cypress.fly.dev`. Every later deploy is just
-`fly deploy`. After changing a Form id or the API URL: edit `.env`, `fly deploy`.
+## Domain
 
-Things to know:
+**Settings → Domains → Add domain**, add the CNAME DigitalOcean shows at your
+DNS provider; HTTPS is automatic. Then create Clerk's production instance for
+that domain (`docs/setup.md` Tahap 2.4), switch both Clerk keys, and redeploy.
+Print the QR codes only after this — they carry the site's address.
 
-- **Decide the domain before printing QR codes.** Each house's QR (Kas → Cetak QR)
-  encodes the site's address at the time. For a custom domain:
-  `fly certs add iuran.example.id`, point the DNS records `fly certs show` lists,
-  then print.
-- **A deploy reaches phones on their next visit.** `index.html` and the service
-  worker are served `no-cache`, hashed assets are cached for a year — an open
-  Kas tab picks up the new version after a reload.
-- **Cost:** with `auto_stop_machines` the machine only runs while someone is using
-  the site; Fly bills per second of running time (a card is required on the
-  account).
-- `npm run build` without a complete `.env` still works locally (mock mode) — only
-  the Docker build insists on the real values.
+## Aiven access
 
-## What is and isn't public
+Aiven accepts connections from anywhere by default, over TLS, with the password.
+DigitalOcean App Platform has no fixed outgoing IP on its basic plans, so an IP
+allowlist isn't practical; keep the password strong and rotate it if it leaks.
 
-- **The spreadsheet is private** — shared with the pengurus only, never published.
-  Names, phone numbers, PINs, per-house payment status and proof links never leave
-  it except through the Apps Script gateway, which checks the PIN first and returns
-  each role only its own slice (`docs/sheets-schema.md`, *How the app reads the
-  Sheet*). PINs live in Script Properties, not in the bundle.
-- **Public by design:** the web-app URL (`VITE_API_URL`) and the Form ids/entry ids
-  — they ship in the site's JavaScript. The URL alone returns only aggregates (the
-  `/sum` numbers); anything per-house needs the PIN, and guesses are rate-limited.
-- **Known limit — Forms still accept anonymous writes.** Anyone who reads the
-  bundle can submit a forged cash row or a Keputusan to the Forms, which the Sheet
-  would count. The Kas screen's per-submission view and the bendahara's checks
-  against the bukti are the guard; closing it fully would mean routing writes through
-  the gateway too (a later change, not needed for reading).
+## What is public and what isn't
 
-## Recovery — the Sheet *is* the database
+| Who | Sees |
+| --- | --- |
+| Anyone | `/sum`: cluster-wide aggregates only (no house, name, phone or proof) |
+| A resident with their house's PIN | that house's card and payments; never another house, never phone numbers |
+| Pengurus (Clerk + `pengurus` table) | every house incl. phone numbers, balances, proofs; writes by role |
+| Nobody through the app | PIN hashes, Clerk/Google/DB secrets |
 
-There's no separate backup job. If a formula gets fat-fingered or a row deleted,
-recover it the same way you'd recover any Google Sheet: **File → Version history →
-See version history** (or `Ctrl/Cmd+Alt+Shift+H`). It keeps a full cell-level
-history — pick an earlier version to preview it, then "Restore this version," or
-copy a range out of the old version into the current sheet without a full restore.
-That's the whole recovery story for this project; no custom export/snapshot
-tooling exists or is planned.
+- Warga PINs are argon2id hashes; a session token (not the PIN) stays on the phone,
+  and changing the PIN signs every other phone out.
+- Every PIN attempt is logged (Admin → Keamanan); lock-outs per house and per IP.
+- Proof photos are private files in the RT's Drive, streamed through the server to
+  signed-in pengurus only.
+- `VITE_*` values are in the downloaded JavaScript — only the Clerk publishable key
+  and the operational WhatsApp number are there, both public by design.
+- Master-data changes, verdicts and syncs are attributed to a named pengurus
+  (`audit`, `keputusan.oleh`, `sinkron_log`).

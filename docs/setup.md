@@ -1,342 +1,156 @@
 # Panduan setup — langkah demi langkah
 
-Urutan ini penting: tab rumus merujuk tab lain, jadi tab data dan Form dibuat
-lebih dulu. Detail kolom dan rumus lengkap ada di `docs/sheets-schema.md`,
-pengaturan Form di `docs/form-mapping.md` — panduan ini menunjuk ke sana.
+Urutan: akun-akun (Tahap 0–3) → coba di komputer (Tahap 4, opsional) → deploy
+(Tahap 5, detail di `docs/deploy.md`) → pindah data dan rilis (Tahap 6).
 
-Perkiraan waktu: 2–3 jam untuk struktur + uji coba, di luar input data lama.
-
----
-
-## Tahap 0 — Persiapan
-
-1. **Pakai satu akun Google milik pengurus** (bukan akun pribadi) sebagai pemilik
-   spreadsheet dan kelima Form. Foto bukti transfer juga masuk ke Drive akun ini.
-2. Buat spreadsheet baru, beri nama **Iuran_ClusterN**.
-3. **File → Settings** (Setelan):
-   - **Locale: United States** — wajib. Dengan locale Indonesia, pemisah argumen
-     rumus jadi `;` dan semua rumus di dokumentasi (pakai `,`) akan error saat
-     di-paste.
-   - **Time zone: (GMT+07:00) Jakarta** — supaya timestamp Form benar.
-
-**Aturan nama tab** — prefix menandai kelompoknya, dan nama harus **persis** seperti
-di panduan ini (huruf besar/kecil dan tanda `-` ikut dihitung), karena app dan
-rumus memanggil tab berdasarkan nama:
-
-| Prefix | Kelompok | Diisi oleh |
-| --- | --- | --- |
-| `M-` | Master | diketik manual oleh admin/komite |
-| `L-` | Ledger | hanya Google Form — jangan diketik |
-| `D-` | Derived | hanya rumus — jangan diketik |
-
-Di dalam rumus, nama tab ber-prefix selalu ditulis dengan tanda kutip satu:
-`'M-Rumah'!A2` (semua rumus di dokumentasi sudah begitu).
-
-**Aturan tanggal & waktu** — daftar lengkap tiap kolom ada di
-`docs/sheets-schema.md` → *Dates, times and periods*. Yang perlu diingat saat
-mengetik:
-
-| Jenis | Cara menulis | Contoh | Dipakai di |
-| --- | --- | --- | --- |
-| Tanggal | `yyyy-mm-dd` (tahun-bulan-tanggal) | `2026-10-01` | `M-Rumah` tanggal_nonaktif, `M-Opex` diperbarui, `M-SaldoAwal` tanggal, `M-Impor` tanggal_bayar |
-| Tanggal + jam (opsional di Impor) | `yyyy-mm-dd hh:mm` (24 jam) | `2025-03-05 14:30` | `M-Impor` tanggal_bayar |
-| Tahun | angka 4 digit | `2025` | `M-RumahRiwayat`, `M-TarifVersi` |
-| Bulan | angka `1`–`12` (bukan nama bulan) | `6` (Juni) | `M-RumahRiwayat`, `M-TarifVersi`, `M-Impor` |
-| Periode | `tahun × 100 + bulan` → `yyyymm` | `202609` (Sep 2026) | rincian Form (diisi app), uji coba Tahap 5 |
-| Waktu kiriman | `yyyy-mm-dd hh:mm:ss`, **persis** seperti kolom A `D-Pembayaran`, termasuk detik | `2026-09-16 07:55:00` | Form Keputusan (diisi app) |
-
-Setiap kolom tanggal: blok kolomnya → *Format → Number → Custom date and time* →
-ketik `yyyy-mm-dd` → Apply. Wajib untuk `M-Opex` kolom D (app mengurutkan tanggal
-itu sebagai teks). Jangan menulis `1/10/2026` atau `01-10-2026` — dengan locale
-United States, `1/10/2026` dibaca **10 Januari**, bukan 1 Oktober.
+**Aturan rahasia:** connection string database, Clerk *secret key*, dan token
+Google **tidak pernah** ditempel di chat, issue, atau file yang di-commit.
+Tempatnya hanya `backend/.env` di komputer Anda (sudah di-.gitignore) dan env var
+terenkripsi di DigitalOcean.
 
 ---
 
-## Tahap 1 — Tab master (diisi manual)
+## Tahap 0 — Yang perlu disiapkan
 
-Buat tab-tab ini, isi baris 1 dengan header persis seperti di
-`docs/sheets-schema.md`, lalu:
-
-| Tab | Yang dikerjakan |
+| Akun | Untuk apa |
 | --- | --- |
-| `M-Rumah` | Format kolom **C, D, F** sebagai *Plain text* (Format → Number → Plain text) **sebelum** mengetik. Isi B–F per rumah. Pasang rumus A2, G2, K2, L2 lalu tarik ke bawah sampai semua rumah + cadangan (mis. 300 baris). H–J dibiarkan kosong. |
-| `M-RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama yang dilacak di sistem ini** (bukan tahun dibangun) + luas + tipe. Lihat catatan di Tahap 8. |
-| `M-TarifVersi` | Satu set baris per versi tarif (format baris: komponen, luas_min, nominal). Kalau tarif pernah berubah selama 3 tahun data lama, masukkan **setiap versi** dengan bulan mulai berlakunya. |
-| `M-Blok` | Format kolom A sebagai *Plain text*, isi 10 blok + warna (contoh ada di dokumen). |
-| `M-Petugas` | Nama bendahara/admin (`bendahara`). Baris `satpam` lama boleh dibiarkan — tidak dipakai lagi. |
-| `M-Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
-| `M-SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
-| `M-Impor2023` … `M-Impor2026` | Header saja dulu (alamat, bulan, nominal, tanggal_bayar — **tanpa kolom tahun**, tahunnya diambil dari nama tab). Pasang data validation sesuai dokumen. Satu tab per tahun, dari tahun baseline paling awal sampai **tahun go-live** (bulan-bulan sebelum go-live di tahun itu juga masuk sini). Kalau hanya melacak mulai 2026, cukup `M-Impor2026`. |
+| GitHub (repo `asyafalni/hoacy`) | sumber kode, DigitalOcean deploy dari sini |
+| Aiven (Postgres, region DigitalOcean `blr`) | database |
+| Clerk | login pengurus (admin / bendahara / komite) |
+| **Akun Google khusus RT**, mis. `iuran.cypress@gmail.com` | menyimpan foto bukti di Drive + membaca Sheet untuk sinkron |
+| DigitalOcean | hosting (App Platform, region `blr`) |
+| Domain milik sendiri | wajib untuk Clerk *production* dan sebelum QR dicetak |
+
+Di komputer (untuk Tahap 4 dan `google-login`): Go ≥ 1.27.3, Node 22, Docker.
+
+## Tahap 1 — Database (Aiven)
+
+1. Aiven → service Postgres → **Overview → Service URI**. Bentuknya
+   `postgres://avnadmin:…@….aivencloud.com:…/defaultdb?sslmode=require`.
+   Database `cypressdb` boleh dipakai — ganti nama di ujung URI.
+2. Kalau password pernah terlihat orang lain (mis. tertempel di chat): **Users →
+   avnadmin → Reset password**, lalu pakai URI yang baru.
+3. Skema dibuat otomatis saat server pertama kali jalan (migrasi). Tidak ada
+   tabel yang perlu dibuat manual.
+
+## Tahap 2 — Clerk (login pengurus)
+
+1. clerk.com → **Create application** → nama "Iuran Cypress". Pilihan masuk:
+   **Email** (kode lewat email) — boleh tambah **Google**.
+2. **Configure → Restrictions → Sign-up mode: Restricted.** Hanya orang yang
+   diundang yang bisa membuat akun. (Admin mengundang dari app: Kas → Admin →
+   Pengurus → centang *Kirim undangan email*.)
+3. **Configure → API keys**: salin **Publishable key** (`pk_test_…`) dan **Secret
+   key** (`sk_test_…`).
+   - `pk_…` = publik → `VITE_CLERK_PUBLISHABLE_KEY` (build frontend).
+   - `sk_…` = rahasia → `CLERK_SECRET_KEY` (backend).
+4. Sementara memakai *development instance*. Saat domain siap: **Create
+   production instance**, ikuti record DNS yang diminta Clerk, lalu ganti kedua
+   kunci ke `pk_live_…`/`sk_live_…` (Tahap 6).
+
+Login Clerk hanya memastikan *siapa* orangnya. *Haknya* ditentukan tabel
+`pengurus` di database (admin / bendahara / komite) — email yang tidak terdaftar
+di sana ditolak walau berhasil login Clerk.
+
+## Tahap 3 — Akun Google RT (Drive + Sheet)
+
+Akun biasa (gmail) tidak bisa memakai *service account* untuk menyimpan file
+(service account tidak punya kuota Drive), jadi server bertindak **sebagai akun RT
+lewat OAuth**.
+
+1. Login ke akun Google RT. Buka **console.cloud.google.com** → buat project
+   "Iuran Cypress".
+2. **APIs & Services → Library**: aktifkan **Google Drive API** dan **Google
+   Sheets API**.
+3. **OAuth consent screen**: tipe *External*, isi nama app dan email akun RT.
+   Tambahkan akun RT sebagai *test user*, lalu **Publish app → In production**.
+   ⚠ Kalau dibiarkan *Testing*, refresh token **kedaluwarsa tiap 7 hari** dan
+   upload bukti berhenti. App tidak perlu diverifikasi Google — hanya akun RT
+   yang memakainya; layar "Google hasn't verified this app" cukup dilewati
+   (*Advanced → Go to … (unsafe)*).
+4. **Credentials → Create credentials → OAuth client ID → Desktop app.** Salin
+   *Client ID* dan *Client secret* ke `backend/.env` (`GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET`).
+5. Di komputer: `cd backend && go run ./cmd/google-login` → buka link yang
+   dicetak di browser yang login **akun RT** → izinkan → terminal mencetak
+   `GOOGLE_REFRESH_TOKEN=…`. Simpan ke `backend/.env` (dan nanti ke DigitalOcean).
+6. **Drive akun RT**: buat folder "Bukti Iuran". ID-nya ada di URL
+   `drive.google.com/drive/folders/<ID>` → `DRIVE_FOLDER_ID`. Semua bukti transfer
+   dan nota pengeluaran baru masuk ke sini, privat.
+7. **Bukti lama dari Google Form**: folder unggahan Form ada di Drive pemilik
+   Form. Bagikan folder itu ke akun RT (**Viewer**), supaya Kas tetap bisa
+   menampilkan bukti lama.
+8. **Spreadsheet**: bagikan ke akun RT (**Viewer**). ID-nya dari URL
+   `docs.google.com/spreadsheets/d/<ID>/edit` → `SHEET_ID`.
+
+## Tahap 4 — Coba di komputer (opsional, tanpa Clerk & Google)
+
+```sh
+docker run -d --name hoacy-dev-db -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=hoacy \
+  -p 127.0.0.1:55432:5432 postgres:17-alpine
+cp backend/.env.example backend/.env       # isi BOOTSTRAP_ADMIN_EMAIL dengan email Anda
+cd backend
+go run ./cmd/sinkron -csv dev/sheet -terapkan   # data contoh, lewat jalur sinkron yang sama
+go run ./cmd/server
+# terminal lain, di root repo:
+cp .env.example .env    # biarkan VITE_CLERK_PUBLISHABLE_KEY kosong untuk mode dev
+npm install && npm run dev                 # http://localhost:5173
+```
+
+- Warga: Blok N7, No. 01, PIN `500001` (6 digit terakhir no. HP contoh).
+- Kas: `http://localhost:5173/#/kas` → masukkan email `BOOTSTRAP_ADMIN_EMAIL`.
+- Tes otomatis: `cd backend && go test ./...`.
+
+## Tahap 5 — Deploy ke DigitalOcean
+
+Ikuti `docs/deploy.md`. Ringkasnya: buat app dari `.do/app.yaml`, isi env var
+rahasia (terenkripsi), deploy, buka `/api/sehat`.
+
+## Tahap 6 — Pindah data dan rilis (cutover)
+
+1. **Login pertama**: buka `/#/kas`, masuk dengan email `BOOTSTRAP_ADMIN_EMAIL`
+   (otomatis jadi admin).
+2. **Kas → Admin → Sinkron**, urut: `M-Blok` → `M-Rumah` → `M-RumahRiwayat` →
+   `M-TarifVersi` → `L-Tunai` → `L-Transfer` → `L-Keputusan` → `L-Setoran` →
+   `L-Pengeluaran` → setiap `M-Impor<tahun>`. Tiap tab: **Pratinjau** → periksa
+   *Galat* (baris yang dilewati, mis. alamat salah ketik) → **Terapkan**.
+   Bisa juga dari terminal: `go run ./cmd/sinkron -terapkan` (semua tab, urut).
+   - PIN rumah **tidak** ikut dari Sheet: setiap rumah mulai dengan 6 digit
+     terakhir no. HP-nya. Rumah tanpa no. HP mendapat PIN acak — reset di Admin →
+     Rumah untuk melihat PIN sementara.
+3. **Periksa**: Kas → Lihat semua kartu rumah. Tunggakan yang janggal biasanya
+   berarti baris `M-Impor` terlewat atau baseline `M-RumahRiwayat` terlalu awal —
+   perbaiki di Sheet, sinkron ulang tab itu.
+4. **Admin → Sinkron → Opex & Saldo Awal → Muat ulang sekarang** (selanjutnya
+   otomatis tiap hari).
+5. **Pengurus**: Admin → Pengurus → tambah email + nama + peran, centang *Kirim
+   undangan email*.
+6. **Data sensitif di Sheet**: setelah sinkron `M-Rumah` beres, kosongkan kolom
+   **telp** dan **pin** di Sheet — datanya sekarang hanya di database.
+7. **Domain + Clerk production** (Tahap 2.4), lalu **cetak QR** (Kas → Cetak QR) —
+   QR berisi alamat situs, jadi cetak setelah domain final.
+8. Warga mulai memakai app 1 Januari 2027. Versi lama di Fly.io (`v0.1.0`) boleh
+   dimatikan: `fly apps destroy iuran-cypress`.
+
+Sinkron setelah rilis tetap bisa dipakai kapan saja, per kasus — mis. komite
+menemukan pembayaran lama yang terlewat: tambahkan di `M-Impor<tahun>`, sinkron
+tab itu.
 
 ---
-
-## Tahap 2 — Lima Google Form
-
-Untuk **setiap** Form (detail pertanyaan di `docs/form-mapping.md`):
-
-1. Buat Form, tambahkan pertanyaan **persis sesuai urutan** di dokumen.
-2. **Settings → Responses**: *Collect email addresses* → **Do not collect**.
-   Untuk Form A, C, D, E: pastikan **tidak** ada "Restrict to users in …" /
-   wajib login.
-3. Tab **Responses → Link to Sheets → Select existing spreadsheet** →
-   Iuran_ClusterN. Google membuat tab baru "Form Responses N" — **rename** sesuai
-   tabel di bawah.
-
-| Form | Nama tab hasil |
-| --- | --- |
-| A. Catat Tunai | `L-Tunai` |
-| B. Konfirmasi Transfer (upload bukti di pertanyaan **terakhir**) | `L-Transfer` |
-| C. Setor ke Bank | `L-Setoran` |
-| D. Pengeluaran | `L-Pengeluaran` |
-| E. Keputusan | `L-Keputusan` |
-
-**Rename tabel di tab Form.** Google membuat respons Form sebagai *Table* (label
-ungu di atas header, awalnya bernama `Form_Responses`). Klik label itu → ganti
-namanya — pakai **underscore**, karena nama tabel tidak boleh berisi `-`:
-
-| Tab | Nama tabel |
-| --- | --- |
-| `L-Tunai` | `L_Tunai` |
-| `L-Transfer` | `L_Transfer` |
-| `L-Keputusan` | `L_Keputusan` |
-
-Rumus `D-Pembayaran` membaca ketiganya lewat nama tabel. Rujukan sel biasa
-(`'L-Tunai'!A2:E`) tidak bisa dipakai: saat respons masuk, Google menyisipkan
-baris dan Sheets menggeser rujukan itu jadi `A3:E`, sehingga respons pertama
-terlewat. `L-Setoran` dan `L-Pengeluaran` tidak perlu di-rename.
-
-Jangan pernah mengetik atau menaruh rumus di kelima tab ini.
-
-**Folder bukti transfer:** setelah Form B dibuat, Drive otomatis membuat folder
-"Konfirmasi Transfer (File responses)". Bagikan folder itu **hanya** ke akun
-bendahara (bukan "anyone with the link") — layar Kas menampilkan foto bukti kalau
-bendahara sedang login Google di browser yang sama; kalau tidak, ada tombol
-"Buka langsung di Drive".
-
----
-
-## Tahap 3 — Tab rumus
-
-Buat tab-tab ini **setelah** Tahap 1–2 selesai (rumusnya merujuk tab lain), dan
-salin rumus dari `docs/sheets-schema.md`:
-
-> **Kalau muncul `#N/A` dengan pesan *"Argument must be a range"*** di rumus yang
-> memakai `SUMIFS`/`SUMIF`: hampir pasti ada tab yang dirujuk **belum dibuat**
-> (Sheets tidak menampilkan `#REF!` dalam kasus ini). Buat Form-nya dan link ke
-> spreadsheet — **jangan** membuat tab kosong sementara dengan nama itu: saat tab
-> sementara dihapus nanti, rumus yang merujuknya berubah permanen jadi `#REF!`
-> dan harus di-paste ulang.
-
-
-1. **`D-Pembayaran`** — rumus satu sel di **A1**. Bagian `impor, VSTACK(...)` punya
-   satu baris `HSTACK(...)` per tab `M-Impor<tahun>`: hapus baris untuk tahun yang
-   tidak Anda buat, atau salin satu baris dan ganti nama tab + angka tahunnya. Menampilkan `#N/A` selama belum ada data:
-   itu normal. Format kolom A sebagai teks biasa (sudah teks dari rumus).
-2. **`D-Iuran2023` … `D-Iuran2035`** — satu tab per tahun, rumus A1 yang sama, hanya
-   angka tahunnya diganti. (Tip: buat `D-Iuran2023`, lalu *Duplicate* dan ubah
-   angkanya.)
-3. **`D-Pending`** dan **`D-KasMasuk`** — rumus A1 masing-masing.
-4. **`D-Riwayat`** — A2:C2 dan A3:B3, tarik ke bawah sampai **baris 121** (120 bulan =
-   10 tahun). Baris 2 selalu bulan berjalan dan bergeser sendiri tiap bulan.
-5. **`D-API`** — A1:B4 (blok saldo), lalu D1:M1 header dan rumus D2:M2, tarik ke
-   bawah sebanyak baris `M-Rumah` (mis. 300).
-
----
-
-## Tahap 4 — Nonaktif rumah (cukup dicek, tanpa pengaturan tambahan)
-
-Pengamannya ada di rumus `'M-Rumah'!K`: rumah baru nonaktif kalau kolom H berisi
-alamatnya **persis**, dan kolom I (oleh) + J (tanggal) terisi. Tidak ada
-validasi atau proteksi yang wajib dipasang. Cek sekali di baris rumah mana pun:
-
-| # | Lakukan | Yang harus terjadi |
-| --- | --- | --- |
-| 1 | Ketik alamat yang salah di H (mis. `N7-9`) | K tetap `TRUE`, L: *"⚠️ nonaktif belum lengkap…"* |
-| 2 | Ganti H dengan alamat yang benar, isi I dan J | K jadi `FALSE`, L kosong, `D-API` K juga `FALSE` |
-| 3 | **Kembalikan**: hapus isi H, I, J | K kembali `TRUE` |
-
-Pengaman tambahan (validasi, dialog peringatan) opsional — lihat
-`docs/sheets-schema.md` → *Menonaktifkan rumah*. Yang lebih berguna: setelah
-input data lama selesai, ubah akses komite ke spreadsheet jadi **Viewer**.
-
----
-
-## Tahap 5 — Uji coba (wajib sebelum input data lama)
-
-Tambahkan satu rumah uji di `M-Rumah` (mis. blok `Blvd`, rumah `99`) + baseline di
-`M-RumahRiwayat` bulan ini, luas `100`, tipe `rumah` (tarifnya jadi Rp275.000 dengan
-tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, dan cek hasil di `D-Pembayaran`:
-
-| Langkah | Hasil yang diharapkan di `D-Pembayaran` |
-| --- | --- |
-| Isi Form A langsung: alamat `NBlvd-99`, rincian `202609=275000,202610=275000`, total `550000`, petugas nama bendahara | 2 baris, metode `tunai`, keabsahan `sah` |
-| Kirim Form A yang sama sekali lagi | 2 baris baru dengan keabsahan `dobel` |
-| Isi Form B: rincian `202611=275000`, total `999` + upload foto | 1 baris keabsahan `cek` |
-| Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `D-Pending` |
-| Isi Form E: alamat, waktu = kolom A baris transfer tadi, persis termasuk detik (mis. `2026-09-24 10:15:42`), keputusan `sah` | baris itu jadi `sah` |
-| Ketik 1 baris di `M-Impor2025`: `NBlvd-99`, 1, 275000 | 1 baris metode `impor`, `sah`, muncul di `D-Iuran2025` |
-
-Cek juga: `'D-API'!L` untuk rumah uji berisi periode yang sah, dan `'D-API'!B2`
-(kas_tunai) naik sebesar tunai yang sah.
-
-Kalau ada rumus yang error, kirim screenshot + pesan errornya untuk diperbaiki.
-Setelah semua sesuai, **hapus semua baris uji** di `L-Tunai`, `L-Transfer`,
-`L-Keputusan`, `M-Impor2025`, `M-RumahRiwayat`, dan baris rumah uji di `M-Rumah`
-(boleh menghapus baris di tab Form; yang tidak boleh adalah mengedit isinya
-saat sudah dipakai sungguhan).
-
----
-
-## Tahap 6 — Apps Script: pintu baca yang terkunci PIN
-
-Spreadsheet **tetap privat**. App membacanya lewat satu Web App Apps Script yang
-menjalankan pemeriksaan PIN di server dan hanya mengirim data sesuai peran (warga:
-rumahnya saja; Kas: semuanya; publik `/sum`: angka
-agregat saja). Detailnya di `docs/sheets-schema.md` → *How the app reads the Sheet*.
-
-1. **Pastikan spreadsheet tidak publik.** *Share* → General access: **Restricted**
-   (hanya akun pengurus). Kalau pernah di-*Publish to web*:
-   *File → Share → Publish to web* → **Stop publishing**.
-2. Di komputer, jalankan `npm run build:script` (hasilnya `apps-script/Code.gs`;
-   file ini juga sudah ada di repo).
-3. Di spreadsheet: **Extensions → Apps Script**. Hapus isi `Code.gs` bawaan,
-   **paste seluruh isi `apps-script/Code.gs`**, lalu **Save** (Ctrl+S).
-4. **Project Settings (ikon ⚙) → Script Properties → Add script property**:
-
-   | Property | Isi |
-   | --- | --- |
-   | `KAS_PIN` | PIN layar Kas (dibagikan ke bendahara/komite) |
-
-   (`POS_PIN` lama — kalau ada — hapus saja; layar Pos sudah tidak ada.)
-
-   PIN rumah tetap di `'M-Rumah'!G`. Jangan tulis PIN di `.env` atau di kode.
-5. **Deploy → New deployment** → ikon ⚙ di sebelah *Select type* → **Web app**:
-   - *Description*: `v1`
-   - *Execute as*: **Me** (akun pemilik spreadsheet)
-   - *Who has access*: **Anyone** (ini hanya membuka *pintunya*; data tetap
-     dikunci PIN)
-
-   Klik **Deploy** → **Authorize access** → pilih akun pemilik. Google akan
-   bilang *"Google hasn't verified this app"*: **Advanced → Go to … (unsafe) →
-   Allow** (aplikasinya milik Anda sendiri). Salin **Web app URL**
-   (`https://script.google.com/macros/s/…/exec`).
-6. **Uji dari terminal** (ganti `<URL>`; jangan pakai `-X POST`, curl harus
-   mengikuti redirect Google):
-
-   ```
-   curl -sL "<URL>"
-   curl -sL -d '{"action":"publik"}' "<URL>"
-   curl -sL -d '{"action":"login","role":"kas","pin":"salah"}' "<URL>"
-   curl -sL -d '{"action":"warga","alamat":"N7-09","pin":"<PIN rumah>"}' "<URL>"
-   ```
-
-   Yang diharapkan: `{"ok":true,"pesan":"Iuran API aktif"}` · angka agregat
-   (`"ok":true,"jumlahRumah":…`) · `{"ok":false,"kode":"pin"…}` · data satu rumah.
-   Kalau yang kedua mengembalikan `"kode":"server"` dengan pesan *Tab tidak
-   ditemukan*, ada tab yang belum dibuat atau namanya beda (nama persis, dengan
-   prefix `M-`/`L-`/`D-`).
-7. **Setiap kali kode app berubah** (mis. setelah update dari repo): jalankan
-   `npm run build:script`, paste ulang `Code.gs`, lalu
-   **Deploy → Manage deployments → ✏ (Edit) → Version: New version → Deploy**.
-   URL-nya **tidak berubah**. (Jangan pilih *New deployment* — itu membuat URL baru.)
-   Mengganti PIN cukup lewat Script Properties, tanpa deploy ulang.
-
-Catatan:
-- **Kecepatan:** panggilan pertama setelah lama tidak dipakai bisa 1–3 detik
-  (Apps Script "bangun" dulu). Ringkasan `/sum` di-cache 60 detik; layar lain selalu
-  membaca Sheet langsung.
-- **Kuota:** Google membatasi Apps Script per hari. Untuk sekitar 200 rumah
-  biasanya cukup, tapi belum diukur — kalau suatu saat muncul error kuota, kabari.
-- **CORS:** app memanggil dengan POST `text/plain` supaya tidak butuh preflight. Kalau
-  di browser muncul *"Gagal memuat data dari server"* padahal `curl` berhasil, buka
-  DevTools → Network dan kirim pesan error-nya.
-- **Terkunci:** 5 PIN rumah yang salah mengunci rumah itu 15 menit; 10 PIN petugas
-  yang salah mengunci layar petugas itu 15 menit (untuk semua orang).
-
----
-
-## Tahap 7 — Isi `.env` dan coba di komputer
-
-1. Salin `.env.example` → `.env`.
-2. `VITE_API_URL` = Web app URL dari Tahap 6. (Dikosongkan, app jalan di data
-   mockup bawaan dengan PIN Kas `5678` — hanya untuk mencoba tampilan.)
-3. Untuk tiap Form: buka **Send → link (🔗)** → URL berbentuk
-   `https://docs.google.com/forms/d/e/<ID>/viewform` → `<ID>` itu yang diisi ke
-   `VITE_FORM_…`.
-4. Entry id: di editor Form, **⋮ → Get pre-filled link**, isi semua pertanyaan
-   dengan sembarang nilai, **Get link → Copy**. URL-nya berisi
-   `entry.123456789=…` untuk tiap pertanyaan, berurutan → isi ke `VITE_E_…`
-   sesuai urutan pertanyaan.
-5. `npm install && npm run dev`, buka http://localhost:5173 dan coba: kartu warga
-   (alamat + PIN rumah), `/#/kas` (PIN dari `KAS_PIN`) → *Catat pembayaran tunai*,
-   dan `/#/sum`. Setelah mencatat tunai, barisnya
-   masuk ke tab `L-Tunai`; status di app menyusul beberapa detik kemudian.
-
----
-
-## Tahap 8 — Input data lama
-
-1. Tentukan **tanggal go-live** (disarankan tanggal 1 sebuah bulan). Semua
-   pembayaran **sebelum** tanggal itu masuk `M-Impor<tahun>`; sesudahnya lewat app.
-2. **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama yang **dilacak di sistem
-   ini** — bukan tahun rumah dibangun atau dibeli. Samakan dengan bulan pertama
-   data `M-Impor` rumah itu. Setiap bulan sejak baseline yang tidak ada
-   pembayarannya akan tampil sebagai tunggakan, jadi baseline dan data impor harus
-   sejalan. (Contoh: baseline 2016, tarif pertama 2020, impor mulai 2023 → 36 bulan
-   2020–2022 tampil sebagai tunggakan.)
-3. **`M-Impor2023` … `M-Impor2026`**: satu baris per rumah per bulan yang sudah dibayar
-   **sebelum go-live** — termasuk bulan-bulan awal tahun go-live.
-   Komite bisa membagi per tahun. Salah ketik cukup diedit langsung di baris itu.
-
-   **Data mulai 2016** (baseline `2016, 1`) — empat hal, tanpa ubah kode:
-   - **`M-TarifVersi`**: rate card pertama bertanggal `2016, 1` dengan harga yang
-     berlaku saat itu, lalu satu set baris lengkap baru setiap kali harga atau
-     Iuran RT berubah. Bulan sebelum rate card pertama **tidak ditagih** (kartu
-     menampilkan "—" dan tahun itu tidak muncul di pilihan tahun).
-   - **`M-RumahRiwayat`**: baseline tiap rumah = bulan pertama datanya, mis.
-     `N7-09, 2016, 1, 124, rumah` (rumah yang baru dihuni belakangan pakai bulan
-     itu).
-   - **`M-Impor2016` … `M-Impor2022`**: tab tambahan, format sama dengan
-     `M-Impor2023`; tiap tab ditambahkan sebagai satu baris `HSTACK(...)` di
-     `VSTACK` rumus `D-Pembayaran` (Tahap 3).
-   - **`D-Iuran2016` … `D-Iuran2022`**: rumus A1 yang sama, ganti angka tahunnya —
-     supaya *Iuran per tahun* di Kas bisa membuka tahun itu.
-4. **`M-SaldoAwal`**: isi saldo kas tunai dan rekening **pada tanggal go-live**.
-5. Cek hasil: buka `/kas` → *Lihat semua kartu rumah* — rumah dengan tunggakan
-   yang mencurigakan biasanya berarti ada bulan yang terlewat di impor atau
-   baseline yang terlalu awal.
-
----
-
-## Tahap 9 — Deploy ke Fly.io
-
-1. `.env` harus lengkap: `VITE_API_URL` + semua id Form dan entry id (Tahap 7).
-   `VITE_BASE` dikosongkan. Build menolak jalan kalau ada yang kosong.
-2. `fly auth login` (sekali per komputer), lalu `fly apps create iuran-cypress`
-   (atau nama lain — samakan `app` di `fly.toml`), lalu `fly deploy --ha=false`.
-3. Buka `https://iuran-cypress.fly.dev`, coba `/#/sum`, kartu warga, dan Kas.
-
-**Tentukan domain sebelum mencetak QR** — QR tiap rumah berisi alamat situs saat
-dicetak. Detail dan cara pasang domain sendiri: `docs/deploy.md`.
-
----
-
-## Tahap 10 — Rollout
-
-1. **Pengurus**: bagikan link `/#/kas` ke bendahara beserta PIN-nya. Tiap orang
-   memilih namanya sekali per HP. Warga membayar lewat transfer; kalau ada yang
-   menyerahkan tunai, bendahara mencatatnya di *Kas → Catat pembayaran tunai*.
-2. **Warga**: dari `/kas` → *Cetak QR per rumah* → cetak dan tempel, atau kirim
-   link kartu via WhatsApp dari *Lihat semua kartu rumah*. PIN default = 3 digit
-   terakhir no. HP; bisa diganti per rumah di `'M-Rumah'!G`.
-3. **Publik**: link `/#/sum` untuk ringkasan kas cluster (tanpa data per rumah).
 
 ## Perawatan rutin
 
-- Tarif naik → tambah set baris baru di `M-TarifVersi` (semua komponen, dengan
-  bulan mulai berlaku). Jangan edit baris lama.
-- Luas/tipe rumah berubah → tambah baris di `M-RumahRiwayat`.
-- Rumah baru → baris di `M-Rumah` + baseline di `M-RumahRiwayat`.
-- Biaya bulanan berubah → edit `M-Opex` (dan tanggal diperbarui).
-- Tab `D-Iuran<tahun>` sudah tersedia sampai 2035 — setelah itu duplikasi lagi.
-- Salah edit → **File → Version history** untuk memulihkan.
+- **Rumah baru**: Admin → Rumah → Tambah rumah, lalu isi riwayat luas/tipe
+  (bulan mulai ditagih). Tanpa riwayat, rumah tampil "Tarif belum diatur" dan
+  tidak bisa bayar.
+- **Rumah membesar / kavling dibangun**: tambah baris riwayat mulai bulan itu.
+- **Harga naik**: Admin → Tarif → *Rate card baru*, lengkap (termasuk aturan yang
+  tidak berubah), berlaku mulai bulan kenaikan. ISLK rumah = harga daftar
+  **dikurangi** Iuran RT.
+- **Warga lupa PIN**: Admin → Rumah → Reset PIN (kembali ke 6 digit terakhir no. HP).
+- **Merger / tidak tertagih lagi**: Admin → Rumah → Nonaktifkan (ketik alamatnya
+  untuk konfirmasi). Alasannya dicatat di luar sistem.
+- **Ada yang mencoba-coba PIN**: Admin → Keamanan. IP yang mencoba banyak rumah
+  ditandai ⚠.
+- **OPEX berubah**: edit `M-Opex` di Sheet — termuat otomatis besok, atau Admin →
+  Sinkron → Muat ulang sekarang.

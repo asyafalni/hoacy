@@ -381,7 +381,7 @@ useScrollLock(showDibayarDimuka);
         </div>
 
         <p class="text-muted" style="font-size:10.5px;text-align:center">
-          Diedit bendahara langsung di Google Sheet — begitu diubah, angka ini otomatis ikut.
+          Diedit bendahara di Google Sheet (tab M-Opex) — termuat ke aplikasi setiap hari.
         </p>
        </div>
       </div>
