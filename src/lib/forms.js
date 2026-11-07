@@ -23,7 +23,7 @@ function submit(viewformUrl) {
 export const rincianOf = (items) => items.map((i) => `${i.periode}=${i.nominal}`).join(',');
 const totalOf = (items) => items.reduce((sum, i) => sum + i.nominal, 0);
 
-/** Form A "Catat Tunai" → Tunai — satpam, silent submit, one per transaction. */
+/** Form A "Catat Tunai" → Tunai — bendahara (/kas/tunai), silent submit, one per transaction. */
 export function urlTunai({ alamat, items, petugas }) {
   return formUrl(E.VITE_FORM_TUNAI, {
     [E.VITE_E_TUNAI_ALAMAT]: alamat, [E.VITE_E_TUNAI_RINCIAN]: rincianOf(items),
@@ -79,7 +79,7 @@ export function urlWhatsapp({ nama, telp, alamat }) {
 
 /** wa.me link to the pengurus' operational number (VITE_WA_OPERASIONAL, 62xxx),
  *  prefilled with who is writing and about what — the "ada kendala?" contact
- *  under the transfer dialog and on Pos. */
+ *  under the transfer dialog. */
 export function urlWaOperasional(pesan) {
   return `https://wa.me/${import.meta.env.VITE_WA_OPERASIONAL}?text=${encodeURIComponent(pesan)}`;
 }

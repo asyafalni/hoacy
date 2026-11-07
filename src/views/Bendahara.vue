@@ -27,7 +27,7 @@ const persen = computed(() => (total.value ? Math.round((totals.value.lunasBulan
 const setorUrl = computed(() =>
   urlSetoran({ nominal: kas.value, oleh: bendaharaNama.value || 'Bendahara' }));
 
-// Who's verifying — same pattern as Pos's petugasAktif: the Kas PIN is shared by
+// Who's verifying (and, on /kas/tunai, who received the cash): the Kas PIN is shared by
 // everyone on the roster (Petugas tab, peran "bendahara" — docs/sheets-schema.md
 // `M-Petugas`), so each person picks their own name once per device before anything shows,
 // and it's what gets recorded on 'L-Keputusan'!oleh.
@@ -153,8 +153,8 @@ async function putuskan(g, keputusan) {
         </div>
       </div>
       <div class="row" style="gap:4px;flex:none">
-        <button class="btn btn-ghost" style="font-size:12px;padding:6px 8px" title="Riwayat kas masuk"
-                @click="showRiwayatKas = true">
+        <button v-if="tunai.length" class="btn btn-ghost" style="font-size:12px;padding:6px 8px"
+                title="Riwayat kas masuk tunai" @click="showRiwayatKas = true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"></circle>
@@ -167,8 +167,10 @@ async function putuskan(g, keputusan) {
       </div>
     </div>
 
-    <Card elev="md" style="background:var(--color-neutral-900);color:var(--color-neutral-100)">
-      <span class="kick" style="color:var(--color-accent-300)">Kas Tunai di pos</span>
+    <!-- tunai is the exception since Jan 2027 (bendahara records it on /kas/tunai);
+         the card only shows while cash is held, i.e. until it's deposited -->
+    <Card v-if="kas > 0" elev="md" style="background:var(--color-neutral-900);color:var(--color-neutral-100)">
+      <span class="kick" style="color:var(--color-accent-300)">Kas Tunai</span>
       <div class="num" style="font-family:var(--font-heading);font-size:32px;line-height:1.1">
         {{ rupiah(kas) }}
       </div>
@@ -271,6 +273,10 @@ async function putuskan(g, keputusan) {
       </div>
     </Card>
 
+    <a class="btn btn-secondary" href="#/kas/tunai"
+       style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+      Catat pembayaran tunai
+    </a>
     <button type="button" class="btn btn-secondary" @click="bukaTahunan"
             style="justify-content:center;background:var(--color-surface);box-shadow:var(--shadow-sm)">
       Iuran per tahun
@@ -295,7 +301,7 @@ async function putuskan(g, keputusan) {
           <div>
             <div class="dialog-title">Riwayat Kas Masuk</div>
             <div class="text-muted" style="font-size:12px">
-              Tunai · cross-check dengan laporan satpam. Salah input? "Batalkan", lalu catat ulang di Pos.
+              Tunai · salah input? "Batalkan", lalu catat ulang di Catat pembayaran tunai.
             </div>
           </div>
           <button class="btn btn-ghost" @click="showRiwayatKas = false">×</button>

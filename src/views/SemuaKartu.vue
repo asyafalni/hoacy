@@ -10,7 +10,7 @@ import PinGate from '../components/PinGate.vue';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 
-// Read-only version of the Pos house list — same search/filter/pagination, but
+// Read-only version of the Catat Tunai house list — same search/filter/pagination, but
 // bendahara is here to LOOK, not collect cash, so tapping a house opens its
 // 12-month card (same grid WargaCard.vue shows the resident) instead of a
 // payment dialog. Shares the Kas PIN/storage-key with Bendahara.vue and CetakQR.vue.
@@ -132,7 +132,7 @@ const cls = (s) => ({ Lunas: 'lunas', Pending: 'pending', Belum: 'belum' }[s] ||
       <button class="btn btn-secondary" :disabled="page === totalPages" @click="page++">Berikutnya ›</button>
     </div>
 
-    <!-- sheet: panel filter blok + status (sama seperti Pos) -->
+    <!-- sheet: panel filter blok + status (sama seperti Catat Tunai) -->
     <div v-if="showFilter" class="dialog-backdrop sheet-backdrop" @click.self="showFilter = false">
       <div class="dialog sheet" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;
            max-height:85dvh">

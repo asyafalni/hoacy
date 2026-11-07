@@ -6,7 +6,7 @@ import cypressLogo from './assets/logos/the-cypress.png';
 
 // Each screen loads its own data (a signed-in role's, or the public summary).
 // All App.vue does is refresh the signed-in data when the tab comes back to the
-// foreground, so a phone left on Pos/Kas overnight doesn't keep showing
+// foreground, so a phone left on Kas overnight doesn't keep showing
 // yesterday's status, or yesterday's "bulan ini".
 const { refresh } = useSheet();
 function onVisible() {

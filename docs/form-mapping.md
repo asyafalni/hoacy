@@ -27,8 +27,8 @@ Settings that apply to **every** Form:
 | Petugas | short answer | `VITE_E_TUNAI_PETUGAS` |
 
 Form id: `VITE_FORM_TUNAI`. **No file-upload question and "Require sign in" off**
-(*Settings → Responses*) — that's what lets the Pos screen submit it silently in
-one tap:
+(*Settings → Responses*) — that's what lets *Kas → Catat pembayaran tunai* submit it
+silently in one tap:
 
 ```js
 // src/lib/forms.js — same params, /formResponse instead of /viewform
@@ -36,7 +36,7 @@ fetch(`https://docs.google.com/forms/d/e/${FORM_ID}/formResponse?${params}`,
       { method: 'POST', mode: 'no-cors' })
 ```
 
-The response is opaque (no-cors), so the Pos screen keeps each submission as a
+The response is opaque (no-cors), so the Catat Tunai screen keeps each submission as a
 local "belum tersinkron" entry until a re-fetch shows its months as paid
 (`usePendingSync.js`). One submission = one payment, however many months it
 covers.
@@ -105,8 +105,8 @@ The Kas screen writes it:
 
 - **Verifikasi** (`sah`) / **Tolak** (`tolak`) on each pending transfer — one card
   per submission, bukti shown inline, any month claimed below its tarif flagged.
-- **Batalkan** (`tolak`) on a cash entry in *Riwayat Kas Masuk* — for a satpam's
-  wrong house/month; the satpam then records it again correctly.
+- **Batalkan** (`tolak`) on a cash entry in *Riwayat Kas Masuk* — for a wrong
+  house/month; it is then recorded again correctly.
 
 One row decides a whole submission (all its months). The latest decision wins.
 If the app is down, submitting this Form directly does the same — copy `waktu`

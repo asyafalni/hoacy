@@ -4,7 +4,7 @@
 // scripts/build-apps-script.mjs; never imported by the app itself.
 //
 // Deploy: Extensions → Apps Script in the Iuran_ClusterN spreadsheet, paste
-// apps-script/Code.gs, set Script Properties POS_PIN / KAS_PIN, then
+// apps-script/Code.gs, set Script Properties KAS_PIN, then
 // Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone).
 // docs/setup.md, Tahap 6.
 

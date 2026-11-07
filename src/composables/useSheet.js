@@ -5,7 +5,7 @@ import { bangunRumah } from '../lib/rumah.js';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from './useAuth.js';
 
-// The signed-in screens' data (Warga card, Pos, Kas). It comes from the Apps
+// The signed-in screens' data (Warga card, Kas). It comes from the Apps
 // Script gateway already trimmed to what that role may see (src/server/core.js):
 // raw tab rows, which the app turns into houses/status/tunggakan itself
 // (src/lib/rumah.js + tagihan.js — the same code the server uses). The public
@@ -29,7 +29,7 @@ let waktuMuat = 0;
 
 /** Load a role's data. Resolves to null on success, else the failure kode
  *  ('pin', 'terkunci', 'server', 'jaringan' …) — never throws. A petugas PIN the
- *  server refuses is forgotten here, which sends Pos/Kas back to the PIN screen. */
+ *  server refuses is forgotten here, which sends Kas back to the PIN screen. */
 async function muat(role, creds = {}) {
   const auth = useAuth();
   terakhir = [role, creds];
@@ -102,7 +102,6 @@ export function useSheet() {
 
   // M-Petugas — the server only sends the signed-in role's own names
   const namaPeran = (peran) => petugasRows.value.filter((r) => r[1] === peran).map((r) => String(r[0]));
-  const satpamList = computed(() => namaPeran('satpam'));
   const bendaharaList = computed(() => namaPeran('bendahara'));
 
   // Rate card effective right now — Warga's "Tagihan berjalan" ISLK/Iuran RT split.
@@ -124,6 +123,6 @@ export function useSheet() {
 
   return {
     muat, pastikan, refresh, bersihkan, loading, meta, diperbarui, rumah, totals, blokWarna,
-    satpamList, bendaharaList, rateCardAktif, tarifRumah, TAHUN, BULAN_INI, sekarang,
+    bendaharaList, rateCardAktif, tarifRumah, TAHUN, BULAN_INI, sekarang,
   };
 }

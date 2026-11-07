@@ -8,7 +8,7 @@ import { ringkasanPublik, ringkasTahun } from '../lib/ringkasan.js';
 //
 // ctx = {
 //   tab(name)            → rows of a tab, header row dropped, '' → null
-//   prop(name)           → a Script Property (POS_PIN, KAS_PIN)
+//   prop(name)           → a Script Property (KAS_PIN)
 //   cache                → { get(key), put(key, value, ttlSeconds), remove(key) }
 //   hari()               → { tahun, bulan } — "today" in the Sheet's time zone
 // }
@@ -16,12 +16,11 @@ import { ringkasanPublik, ringkasTahun } from '../lib/ringkasan.js';
 // Who gets what (the point of the whole thing — the Sheet itself is private):
 //   publik  nobody's PIN   aggregates only, no house rows (PDP)
 //   warga   alamat + PIN   that one house's rows + its own RumahRiwayat
-//   pos     POS_PIN        every active house, without phone numbers or PINs
 //   kas     KAS_PIN        + phone numbers, balances, pending/cash ledgers
 // Rows are returned raw (the app's own lib/tagihan.js turns them into status).
 
 const GAGAL_MAKS_WARGA = 5;      // wrong PINs per house before it locks…
-const GAGAL_MAKS_PETUGAS = 10;   // …and per petugas role (a global counter)
+const GAGAL_MAKS_PETUGAS = 10;   // …and for the Kas PIN (a global counter)
 const KUNCI_DETIK = 900;         // …for 15 minutes
 const PUBLIK_DETIK = 60;         // public aggregates are cached this long
 
@@ -42,9 +41,9 @@ function bersihkanGagal(ctx, kunci) {
 
 /** → null when OK, else the failure response. */
 function cekPetugas(ctx, role, pin) {
-  if (role !== 'pos' && role !== 'kas') return gagal('role');
-  const benar = ctx.prop(role === 'pos' ? 'POS_PIN' : 'KAS_PIN');
-  if (!benar) return gagal('config', 'PIN belum diatur di Script Properties (POS_PIN / KAS_PIN).');
+  if (role !== 'kas') return gagal('role');
+  const benar = ctx.prop('KAS_PIN');
+  if (!benar) return gagal('config', 'PIN belum diatur di Script Properties (KAS_PIN).');
   if (terkunci(ctx, role, GAGAL_MAKS_PETUGAS)) return gagal('terkunci');
   if (String(pin == null ? '' : pin) !== String(benar)) {
     catatGagal(ctx, role);
@@ -119,16 +118,6 @@ function warga(ctx, hari, req) {
   return p;
 }
 
-function pos(ctx, hari, req) {
-  const g = cekPetugas(ctx, 'pos', req.pin);
-  if (g) return g;
-  const p = dasar(ctx, hari);
-  p.api = barisApi(ctx, {});
-  p.rumahRiwayat = ctx.tab('M-RumahRiwayat');
-  p.petugas = ctx.tab('M-Petugas').filter((r) => r[1] === 'satpam');
-  return p;
-}
-
 function kas(ctx, hari, req) {
   const g = cekPetugas(ctx, 'kas', req.pin);
   if (g) return g;
@@ -161,7 +150,6 @@ export function handle(req, ctx) {
         return g || { ok: true };
       }
       case 'warga': return warga(ctx, hari, req);
-      case 'pos': return pos(ctx, hari, req);
       case 'kas': return kas(ctx, hari, req);
       case 'kasTahun': return kasTahun(ctx, hari, req);
       default: return gagal('action');

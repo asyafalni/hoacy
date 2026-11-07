@@ -27,7 +27,7 @@ const sandbox = {
     getSheetByName: (n) => (sheets[n] ? { getDataRange: () => ({ getValues: () => sheets[n] }) } : null),
     getSpreadsheetTimeZone: () => 'Asia/Jakarta',
   }) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => ({ POS_PIN: '1234', KAS_PIN: '5678' })[k] || null }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => ({ KAS_PIN: '5678' })[k] || null }) },
   CacheService: { getScriptCache: () => ({
     get: (k) => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: (k) => cache.delete(k),
   }) },
@@ -76,15 +76,9 @@ ok('warga: 5 wrong PINs lock the house, even for the right PIN', () => {
   assert.equal(panggil({ action: 'warga', alamat: 'N7-01', pin: '001' }).ok, true);   // other houses unaffected
 });
 
-ok('pos: needs POS_PIN; all active houses, no phones, PINs or balances', () => {
-  assert.equal(panggil({ action: 'pos', pin: '5678' }).kode, 'pin');
-  const r = panggil({ action: 'pos', pin: '1234' });
-  assert.equal(r.ok, true);
-  assert.ok(r.api.length > 30 && !adaTelpAtauPin(r.api));
-  assert.ok(r.api.every((x) => x[0] == null && x[1] == null));
-  assert.ok(!r.api.some((x) => x[3] === 'N6-07'));   // deactivated: never sent
-  assert.ok(r.petugas.every((x) => x[1] === 'satpam') && r.petugas.length === 3);
-  assert.ok(!('pending' in r));
+ok('pos: the satpam role is gone — no action, no login', () => {
+  assert.equal(panggil({ action: 'pos', pin: '1234' }).kode, 'action');
+  assert.equal(panggil({ action: 'login', role: 'pos', pin: '1234' }).kode, 'role');
 });
 
 ok('kas: needs KAS_PIN; phones + balances + ledgers, still no PINs', () => {
@@ -107,7 +101,7 @@ ok('kasTahun: PIN-gated per-year summary; missing tab is a clean error', () => {
 });
 
 ok('login: petugas PIN check + lock-out after 10 misses', () => {
-  assert.equal(panggil({ action: 'login', role: 'pos', pin: '1234' }).ok, true);
+  assert.equal(panggil({ action: 'login', role: 'kas', pin: '5678' }).ok, true);
   for (let i = 0; i < 10; i += 1) panggil({ action: 'login', role: 'kas', pin: '0000' });
   assert.equal(panggil({ action: 'login', role: 'kas', pin: '5678' }).kode, 'terkunci');
   assert.equal(panggil({ action: 'login', role: 'admin', pin: '1' }).kode, 'role');

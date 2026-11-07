@@ -38,7 +38,7 @@ Things to know:
   then print.
 - **A deploy reaches phones on their next visit.** `index.html` and the service
   worker are served `no-cache`, hashed assets are cached for a year — an open
-  Pos/Kas tab picks up the new version after a reload.
+  Kas tab picks up the new version after a reload.
 - **Cost:** with `auto_stop_machines` the machine only runs while someone is using
   the site; Fly bills per second of running time (a card is required on the
   account).

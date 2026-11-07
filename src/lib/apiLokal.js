@@ -3,10 +3,10 @@ import * as M from '../composables/mockData.js';
 
 // Local stand-in for the Apps Script web app: the very same `handle()` from
 // src/server/core.js, fed mock tabs instead of a Sheet. Dev-only PINs:
-// Pos 1234 · Kas 5678 · warga = each house's PIN in mockData (default: last 3
+// Kas 5678 · warga = each house's PIN in mockData (default: last 3
 // digits of its phone). "Today" is pinned to 2026-09-22 so the fixtures — built
 // around September 2026 — stay valid whatever the real date is.
-console.warn('[api] VITE_API_URL kosong — memakai data mockup lokal (PIN: pos 1234, kas 5678).');
+console.warn('[api] VITE_API_URL kosong — memakai data mockup lokal (PIN kas 5678).');
 
 const HARI = { tahun: 2026, bulan: 9 };
 const pembayaran = M.MOCK_PEMBAYARAN_ROWS;
@@ -30,7 +30,7 @@ const ctx = {
     if (!rows) throw new Error('Tab tidak ditemukan: ' + nama);
     return rows;
   },
-  prop: (k) => ({ POS_PIN: '1234', KAS_PIN: '5678' })[k],
+  prop: (k) => ({ KAS_PIN: '5678' })[k],
   cache: {
     get(k) {
       const e = kedaluwarsa.get(k);

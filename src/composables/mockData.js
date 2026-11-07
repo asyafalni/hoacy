@@ -43,7 +43,7 @@ const houses = [
     riwayat: [[202301, 200, 'kavling'], [202506, 200, 'rumah']], mulai: 202301, bayarSampai: 202608,
     belum: rentang(202509, 202512) },
   // Merged into the neighbour Jan 2026 and deactivated ('M-Rumah'!K = FALSE) —
-  // stays in every tab for audit but must vanish from Warga/Pos/Kas/totals.
+  // stays in every tab for audit but must vanish from Warga/Kas/totals.
   { alamat: 'N6-07', nama: 'Marto Wijoyo', telp: '6281234500607', blok: '6', rumah: '07',
     luas: 100, tipe: 'rumah', mulai: 202301, bayarSampai: 202512, aktif: false },
   // New house the admin hasn't given a RumahRiwayat baseline yet → the app must
@@ -52,7 +52,7 @@ const houses = [
     tanpaBaseline: true },
 ];
 
-// Bulk-generate more houses across every block so the Pos filter + pagination
+// Bulk-generate more houses across every block so the house-list filter + pagination
 // actually has something to page through in dev.
 const NAMA_DEPAN = ['Andi','Bambang','Citra','Dedi','Eka','Fitri','Gilang','Hani','Irfan','Joko','Kartika','Lukman'];
 const NAMA_BELAKANG = ['Wijaya','Nugroho','Pratama','Hidayat','Kurniawan','Setiawan','Handoko','Wibisono'];
@@ -137,10 +137,10 @@ MOCK_PEMBAYARAN_ROWS.push(
   row('2026-09-16 07:55:00', 'N7-09', 202610, 425000, 'transfer', 'Warga', bukti('N7-09-sep'), 'pending'),
   // Rincian didn't add up to the Form's total → `cek`, never counted.
   row('2026-09-14 21:02:00', 'N8-05', 202609, 35000, 'transfer', 'Warga', bukti('N8-05-sep'), 'cek'),
-  // Satpam recorded N8-02's Aug cash under the wrong house; bendahara voided
+  // Cash for N8-02's Aug cash under the wrong house; bendahara voided
   // it (Keputusan `tolak`) — listed struck-through, counted nowhere.
   row('2026-09-10 09:12:00', 'N8-11', 202608, 450000, 'tunai', 'Dedi', '', 'tolak'),
-  // Satpam double-tapped → second copy is `dobel`, counted once.
+  // Double-tapped Catat → second copy is `dobel`, counted once.
   row('2026-09-05 08:00:10', 'N5-11', 202609, tarif('N5-11', 202609), 'tunai', 'Ujang', '', 'dobel'),
 );
 
@@ -193,6 +193,7 @@ export const MOCK_BLOK_ROWS = [
 
 // `M-Petugas` tab (docs/sheets-schema.md `M-Petugas`) — one row per person.
 export const MOCK_PETUGAS_ROWS = [
+  // ex-satpam rows stay in M-Petugas; the server never sends them now
   ['Ujang', 'satpam'], ['Dedi', 'satpam'], ['Rahmat', 'satpam'],
   ['Ibu Siti', 'bendahara'], ['Pak Joko', 'bendahara'],
 ];

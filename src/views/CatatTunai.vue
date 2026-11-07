@@ -5,17 +5,21 @@ import { useAuth } from '../composables/useAuth';
 import { usePendingSync } from '../composables/usePendingSync';
 import { useScrollLock } from '../composables/useScrollLock';
 import { BULAN, rupiah, rupiahPendek, BLOK_LIST, BLOK_WARNA_DEFAULT } from '../lib/tariff';
-import { submitTunai, urlWaOperasional } from '../lib/forms';
+import { submitTunai } from '../lib/forms';
 import { labelBulan, ringkasPeriode } from '../lib/tagihan';
 import Card from '../components/ui/Card.vue';
 import Tag from '../components/ui/Tag.vue';
 import Button from '../components/ui/Button.vue';
 import PinGate from '../components/PinGate.vue';
 
-const { rumah, blokWarna, satpamList, TAHUN, muat, pastikan, loading } = useSheet();
+// Catat Tunai — the bendahara recording cash a resident handed over in person
+// (since Jan 2027 the default is transfer; the satpam's Pos screen is gone).
+// Same Form A "Catat Tunai" as before, so `L-Tunai` and the Kas Tunai balance
+// work unchanged; petugas = the bendahara's own name, picked once on /kas.
+const { rumah, blokWarna, TAHUN, muat, pastikan, loading } = useSheet();
 const { pins } = useAuth();
-// Pos data only exists once the server has accepted the PIN (PinGate) — load it then.
-watch(() => pins.value.pos, (pin) => { if (pin) pastikan('pos'); }, { immediate: true });
+// Kas data only exists once the server has accepted the PIN (PinGate) — load it then.
+watch(() => pins.value.kas, (pin) => { if (pin) pastikan('kas'); }, { immediate: true });
 const { pending, add: addPending, reconcile } = usePendingSync();
 watch(rumah, (list) => { if (list.length) reconcile(list); }, { immediate: true });
 // light tint of the block's color behind the house number — dark text stays legible
@@ -25,19 +29,9 @@ const badgeStyle = (h) => {
 };
 const PER_PAGE = 10;
 
-// The Pos PIN is shared by every satpam — it only gates the screen. Each payment
-// still needs to say which one of them actually took the cash (Petugas tab, peran
-// "satpam" — docs/sheets-schema.md `M-Petugas`), so the app makes them pick their name once
-// per device and remembers it, instead of hardcoding a single name for everyone.
-const petugasAktif = ref(localStorage.getItem('iuran.petugas.pos') || '');
-function pilihPetugas(nama) {
-  petugasAktif.value = nama;
-  localStorage.setItem('iuran.petugas.pos', nama);
-}
-function gantiPetugas() {
-  petugasAktif.value = '';
-  localStorage.removeItem('iuran.petugas.pos');
-}
+// Who received the cash = the bendahara name chosen on /kas (Bendahara.vue,
+// same localStorage key) — recorded on 'L-Tunai'!petugas.
+const petugasAktif = ref(localStorage.getItem('iuran.bendahara.nama') || '');
 const STATUS_LIST = [
   { value: 'belum', label: 'Belum bayar', test: (h) => h.tunggakan > 0 },
   { value: 'lunas', label: 'Lunas', test: (h) => h.tarifDiatur && h.tunggakan <= 0 },
@@ -56,7 +50,7 @@ useScrollLock(showFilter);
 useScrollLock(sel);
 const toast = ref('');
 
-// arrears first — the whole point of the post screen is speed
+// arrears first
 const daftar = computed(() => rumah.value
   .filter((h) => !blokFilter.value || String(h.blok) === blokFilter.value)
   .filter((h) => !statusFilter.value
@@ -93,19 +87,17 @@ const total = computed(() => items.value.reduce((sum, i) => sum + i.nominal, 0))
 const submitting = ref(false);   // disables the button — stops a double-tap from firing two rows
 
 // One silent POST per transaction (all its months in one "rincian" answer).
-// Deliberately no "open the Google Form directly" fallback anywhere on this
-// screen: only Kas is meant to touch Sheet/Form URLs. If a submission is stuck,
-// "Coba lagi" retries the same POST — see usePendingSync.js.
+// If a submission is stuck, "Coba lagi" retries the same POST — see usePendingSync.js.
 async function catat() {
   if (!sel.value || !items.value.length || submitting.value) return;
   submitting.value = true;
   try {
     const rec = { alamat: sel.value.alamat, items: items.value, petugas: petugasAktif.value };
     addPending(rec);           // survives a reload/crash — see usePendingSync
-    await submitTunai(rec);    // opaque; the pending entry is what the satpam sees
-    toast.value = `${sel.value.nama} · ${rec.items.length} bulan tunai tercatat. Masuk Kas Tunai pos.`;
+    await submitTunai(rec);    // opaque; the pending entry is what the bendahara sees
+    toast.value = `${sel.value.nama} · ${rec.items.length} bulan tunai tercatat. Masuk Kas Tunai.`;
     sel.value = null; bulan.value = [];
-    setTimeout(() => muat('pos'), 4000);   // let the Sheet recalculate, then reconcile (see watch(rumah))
+    setTimeout(() => muat('kas'), 4000);   // let the Sheet recalculate, then reconcile (see watch(rumah))
     setTimeout(() => (toast.value = ''), 4000);
   } finally {
     submitting.value = false;
@@ -114,42 +106,27 @@ async function catat() {
 
 async function retryPending(p) {
   await submitTunai(p);
-  await muat('pos');
+  await muat('kas');
 }
 </script>
 
 <template>
- <PinGate role="pos" title="Pos Satpam">
+ <PinGate role="kas" title="Kas Bendahara">
 
-  <!-- PIN dipakai bersama semua satpam; nama dipilih sekali per device supaya
-       tiap pembayaran tercatat atas nama yang benar-benar menerima uangnya -->
+  <!-- the name is picked on /kas; without it a cash row would have no petugas -->
   <section v-if="!petugasAktif" class="scr col"
            style="gap:var(--space-3);align-items:center;text-align:center;padding-top:var(--space-8)">
-    <h3 style="margin:0">Siapa Anda?</h3>
-    <p class="text-muted" style="font-size:13px;margin:0">
-      Pilih nama Anda — tercatat di setiap pembayaran yang Anda terima.
-    </p>
-    <div class="col" style="gap:var(--space-2);width:100%;max-width:280px">
-      <button v-for="nama in satpamList" :key="nama" type="button" class="btn btn-secondary"
-              style="width:100%;min-height:44px;background:var(--color-surface);box-shadow:var(--shadow-sm)"
-              @click="pilihPetugas(nama)">
-        {{ nama }}
-      </button>
-    </div>
-    <p v-if="!satpamList.length && !loading" class="text-muted" style="font-size:12px">
-      Daftar nama satpam belum diisi admin di Sheet (tab M-Petugas, peran "satpam").
-    </p>
+    <p class="text-muted" style="font-size:13px;margin:0">Pilih nama bendahara dulu di halaman Kas.</p>
+    <a class="btn btn-primary" href="#/kas">Ke Kas</a>
   </section>
 
   <section v-else class="scr col" style="gap:var(--space-3)">
     <div class="spread">
       <div>
-        <h4 style="margin:0">Terima Iuran</h4>
-        <div class="text-muted" style="font-size:11.5px">Pos Cypress</div>
+        <h4 style="margin:0">Catat Tunai</h4>
+        <div class="text-muted" style="font-size:11.5px">Uang diterima langsung oleh {{ petugasAktif }}</div>
       </div>
-      <button class="btn btn-ghost" style="font-size:12px" @click="gantiPetugas">
-        {{ petugasAktif }} · Ganti
-      </button>
+      <a class="btn btn-ghost" href="#/kas" style="font-size:12px">← Kas</a>
     </div>
 
     <div class="row" style="gap:var(--space-2)">
@@ -182,9 +159,6 @@ async function retryPending(p) {
         <span style="font-size:12.5px;font-weight:700;color:var(--color-accent-800)">
           ⚠ {{ pending.length }} pembayaran belum tersinkron
         </span>
-        <a class="btn btn-ghost" target="_blank" style="font-size:11px;padding-inline:6px"
-           :href="urlWaOperasional(`Halo pengurus, saya ${petugasAktif} di pos. Pembayaran tunai ini belum tersinkron: `
-             + pending.map(p => p.alamat).join(', '))">Hubungi pengurus</a>
       </div>
       <div v-for="p in pending" :key="p.id" class="spread" style="font-size:12px">
         <span>{{ p.alamat }} · {{ p.items.map(i => label(i.periode)).join(', ') }} ·
@@ -212,7 +186,7 @@ async function retryPending(p) {
           <div class="num" style="font-size:10.5px;letter-spacing:.06em;color:var(--color-accent-700)">{{ h.alamat }}</div>
           <div class="truncate" style="font-size:14px;font-weight:700">{{ h.nama }}</div>
           <div class="text-muted" style="font-size:11.5px">
-            {{ !h.tarifDiatur ? 'Tarif belum diatur — hubungi bendahara'
+            {{ !h.tarifDiatur ? 'Tarif belum diatur di M-RumahRiwayat'
                : h.tunggakan ? 'Belum: ' + ringkasBelum(h) : 'Lunas' }}
           </div>
         </div>
@@ -297,7 +271,7 @@ async function retryPending(p) {
         </div>
         <p v-else class="text-muted" style="font-size:12px;margin:0">Tidak ada tunggakan.</p>
         <p class="text-muted" style="font-size:11px;margin:0">
-          Iuran dibayar penuh per bulan. Pembayaran sebagian tidak dicatat di sini — arahkan ke bendahara.
+          Iuran dibayar penuh per bulan. Pembayaran sebagian tidak dicatat di sini.
         </p>
 
         <div class="spread" style="background:var(--color-bg);border-radius:var(--radius-md);
@@ -311,10 +285,6 @@ async function retryPending(p) {
         <Button block :disabled="submitting || !items.length" @click="catat">
           {{ submitting ? 'Mengirim…' : 'Catat & Kirim ke Sheet' }}
         </Button>
-        <a class="text-muted" target="_blank" style="text-align:center;font-size:11.5px"
-           :href="urlWaOperasional(`Halo pengurus, saya ${petugasAktif} di pos. Ada kendala mencatat tunai ${sel.alamat}: `)">
-          Ada kendala? <b style="color:var(--color-accent-700)">Hubungi pengurus via WhatsApp</b>
-        </a>
       </div>
     </div>
 

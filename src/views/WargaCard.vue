@@ -50,7 +50,7 @@ const me = computed(() => rumah.value.find((h) => h.alamat === key.value));
 
 // Each block gets its own color (admin-set in the Sheet, M-Blok — see
 // docs/sheets-schema.md `M-Blok`), applied to the card header here and to the house
-// badge in PosSatpam.vue.
+// badge in CatatTunai.vue / SemuaKartu.vue.
 const warnaKartu = computed(() =>
   (me.value && (blokWarna.value[String(me.value.blok)] || BLOK_WARNA_DEFAULT[String(me.value.blok)]))
   || '#c67139');
@@ -124,7 +124,7 @@ const label = (p) => labelBulan(p, TAHUN.value, BULAN);
 
 // ── Kartu per tahun ───────────────────────────────────────────────────────────
 // Status + tarif per month for any year come from src/lib/tagihan.js — the same
-// lookup Pos, Kas and /sum use; a past month is billed at the rate in force then.
+// lookup Catat Tunai, Kas and /sum use; a past month is billed at the rate in force then.
 // Past years run back to the house's first RumahRiwayat row (when billing
 // began), skipping years with no billed month at all — before the first
 // M-TarifVersi card nothing is owed, so such a year is all "—".

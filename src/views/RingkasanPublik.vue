@@ -164,8 +164,9 @@ useScrollLock(showDibayarDimuka);
       <!-- rincian hitungan, buat yang mau cross-check angkanya sendiri -->
       <div class="col" style="gap:6px;background:rgba(255,255,255,.06);border-radius:var(--radius-md);
            padding:var(--space-3) var(--space-4);font-size:12px">
-        <div class="spread" style="color:var(--color-neutral-300)">
-          <span>Kas tunai di pos</span>
+        <!-- tunai is the exception since Jan 2027 — the row only shows while some is held -->
+        <div v-if="kas > 0" class="spread" style="color:var(--color-neutral-300)">
+          <span>Kas tunai</span>
           <span class="num" style="font-weight:700;color:var(--color-neutral-100)">{{ rupiah(kas) }}</span>
         </div>
         <div class="spread" style="color:var(--color-neutral-300)">

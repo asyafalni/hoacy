@@ -1,5 +1,5 @@
 <script setup vapor>
-// PIN screen for the petugas-only routes (Pos, Kas). The PIN is checked by the
+// PIN screen for the pengurus-only routes (/kas…). The PIN is checked by the
 // server (Apps Script — src/server/core.js), which also locks out repeated wrong
 // guesses; nothing about it ships in this bundle. The accepted PIN is kept on
 // this device (useAuth) and sent with every request, so what the server returns
@@ -10,7 +10,7 @@ import { useAuth } from '../composables/useAuth';
 import Button from './ui/Button.vue';
 
 const props = defineProps({
-  role: { type: String, required: true },   // 'pos' | 'kas'
+  role: { type: String, required: true },   // 'kas'
   title: { type: String, required: true },
 });
 
@@ -50,7 +50,7 @@ async function coba() {
                 display:flex;align-items:center;justify-content:center;font-size:22px">🔒</div>
     <h4 style="margin:0">{{ title }}</h4>
     <p class="text-muted" style="font-size:12.5px;margin:0">
-      Khusus petugas (satpam / bendahara / admin / komite) — masukkan PIN akses.
+      Khusus pengurus (bendahara / admin / komite) — masukkan PIN akses.
     </p>
     <p v-if="ditolak === role && !pesan" class="text-muted" style="font-size:11.5px;margin:0">
       PIN yang tersimpan tidak lagi berlaku — masukkan PIN yang baru.

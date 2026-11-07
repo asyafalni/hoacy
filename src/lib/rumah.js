@@ -3,7 +3,7 @@ import { luasTipePada } from './tarifHistoris.js';
 
 // D-API's per-house block (docs/sheets-schema.md `D-API`, cols D..M) → one object
 // per active house, with status/tunggakan/tarif resolved from RumahRiwayat and
-// TarifVersi. Used by the browser (Warga/Pos/Kas screens) and by the Apps Script
+// TarifVersi. Used by the browser (Warga/Kas screens) and by the Apps Script
 // server (public aggregates), so both always agree. No `?.`/`??` — it also runs
 // in Apps Script (see tarifHistoris.js).
 const periodeSet = (v) => new Set(v ? String(v).split(',').map(Number).filter(Boolean) : []);

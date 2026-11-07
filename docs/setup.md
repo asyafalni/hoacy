@@ -63,7 +63,7 @@ Buat tab-tab ini, isi baris 1 dengan header persis seperti di
 | `M-RumahRiwayat` | Satu baris baseline per rumah: bulan **pertama yang dilacak di sistem ini** (bukan tahun dibangun) + luas + tipe. Lihat catatan di Tahap 8. |
 | `M-TarifVersi` | Satu set baris per versi tarif (format baris: komponen, luas_min, nominal). Kalau tarif pernah berubah selama 3 tahun data lama, masukkan **setiap versi** dengan bulan mulai berlakunya. |
 | `M-Blok` | Format kolom A sebagai *Plain text*, isi 10 blok + warna (contoh ada di dokumen). |
-| `M-Petugas` | Nama satpam (`satpam`) dan bendahara/admin (`bendahara`). |
+| `M-Petugas` | Nama bendahara/admin (`bendahara`). Baris `satpam` lama boleh dibiarkan — tidak dipakai lagi. |
 | `M-Opex` | Kategori biaya. Format kolom D: *Format → Number → Custom date and time* → `yyyy-mm-dd`. |
 | `M-SaldoAwal` | Header dulu; angkanya diisi di Tahap 8. |
 | `M-Impor2023` … `M-Impor2026` | Header saja dulu (alamat, bulan, nominal, tanggal_bayar — **tanpa kolom tahun**, tahunnya diambil dari nama tab). Pasang data validation sesuai dokumen. Satu tab per tahun, dari tahun baseline paling awal sampai **tahun go-live** (bulan-bulan sebelum go-live di tahun itu juga masuk sini). Kalau hanya melacak mulai 2026, cukup `M-Impor2026`. |
@@ -169,7 +169,7 @@ tarif contoh; sesuaikan angka di bawah kalau tarif Anda berbeda). Lalu lakukan, 
 
 | Langkah | Hasil yang diharapkan di `D-Pembayaran` |
 | --- | --- |
-| Isi Form A langsung: alamat `NBlvd-99`, rincian `202609=275000,202610=275000`, total `550000`, petugas nama satpam | 2 baris, metode `tunai`, keabsahan `sah` |
+| Isi Form A langsung: alamat `NBlvd-99`, rincian `202609=275000,202610=275000`, total `550000`, petugas nama bendahara | 2 baris, metode `tunai`, keabsahan `sah` |
 | Kirim Form A yang sama sekali lagi | 2 baris baru dengan keabsahan `dobel` |
 | Isi Form B: rincian `202611=275000`, total `999` + upload foto | 1 baris keabsahan `cek` |
 | Isi Form B: rincian `202611=275000`, total `275000` + upload | 1 baris `pending`; muncul juga di tab `D-Pending` |
@@ -191,7 +191,7 @@ saat sudah dipakai sungguhan).
 
 Spreadsheet **tetap privat**. App membacanya lewat satu Web App Apps Script yang
 menjalankan pemeriksaan PIN di server dan hanya mengirim data sesuai peran (warga:
-rumahnya saja; Pos: semua rumah tanpa nomor HP; Kas: semuanya; publik `/sum`: angka
+rumahnya saja; Kas: semuanya; publik `/sum`: angka
 agregat saja). Detailnya di `docs/sheets-schema.md` → *How the app reads the Sheet*.
 
 1. **Pastikan spreadsheet tidak publik.** *Share* → General access: **Restricted**
@@ -201,12 +201,13 @@ agregat saja). Detailnya di `docs/sheets-schema.md` → *How the app reads the S
    file ini juga sudah ada di repo).
 3. Di spreadsheet: **Extensions → Apps Script**. Hapus isi `Code.gs` bawaan,
    **paste seluruh isi `apps-script/Code.gs`**, lalu **Save** (Ctrl+S).
-4. **Project Settings (ikon ⚙) → Script Properties → Add script property**, dua kali:
+4. **Project Settings (ikon ⚙) → Script Properties → Add script property**:
 
    | Property | Isi |
    | --- | --- |
-   | `POS_PIN` | PIN layar Pos (dibagikan ke satpam) |
    | `KAS_PIN` | PIN layar Kas (dibagikan ke bendahara/komite) |
+
+   (`POS_PIN` lama — kalau ada — hapus saja; layar Pos sudah tidak ada.)
 
    PIN rumah tetap di `'M-Rumah'!G`. Jangan tulis PIN di `.env` atau di kode.
 5. **Deploy → New deployment** → ikon ⚙ di sebelah *Select type* → **Web app**:
@@ -225,7 +226,7 @@ agregat saja). Detailnya di `docs/sheets-schema.md` → *How the app reads the S
    ```
    curl -sL "<URL>"
    curl -sL -d '{"action":"publik"}' "<URL>"
-   curl -sL -d '{"action":"login","role":"pos","pin":"salah"}' "<URL>"
+   curl -sL -d '{"action":"login","role":"kas","pin":"salah"}' "<URL>"
    curl -sL -d '{"action":"warga","alamat":"N7-09","pin":"<PIN rumah>"}' "<URL>"
    ```
 
@@ -258,7 +259,7 @@ Catatan:
 
 1. Salin `.env.example` → `.env`.
 2. `VITE_API_URL` = Web app URL dari Tahap 6. (Dikosongkan, app jalan di data
-   mockup bawaan dengan PIN Pos `1234` dan Kas `5678` — hanya untuk mencoba tampilan.)
+   mockup bawaan dengan PIN Kas `5678` — hanya untuk mencoba tampilan.)
 3. Untuk tiap Form: buka **Send → link (🔗)** → URL berbentuk
    `https://docs.google.com/forms/d/e/<ID>/viewform` → `<ID>` itu yang diisi ke
    `VITE_FORM_…`.
@@ -267,8 +268,8 @@ Catatan:
    `entry.123456789=…` untuk tiap pertanyaan, berurutan → isi ke `VITE_E_…`
    sesuai urutan pertanyaan.
 5. `npm install && npm run dev`, buka http://localhost:5173 dan coba: kartu warga
-   (alamat + PIN rumah), catat tunai di `/#/pos` (PIN dari `POS_PIN`), lihat
-   `/#/kas` (PIN dari `KAS_PIN`) dan `/#/sum`. Setelah mencatat tunai, barisnya
+   (alamat + PIN rumah), `/#/kas` (PIN dari `KAS_PIN`) → *Catat pembayaran tunai*,
+   dan `/#/sum`. Setelah mencatat tunai, barisnya
    masuk ke tab `L-Tunai`; status di app menyusul beberapa detik kemudian.
 
 ---
@@ -313,7 +314,7 @@ Catatan:
    `VITE_BASE` dikosongkan. Build menolak jalan kalau ada yang kosong.
 2. `fly auth login` (sekali per komputer), lalu `fly apps create iuran-cypress`
    (atau nama lain — samakan `app` di `fly.toml`), lalu `fly deploy --ha=false`.
-3. Buka `https://iuran-cypress.fly.dev`, coba `/#/sum`, kartu warga, Pos, dan Kas.
+3. Buka `https://iuran-cypress.fly.dev`, coba `/#/sum`, kartu warga, dan Kas.
 
 **Tentukan domain sebelum mencetak QR** — QR tiap rumah berisi alamat situs saat
 dicetak. Detail dan cara pasang domain sendiri: `docs/deploy.md`.
@@ -322,8 +323,9 @@ dicetak. Detail dan cara pasang domain sendiri: `docs/deploy.md`.
 
 ## Tahap 10 — Rollout
 
-1. **Petugas**: bagikan link `/#/pos` ke satpam dan `/#/kas` ke bendahara, beserta
-   PIN-nya. Tiap orang memilih namanya sekali per HP.
+1. **Pengurus**: bagikan link `/#/kas` ke bendahara beserta PIN-nya. Tiap orang
+   memilih namanya sekali per HP. Warga membayar lewat transfer; kalau ada yang
+   menyerahkan tunai, bendahara mencatatnya di *Kas → Catat pembayaran tunai*.
 2. **Warga**: dari `/kas` → *Cetak QR per rumah* → cetak dan tempel, atau kirim
    link kartu via WhatsApp dari *Lihat semua kartu rumah*. PIN default = 3 digit
    terakhir no. HP; bisa diganti per rumah di `'M-Rumah'!G`.

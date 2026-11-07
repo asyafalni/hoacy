@@ -117,7 +117,7 @@ wrong guesses); it is never sent to the browser.
 
 ### Menonaktifkan rumah
 
-An inactive house vanishes from the Warga login, Pos, Kas, Semua Kartu and every
+An inactive house vanishes from the Warga login, Kas, Catat Tunai, Semua Kartu and every
 cluster total — while all its rows in every other tab stay for audit. Only two
 situations call for it:
 
@@ -238,21 +238,21 @@ A5: 3     B5: #1baf7a     A10: 9  B10: #e34948
 A6: 5     B6: #eda100     A11: 10 B11: #0F86A3
 ```
 
-Colors the Warga card header and the Pos/Semua Kartu house badges. A missing row
+Colors the Warga card header and the Catat Tunai/Semua Kartu house badges. A missing row
 falls back to `BLOK_WARNA_DEFAULT` in `src/lib/tariff.js`. Format column A as plain
 text so `7` and `Blvd` are read the same way.
 
 ---
 
-## `M-Petugas` — who may use Pos or Kas
+## `M-Petugas` — who may use Kas
 
 | Col | Header | Notes |
 | --- | --- | --- |
 | A | nama | e.g. `Ujang` |
-| B | peran | `satpam` or `bendahara` |
+| B | peran | `bendahara` (old `satpam` rows may stay — nothing reads them since the Pos screen was removed) |
 
-The Pos/Kas PINs (Script Properties `POS_PIN` / `KAS_PIN`, `docs/setup.md` Tahap 6)
-are shared per role and only open the screen; the app then makes each person pick
+The Kas PIN (Script Property `KAS_PIN`, `docs/setup.md` Tahap 6) is shared and
+only opens the screen; the app then makes each person pick
 their own name from here (once per
 device), so `'L-Tunai'!petugas`, `'L-Keputusan'!oleh` and `'L-Setoran'!oleh` record who
 actually acted.
@@ -334,7 +334,12 @@ import for it: every month from that row on counts as owed until paid.
 
 Form setup and entry ids: `docs/form-mapping.md`.
 
-## `L-Tunai` — cash received by the satpam (Form A)
+## `L-Tunai` — cash received in person (Form A)
+
+Since January 2027 residents pay by transfer; the occasional cash payment is
+recorded by the bendahara on *Kas → Catat pembayaran tunai* (`/kas/tunai`). Rows from
+the old satpam Pos screen stay and keep counting.
+
 
 | Col | Header |
 | --- | --- |
@@ -342,7 +347,7 @@ Form setup and entry ids: `docs/form-mapping.md`.
 | B | alamat |
 | C | rincian — `202607=360000,202609=360000` |
 | D | total |
-| E | petugas — a `M-Petugas` name (peran `satpam`) |
+| E | petugas — the `M-Petugas` name who received it (a bendahara; older rows a satpam) |
 
 ## `L-Transfer` — transfer confirmed by a resident (Form B)
 
@@ -375,7 +380,7 @@ resident can't edit.
 - **Transfer**: `pending` until a `sah` (verified against the bukti) or `tolak`
   (rejected — the resident resubmits).
 - **Tunai**: `sah` on arrival; a `tolak` voids a mistaken entry (wrong house or
-  month) so the satpam can record it again correctly.
+  month) so it can be recorded again correctly.
 - A rejected/voided submission's months go back to *Belum* and can be paid again.
 - The **latest** decision for a submission wins, so a mistaken `tolak` is undone
   with a new `sah`.
@@ -649,12 +654,11 @@ reads these tabs, and answers per role:
 | --- | --- | --- |
 | `publik` (`/sum`) | nothing | aggregates only — computed server-side, no house row, name, phone or proof link |
 | `warga` | alamat + that house's PIN | that one house's `D-API` row and `M-RumahRiwayat` rows, plus `M-TarifVersi`, `M-Blok` |
-| `pos` | `POS_PIN` | every active house (no phone, no PIN), `M-RumahRiwayat`, `M-TarifVersi`, `M-Blok`, the satpam names |
-| `kas` | `KAS_PIN` | the same plus phone numbers, `D-API`'s balances, `D-Pending`, `D-KasMasuk`, the bendahara names |
+| `kas` | `KAS_PIN` | every active house with phone numbers (never PINs), `M-RumahRiwayat`, `M-TarifVersi`, `M-Blok`, `D-API`'s balances, `D-Pending`, `D-KasMasuk`, the bendahara names |
 | `kasTahun` | `KAS_PIN` | one dues year's summary, from that year's `D-Iuran<tahun>` |
 
 Unknown house, deactivated house and wrong PIN all answer the same, so addresses
-can't be enumerated; 5 wrong PINs lock a house (and 10 a petugas role) for 15
+can't be enumerated; 5 wrong PINs lock a house (and 10 the Kas PIN) for 15
 minutes. PINs are Script Properties, so none ship in the site's JavaScript. The
 server returns raw tab rows and the app derives status/tunggakan itself with the
 same `src/lib/` code the server uses for `/sum`, so the two always agree.
@@ -662,7 +666,7 @@ same `src/lib/` code the server uses for `/sum`, so the two always agree.
 The server reads values the way a human sees them (`getValues`): numbers stay
 numbers, dates become `yyyy-MM-dd` text, empty cells become `null`. Public
 aggregates are cached for 60 seconds; every other call reads the Sheet live. After
-a cash payment the Pos screen keeps a local pending entry until a re-fetch confirms
+a cash payment the Catat Tunai screen keeps a local pending entry until a re-fetch confirms
 it (`usePendingSync.js`), and the Kas Verifikasi/Tolak/Batalkan buttons stay disabled
 until the submission's new status shows up.
 

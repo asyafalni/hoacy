@@ -1,4 +1,4 @@
-// Single source for the destination account shown on Kartu/Pos/Kas — change it here.
+// Single source for the destination account shown on Kartu/Kas — change it here.
 export const REKENING = { bank: 'BRI', nomor: '038401002159562', nama: 'Cluster The Cypress' };
 
 export const rupiah = (n) =>
@@ -14,7 +14,7 @@ export const rupiahPendek = (n) => {
 export const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
   'Agustus','September','Oktober','November','Desember'];
 
-// Every block in Cluster N. Shared by the warga login picker and the Pos blok filter.
+// Every block in Cluster N. Shared by the warga login picker and the house-list blok filters.
 export const BLOK_LIST = ['Blvd', '1', '2', '3', '5', '6', '7', '8', '9', '10'];
 
 // Fallback only — the real source is the Blok tab (docs/sheets-schema.md `M-Blok`),

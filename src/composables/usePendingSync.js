@@ -1,13 +1,13 @@
 import { ref, computed } from 'vue';
 
 // submitTunai's response is opaque (no-cors) — we never actually know if a Form
-// POST landed. Persisting each attempt here means a network hiccup at the pos,
+// POST landed. Persisting each attempt here means a network hiccup,
 // or a reload/crash, doesn't silently lose uncollected-looking cash:
 // reconcile() clears a transaction only once the next Sheet refetch shows
 // every month in it as sah for that house. A retry that duplicates a POST
 // which actually did land is harmless — the Sheet marks the second copy
 // `dobel` and counts it once (docs/sheets-schema.md `D-Pembayaran`).
-const KEY = 'iuran.pending.pos.v2';
+const KEY = 'iuran.pending.pos.v2';   // name kept from the old Pos screen — renaming would drop unsynced rows
 
 function read() {
   try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }

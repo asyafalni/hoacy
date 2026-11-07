@@ -20,14 +20,15 @@ No server: **Google Sheet is the database**, **Google Form is the write endpoint
 
 1. **Read** — the Sheet is private. The site calls one **Apps Script web app**
    (`apps-script/Code.gs`) that checks the PIN and returns each role only its own
-   slice: a resident gets their own house, Pos the houses without phone numbers,
-   Kas everything, and the public `/sum` page only aggregates. The Sheet splits
+   slice: a resident gets their own house, Kas everything, and the public `/sum` page only aggregates. The Sheet splits
    Form answers into one row per paid month and computes the kas/rekening
    balances; the app computes everything else — each house's status and
    tunggakan across all years, aging, a house's tarif for any month
    (`src/lib/tagihan.js`, shared with the server).
 2. **Write** — every action submits a **prefilled Google Form**:
-   satpam records cash, warga confirms a transfer, bendahara verifies/rejects or deposits.
+   warga confirms a transfer; the bendahara records the occasional cash payment,
+   verifies/rejects, or deposits. (Since Jan 2027 transfer is the default; the satpam
+   Pos screen is gone.)
    Form responses are an append-only ledger — nothing is ever edited; a change
    (a verification, a bigger house, a new rate) is always a new row. A month is
    always paid in full — there are no partial payments in the system.
@@ -56,17 +57,16 @@ and is what every other tab, the Form prefill, and the per-house QR link referen
 | Route | Who | Does |
 | --- | --- | --- |
 | `/` | Warga | enter blok + house no (no login), see the 12-month card for any year, confirm one transfer for any months with proof |
-| `/pos` | Satpam | search house, pick owed months (any year), record cash |
-| `/kas` | Bendahara | Kas Tunai vs Rekening, Setor ke Bank, verify/reject transfers, void mistaken cash entries, print QR (`/kas/qr`), browse every house's card (`/kas/rumah`) |
+| `/kas` | Bendahara | Rekening (+ Kas Tunai and Setor ke Bank while cash is held), record cash a resident handed over (`/kas/tunai`), verify/reject transfers, void mistaken cash entries, print QR (`/kas/qr`), browse every house's card (`/kas/rumah`) |
 | `/sum` | Public — anyone | cluster-wide aggregates only: collected vs target this month, surplus/deficit vs OPEX. No PIN, no per-house or per-block numbers — see the PDP note in `RingkasanPublik.vue` |
 
-`/pos` and `/kas` are cash/money-handling screens, so they are **not** in the public
-nav — only `/` is. Petugas (satpam, bendahara, admin, the relevant komite) open
-`/pos` or `/kas` from a bookmarked link and unlock it with a PIN (Script Properties
-`POS_PIN` / `KAS_PIN`, remembered per device after the first entry). The server
+`/kas` is the money-handling screen, so it is **not** in the public nav — only `/`
+is. Pengurus (bendahara, admin, the relevant komite) open `/kas` from a bookmarked
+link and unlock it with a PIN (Script Property `KAS_PIN`, remembered per device
+after the first entry). An old `/pos` bookmark lands on `/`. The server
 checks the PIN and only then sends the data, so — unlike a client-side gate — it is
 real access control (rate-limited against guessing); it also keeps warga from wandering
-into a cash-recording screen by accident. See `PinGate.vue`.
+into the Kas screen by accident. See `PinGate.vue`.
 
 Design reference: the `Iuran Warga - Cluster N v2` design component in this project.
 Visual language: the Organic design system (`src/assets/tokens.css` is its token sheet).

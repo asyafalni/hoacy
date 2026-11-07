@@ -11,7 +11,8 @@ const tulis = (k, v) => {
   try { v ? localStorage.setItem(BASE + k, v) : localStorage.removeItem(BASE + k); } catch { /* private mode */ }
 };
 
-const pins = ref({ pos: baca('pos'), kas: baca('kas') });
+const pins = ref({ kas: baca('kas') });
+tulis('pos', '');   // the old satpam PIN — that role no longer exists
 /** A role whose remembered PIN the server just refused ("PIN diganti"). */
 const ditolak = ref('');
 

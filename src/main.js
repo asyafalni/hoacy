@@ -6,8 +6,11 @@ import App from './App.vue';
 
 const routes = [
   { path: '/',          name: 'warga',      component: () => import('./views/WargaCard.vue') },
-  { path: '/pos',       name: 'pos',        component: () => import('./views/PosSatpam.vue') },
+  // the satpam's Pos screen is gone (cash is recorded by the bendahara on
+  // /kas/tunai) — an old bookmark lands on the warga page instead of a blank one
+  { path: '/pos',       redirect: '/' },
   { path: '/kas',       name: 'bendahara',  component: () => import('./views/Bendahara.vue') },
+  { path: '/kas/tunai', name: 'catat-tunai', component: () => import('./views/CatatTunai.vue') },
   { path: '/kas/qr',    name: 'cetak-qr',   component: () => import('./views/CetakQR.vue') },
   { path: '/kas/rumah', name: 'semua-kartu', component: () => import('./views/SemuaKartu.vue') },
   { path: '/sum',       name: 'ringkasan',  component: () => import('./views/RingkasanPublik.vue') },
