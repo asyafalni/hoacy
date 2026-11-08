@@ -51,21 +51,29 @@ func env(k, bawaan string) string {
 }
 
 func jalan(log *slog.Logger) error {
-	produksi := env("APP_ENV", "production") != "development"
+	// production: everything required. staging: a test deploy — Clerk and a real
+	// session secret like production, but Google may be missing (proofs on a local
+	// volume, sync from CSV). development: no Clerk either (X-Dev-Email).
+	mode := env("APP_ENV", "production")
+	if mode != "production" && mode != "staging" && mode != "development" {
+		return fmt.Errorf("APP_ENV %q tidak dikenal (production / staging / development)", mode)
+	}
+	produksi := mode == "production"
+	ketat := mode != "development"
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// ── settings that must be right before anything starts ──
 	secret := os.Getenv("SESSION_SECRET")
 	if len(secret) < 32 {
-		if produksi {
+		if ketat {
 			return errors.New("SESSION_SECRET wajib, minimal 32 karakter acak")
 		}
 		secret = "dev-only-session-secret-not-for-production!"
 	}
 	clerkKey := os.Getenv("CLERK_SECRET_KEY")
-	if produksi && clerkKey == "" {
-		return errors.New("CLERK_SECRET_KEY wajib di produksi")
+	if ketat && clerkKey == "" {
+		return errors.New("CLERK_SECRET_KEY wajib di produksi dan staging")
 	}
 
 	// ── database ──
@@ -111,7 +119,7 @@ func jalan(log *slog.Logger) error {
 		if dir := os.Getenv("SHEET_CSV_DIR"); dir != "" {
 			sumber = sinkron.CSV{Dir: dir}
 		}
-		log.Warn("mode pengembangan: bukti disimpan di folder lokal", "dir", env("BERKAS_DIR", "berkas-lokal"))
+		log.Warn("tanpa Google: bukti disimpan di folder lokal", "dir", env("BERKAS_DIR", "berkas-lokal"))
 	}
 
 	// ── who is a pengurus ──
@@ -171,7 +179,7 @@ func jalan(log *slog.Logger) error {
 		engine.Shutdown(c)
 		engine.Close()
 	}()
-	log.Info("siap", "addr", addr, "produksi", produksi)
+	log.Info("siap", "addr", addr, "mode", mode)
 	return engine.Run()
 }
 

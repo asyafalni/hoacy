@@ -25,6 +25,18 @@ RUN go mod download
 COPY backend ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
+# Test deploy on Fly (fly.beta.toml): the same server, plus the CSV "Sheet" for
+# sync without Google, running as root so it can write proofs to a Fly volume.
+# Never the production image — that is the last stage below.
+FROM gcr.io/distroless/static-debian12 AS staging
+WORKDIR /app
+COPY --from=api /out/server /app/server
+COPY --from=web /app/dist /app/web
+COPY --from=api /src/dev/sheet /app/contoh-sheet
+ENV APP_ENV=staging WEB_DIR=/app/web PORT=8080 SHEET_CSV_DIR=/app/contoh-sheet BERKAS_DIR=/data/berkas
+EXPOSE 8080
+ENTRYPOINT ["/app/server"]
+
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=api /out/server /app/server

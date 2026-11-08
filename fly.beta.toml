@@ -1,0 +1,37 @@
+# Test deploy of the Go/Postgres version (feature/go-backend), next to v0.1.0
+# (iuran-cypress). Database: cypress_staging on the Aiven service. Secrets via
+# `fly secrets set -c fly.beta.toml`: DATABASE_URL, SESSION_SECRET,
+# CLERK_SECRET_KEY, BOOTSTRAP_ADMIN_EMAIL. Deploy:
+#   fly deploy -c fly.beta.toml --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_test_… \
+#     --build-arg VITE_WA_OPERASIONAL=62…
+app = "iuran-cypress-beta"
+primary_region = "sin"   # closest Fly region to Aiven's blr
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "staging"
+
+[env]
+  IP_HEADER = "fly-client-ip"
+
+[mounts]
+  source = "berkas"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/api/sehat"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

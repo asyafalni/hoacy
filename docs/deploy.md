@@ -65,3 +65,18 @@ allowlist isn't practical; keep the password strong and rotate it if it leaks.
   and the operational WhatsApp number are there, both public by design.
 - Master-data changes, verdicts and syncs are attributed to a named pengurus
   (`audit`, `keputusan.oleh`, `sinkron_log`).
+
+## Test deploy on Fly (before DigitalOcean)
+
+`fly.beta.toml` runs this version at **iuran-cypress-beta.fly.dev**, next to
+v0.1.0 (`iuran-cypress`), in region `sin` (Fly has no India region). It builds
+the Dockerfile's `staging` target: `APP_ENV=staging` needs Clerk and
+`SESSION_SECRET` like production, but works without Google — proofs go to the
+Fly volume `berkas` (`/data`) and Admin → Sinkron reads the bundled CSV "Sheet"
+(`backend/dev/sheet`). Database: `cypress_staging` on the same Aiven service,
+seeded with `go run ./cmd/sinkron -csv dev/sheet -terapkan -snapshot`.
+
+```sh
+fly secrets set -c fly.beta.toml DATABASE_URL=… SESSION_SECRET=… CLERK_SECRET_KEY=sk_test_… BOOTSTRAP_ADMIN_EMAIL=…
+fly deploy -c fly.beta.toml --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_test_… --build-arg VITE_WA_OPERASIONAL=62…
+```
