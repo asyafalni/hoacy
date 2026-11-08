@@ -106,7 +106,7 @@ const KOMPONEN = { islk_rumah: 'ISLK rumah (≥ luas)', islk_kavling: 'ISLK kavl
 
 // ── Pengurus ──
 const pengurus = ref([]);
-const formPengurus = ref({ email: '', nama: '', peran: 'bendahara', aktif: true, undang: true });
+const formPengurus = ref({ email: '', nama: '', peran: 'bendahara', aktif: true, undang: false });
 async function muatPengurus() { pengurus.value = (await A('/api/admin/pengurus')).pengurus; }
 const simpanPengurus = () => jalan(async () => {
   const f = formPengurus.value;
@@ -114,7 +114,7 @@ const simpanPengurus = () => jalan(async () => {
     body: { nama: f.nama, peran: f.peran, aktif: f.aktif, undang: f.undang } });
   await muatPengurus();
   ok.value = r.undanganTerkirim ? 'Disimpan, undangan email terkirim.' : 'Disimpan.';
-  formPengurus.value = { email: '', nama: '', peran: 'bendahara', aktif: true, undang: true };
+  formPengurus.value = { email: '', nama: '', peran: 'bendahara', aktif: true, undang: false };
 });
 const ubahPengurus = (p) => { formPengurus.value = { ...p, undang: false }; };
 
@@ -313,7 +313,7 @@ const baris = 'padding:7px 0;border-top:1px solid var(--color-divider);font-size
             <option value="bendahara">Bendahara</option><option value="komite">Komite (lihat saja)</option><option value="admin">Admin</option>
           </select>
           <label class="radio"><input type="checkbox" v-model="formPengurus.aktif"> Aktif</label>
-          <label class="radio"><input type="checkbox" v-model="formPengurus.undang"> Kirim undangan email</label>
+          <label class="radio"><input type="checkbox" v-model="formPengurus.undang"> Kirim undangan email (opsional — atau buat user di dashboard Clerk)</label>
         </div>
         <Button :disabled="sibuk || !formPengurus.email || !formPengurus.nama" @click="simpanPengurus">Simpan</Button>
       </Card>

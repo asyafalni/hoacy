@@ -52,8 +52,9 @@ books. The earlier Google Sheet + Apps Script + Google Forms version is tagged
 | `/kas/admin` | Admin | houses + luas history, rate cards, block colors, pengurus + invitations, Sheet sync, security log, audit |
 | `/sum` | Anyone | cluster-wide aggregates only — no house rows (PDP) |
 
-**Roles** (`pengurus` table, by email; sign-in with Clerk, invitation only):
+**Roles** (`pengurus` table, by email; sign-in with Google via Clerk, no self sign-up):
 admin — everything; bendahara — the money actions; komite — read only.
+Sign-in is Google only; the superadmin registers each pengurus (Clerk user + this table).
 
 **Warga PIN**: default the last 6 digits of the registered phone, changeable from
 the card. Every attempt is logged; a house locks for 15 min after 5 misses, 1 h

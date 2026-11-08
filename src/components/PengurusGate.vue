@@ -65,7 +65,7 @@ async function keluar() {
 
     <template v-else>
       <p class="text-muted" style="font-size:12.5px;margin:0;max-width:300px">
-        Khusus pengurus (bendahara / admin / komite). Masuk dengan akun yang diundang admin.
+        Khusus pengurus (bendahara / admin / komite). Masuk dengan akun Google yang sudah didaftarkan admin.
       </p>
       <!-- Clerk renders its sign-in form here -->
       <div v-if="!modeDev" ref="kotakMasuk"></div>

@@ -36,17 +36,28 @@ Di komputer (untuk Tahap 4 dan `google-login`): Go ≥ 1.27.3, Node 22, Docker.
 ## Tahap 2 — Clerk (login pengurus)
 
 1. clerk.com → **Create application** → nama "Iuran Cypress". Pilihan masuk:
-   **Email** (kode lewat email) — boleh tambah **Google**.
-2. **Configure → Restrictions → Sign-up mode: Restricted.** Hanya orang yang
-   diundang yang bisa membuat akun. (Admin mengundang dari app: Kas → Admin →
-   Pengurus → centang *Kirim undangan email*.)
+   **hanya Google** — matikan Email, Password, dan cara lain
+   (**Configure → User & authentication**).
+2. **Configure → Restrictions → Sign-up mode: Restricted.** Tidak ada yang bisa
+   daftar sendiri. Superadmin mendaftarkan setiap pengurus:
+   - **Clerk → Users → Create user** dengan alamat Gmail pengurus. Saat dia
+     pertama kali *Sign in with Google* dengan Gmail yang sama, Clerk
+     menyambungkannya ke user itu; dan
+   - **Kas → Admin → Pengurus**: email yang sama + nama + peran. (Centang *Kirim
+     undangan email* hanya kalau ingin Clerk mengirim tautan undangan sebagai
+     ganti Create user.)
 3. **Configure → API keys**: salin **Publishable key** (`pk_test_…`) dan **Secret
    key** (`sk_test_…`).
    - `pk_…` = publik → `VITE_CLERK_PUBLISHABLE_KEY` (build frontend).
    - `sk_…` = rahasia → `CLERK_SECRET_KEY` (backend).
-4. Sementara memakai *development instance*. Saat domain siap: **Create
-   production instance**, ikuti record DNS yang diminta Clerk, lalu ganti kedua
-   kunci ke `pk_live_…`/`sk_live_…` (Tahap 6).
+4. Sementara memakai *development instance* (Google memakai kredensial bersama
+   Clerk — cukup untuk tes). Saat domain siap: **Create production instance**,
+   ikuti record DNS yang diminta Clerk, lalu ganti kedua kunci ke
+   `pk_live_…`/`sk_live_…` (Tahap 6). Instance production **wajib kredensial
+   Google sendiri**: di project Google Cloud akun RT (Tahap 3) buat *OAuth client
+   ID → Web application* dengan *Authorized redirect URI* yang ditampilkan Clerk
+   (**SSO connections → Google → Use custom credentials**), lalu tempel Client ID
+   dan secret-nya di Clerk.
 
 Login Clerk hanya memastikan *siapa* orangnya. *Haknya* ditentukan tabel
 `pengurus` di database (admin / bendahara / komite) — email yang tidak terdaftar
@@ -123,8 +134,8 @@ rahasia (terenkripsi), deploy, buka `/api/sehat`.
    perbaiki di Sheet, sinkron ulang tab itu.
 4. **Admin → Sinkron → Opex & Saldo Awal → Muat ulang sekarang** (selanjutnya
    otomatis tiap hari).
-5. **Pengurus**: Admin → Pengurus → tambah email + nama + peran, centang *Kirim
-   undangan email*.
+5. **Pengurus**: untuk setiap orang, Clerk → Users → Create user (Gmail-nya),
+   lalu Admin → Pengurus → email yang sama + nama + peran.
 6. **Data sensitif di Sheet**: setelah sinkron `M-Rumah` beres, kosongkan kolom
    **telp** dan **pin** di Sheet — datanya sekarang hanya di database.
 7. **Domain + Clerk production** (Tahap 2.4), lalu **cetak QR** (Kas → Cetak QR) —
