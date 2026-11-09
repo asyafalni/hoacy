@@ -5,15 +5,16 @@ import { VitePWA } from 'vite-plugin-pwa';
 // Vue Vapor: no virtual DOM. Every SFC in this app is <script setup vapor>.
 // The plain "vue" package export (vue.runtime.esm-bundler.js) doesn't include
 // the vapor runtime at all — createApp() silently falls back to a vdom root and
-// warns "vapor-in-vdom interop was not installed". Alias to the build that has it.
-export default defineConfig({
+// warns "vapor-in-vdom interop was not installed". Alias to the build that has it
+// — the .prod one for `vite build` (no dev warnings/checks, smaller).
+export default defineConfig(({ command }) => ({
   base: process.env.VITE_BASE || '/',
   resolve: {
-    alias: { vue: 'vue/dist/vue.runtime-with-vapor.esm-browser.js' },
+    alias: { vue: `vue/dist/vue.runtime-with-vapor.esm-browser${command === 'build' ? '.prod' : ''}.js` },
   },
   // `npm run dev` talks to the Go backend (backend/, `go run ./cmd/server`)
   server: { proxy: { '/api': process.env.API_DEV || 'http://localhost:8080' } },
-  // Clerk (pengurus sign-in, ~4 MB) gets its own chunk: only /kas pages load
+  // Clerk (pengurus sign-in, ~1.6 MB) gets its own chunk: only /kas pages load
   // it, and it stays out of the offline precache — signing in needs a network anyway.
   build: {
     rollupOptions: {
@@ -47,4 +48,4 @@ export default defineConfig({
       },
     }),
   ],
-});
+}));

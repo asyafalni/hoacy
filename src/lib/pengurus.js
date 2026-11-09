@@ -18,9 +18,10 @@ let memuat = null;
 export function muatClerk() {
   if (modeDev) return Promise.resolve(null);
   if (!memuat) {
-    memuat = Promise.all([import('@clerk/clerk-js'), import('@clerk/localizations/id-ID')]).then(async ([{ Clerk }, { idID }]) => {
+    // headless: sign-in itself is Clerk's hosted page (PengurusGate)
+    memuat = import('@clerk/clerk-js').then(async ({ Clerk }) => {
       clerk = new Clerk(KUNCI);
-      await clerk.load({ localization: idID });
+      await clerk.load();
       return clerk;
     });
   }

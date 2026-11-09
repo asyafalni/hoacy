@@ -1,23 +1,26 @@
 <script setup vapor>
-// Sign-in for the pengurus-only routes (/kas…). Production signs in with Clerk
-// (invitation only — the admin adds people in Kas → Admin → Pengurus); the
+// Sign-in for the pengurus-only routes (/kas…). Production signs in with Google
+// through Clerk (no self sign-up — the superadmin registers each pengurus); the
 // server then checks the session and the pengurus table, so what renders in
 // the slot is only what the server agreed to send. Local development (no
 // Clerk key) asks for an email instead, which only a development backend accepts.
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import { modeDev, muatClerk, emailDev, setEmailDev, keluarPengurus } from '../lib/pengurus';
 import { useSaya } from '../composables/useKas';
 import Button from './ui/Button.vue';
 
 const { saya, status, cekSaya } = useSaya();
-const kotakMasuk = ref(null);
 const inputEmail = ref(emailDev.value);
+const mengalihkan = ref(false);
 let clerk = null;
 
-async function tampilkanMasuk() {
-  if (modeDev) return;
-  await nextTick();
-  if (clerk && kotakMasuk.value) clerk.mountSignIn(kotakMasuk.value, { signUpUrl: undefined });
+// Sign-in happens on Clerk's hosted page (Google only), which sends the user
+// back here. Clerk's embedded <SignIn> reads the URL #hash for its own steps,
+// and this app routes by #hash too (#/kas) — so it is not embedded.
+async function masukGoogle() {
+  mengalihkan.value = true;
+  const c = clerk || await muatClerk();
+  await c.redirectToSignIn({ signInForceRedirectUrl: location.href, signUpForceRedirectUrl: location.href });
 }
 
 onMounted(async () => {
@@ -25,13 +28,11 @@ onMounted(async () => {
   clerk = await muatClerk();
   clerk.addListener(({ session }) => {
     if (session && status.value !== 'masuk') cekSaya();
-    if (!session) { saya.value = null; status.value = 'perlu-masuk'; tampilkanMasuk(); }
+    if (!session) { saya.value = null; status.value = 'perlu-masuk'; }
   });
   if (clerk.session) cekSaya();
-  else { status.value = 'perlu-masuk'; tampilkanMasuk(); }
+  else status.value = 'perlu-masuk';
 });
-
-watch(status, (s) => { if (s === 'perlu-masuk') tampilkanMasuk(); });
 
 function masukDev() {
   setEmailDev(inputEmail.value.trim().toLowerCase());
@@ -67,8 +68,9 @@ async function keluar() {
       <p class="text-muted" style="font-size:12.5px;margin:0;max-width:300px">
         Khusus pengurus (bendahara / admin / komite). Masuk dengan akun Google yang sudah didaftarkan admin.
       </p>
-      <!-- Clerk renders its sign-in form here -->
-      <div v-if="!modeDev" ref="kotakMasuk"></div>
+      <Button v-if="!modeDev" :disabled="mengalihkan" @click="masukGoogle">
+        {{ mengalihkan ? 'Membuka…' : 'Masuk dengan Google' }}
+      </Button>
       <template v-else>
         <p class="text-muted" style="font-size:11px;margin:0">Mode pengembangan — tanpa Clerk.</p>
         <input class="input" v-model="inputEmail" type="email" placeholder="email pengurus"
